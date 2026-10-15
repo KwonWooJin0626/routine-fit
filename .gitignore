@@ -23,6 +23,3 @@ coverage/
 outputs/
 npm-debug.log*
 .DS_Store
-
-.vercel
-.env*
