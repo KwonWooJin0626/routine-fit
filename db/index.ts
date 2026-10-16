@@ -8,7 +8,10 @@ let database: ReturnType<typeof createDatabase> | undefined;
 function createDatabase() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL is required.");
-  const pool = new Pool({ connectionString, max: 5, connectionTimeoutMillis: 10000, idleTimeoutMillis: 10000 });
+  // Keep certificate + hostname verification explicit across pg upgrades.
+  const verifiedUrl = new URL(connectionString);
+  verifiedUrl.searchParams.set("sslmode", "verify-full");
+  const pool = new Pool({ connectionString: verifiedUrl.toString(), max: 5, connectionTimeoutMillis: 10000, idleTimeoutMillis: 10000 });
   attachDatabasePool(pool);
   return drizzle(pool, { schema });
 }

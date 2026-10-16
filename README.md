@@ -22,6 +22,7 @@ GitHub `main` 브랜치는 Vercel 프로젝트에 연결되어 변경 시 자동
 React 19 + TypeScript → Next.js 16 App Router → Clerk 세션 검증 → Drizzle ORM / pg → Neon Postgres
 
 Vercel Functions와 DB는 Singapore 리전을 사용합니다. 운영 DB와 개발/미리보기 DB는 분리되어 있습니다.
+DB 연결은 TLS 인증서·호스트 이름 검증(`sslmode=verify-full`)을 명시합니다.
 추천은 기존 규칙 기반 엔진이며, LLM 호출이나 영양 결핍 진단을 구현한 것은 아닙니다.
 
 ## 로컬 실행
