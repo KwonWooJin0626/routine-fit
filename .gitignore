@@ -21,5 +21,8 @@ private-uploads/
 backups/
 coverage/
 outputs/
+work/
+next-env.d.ts
+.neon
 npm-debug.log*
 .DS_Store

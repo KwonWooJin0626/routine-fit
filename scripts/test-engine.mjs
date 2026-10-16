@@ -1,0 +1,9 @@
+import { build } from "esbuild";
+import { spawnSync } from "node:child_process";
+import fs from "node:fs/promises";
+
+const files = ["engine", "planner", "state-api"];
+await fs.mkdir("outputs/tests", { recursive: true });
+await build({ entryPoints: files.map(name => `tests/${name}.test.ts`), bundle: true, external: ["react", "react-dom", "lucide-react"], platform: "node", format: "esm", outdir: "outputs/tests", outExtension: { ".js": ".mjs" } });
+const result = spawnSync(process.execPath, ["--test", ...files.map(name => `outputs/tests/${name}.test.mjs`)], { stdio: "inherit" });
+process.exitCode = result.status ?? 1;

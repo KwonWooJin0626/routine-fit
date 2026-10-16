@@ -1,0 +1,8 @@
+outputs/
+data-exports/
+private-uploads/
+backups/
+work/
+.env*
+!.env.example
+tests/
