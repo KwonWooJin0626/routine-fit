@@ -3,6 +3,10 @@
 질문과 오늘의 컨디션을 바탕으로 실행 가능한 건강 루틴을 제안하는 React 웹서비스입니다.
 기존 화면·추천 엔진·주간/하루 계획 기능을 Next.js로 이전하고, Clerk 인증과 Neon Postgres 계정별 저장을 연결했습니다.
 
+서비스: [routine-fit-seven.vercel.app](https://routine-fit-seven.vercel.app/)
+
+GitHub `main` 브랜치는 Vercel 프로젝트에 연결되어 변경 시 자동 배포됩니다.
+
 ## 핵심 기능
 
 - 생활패턴 질문, 근거 자료 안내, 오늘의 컨디션에 따른 핵심 루틴 조정
@@ -22,7 +26,7 @@ Vercel Functions와 DB는 Singapore 리전을 사용합니다. 운영 DB와 개�
 
 ## 로컬 실행
 
-Node.js 22.13 이상(배포 환경 24.x), npm이 필요합니다.
+Node.js 24.x와 npm이 필요합니다.
 
 ```sh
 npm ci
@@ -58,6 +62,7 @@ npm audit --omit=dev
 
 69개 테스트는 추천·계획 엔진과 인증 거절, 계정별 접근, 동시 저장 충돌, 이전 데이터 덮어쓰기 방지를 검사합니다.
 실제 Clerk 개발 세션으로 API → Neon 저장/복원·계정 격리·CAS·같은 출처 검증·루틴 생성을 확인했습니다.
+배포 환경에서도 Clerk 세션 → Vercel API → 운영용 Neon DB 저장·복원을 합성 계정으로 확인했습니다.
 검증용 합성 계정과 기록은 검증 후 삭제했습니다. 사용자의 실제 Gmail 로그인/가입 완료는 별도 확인이 필요합니다.
 
 개발 통합 검증은 로컬 서버와 별도 개발 DB, `.env.production.local`이 준비된 경우에만 명시적으로 실행합니다:

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.13.0" },
+  "engines": { "node": "24.x" },
   "scripts": {
     "dev": "next dev --hostname localhost",
     "build": "next build",
