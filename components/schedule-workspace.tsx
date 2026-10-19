@@ -14,6 +14,7 @@ import { calendarRows,calendarEventRect } from "@/lib/planner-grid";
 import { PlannerRoutineAction } from "./planner-routine-action";
 import { RoutinePreviewDialog } from "./routine-preview-dialog";
 import type { Day } from "@/lib/model";
+import { useChapterScroll } from "./use-chapter-scroll";
 
 type Seed={date:string;start:string;end:string;category?:PlannerBlock["category"];template?:PlannerTemplate;block?:PlannerBlock};
 const swatch=(category:PlannerBlock["category"],shade=1)=>({"--block-hue":plannerColors[category],"--block-sat":`${35+shade*15}%`,"--block-light":`${98-shade*4}%`} as CSSProperties);
@@ -30,11 +31,14 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings}:{sta
   const [selection,setSelection]=useState<{date:string;start:number;end:number}|null>(null);
   const [dragTemplate,setDragTemplate]=useState<string|null>(null);
   const drag=useRef<{date:string;start:number}|null>(null),didDrag=useRef(false),scroller=useRef<HTMLDivElement>(null);
+  const workspace = useRef<HTMLDivElement>(null);
+  useChapterScroll(workspace, String(planner.setupComplete), { resetPage: true, skipInitial: true });
+  useChapterScroll(scroller, `${mode}:${compact}:${selected}:${planner.setupComplete}`, { focusHeading: false });
   const week=Array.from({length:7},(_,n)=>addDate(mondayOf(selected),n)),dates=mode==="week"?week:[selected];
   const gridRows=calendarRows(planner,selected,compact),gridHeight=gridRows.reduce((n,r)=>n+r.height,0);
   const gaps=gridRows.filter(r=>r.kind==="gap"),emptyWeek=compact&&!gridRows.some(r=>r.kind==="slot");
   const weekStart=mondayOf(selected);
-  useEffect(()=>{if(scroller.current)scroller.current.scrollTop=compact?0:6*48;setSelection(null);drag.current=null;didDrag.current=false;},[mode,compact,weekStart]);
+  useEffect(()=>{setSelection(null);drag.current=null;didDrag.current=false;},[mode,compact,weekStart,selected]);
   const axisTime=(minute:number)=>minute===1440?"24:00":toTime(minute);
   const context=scheduleContext(state.schedule,planner,selected,initialCheckin(state.answers));
   const entries=blocksForDate(planner,selected),fixed=entries.filter(b=>b.kind==="fixed"),extras=entries.filter(b=>b.kind==="once");
@@ -58,7 +62,7 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings}:{sta
   };
   const point=(e:React.PointerEvent<HTMLDivElement>)=>Math.max(0,Math.min(47,Math.floor((e.clientY-e.currentTarget.getBoundingClientRect().top)/24)));
   const placeTemplate=(id:string,date:string,slot:number)=>{const template=planner.templates.find(t=>t.id===id);if(!template)return;const start=slot*30;startNew({date,start:toTime(start),end:toTime(start+durationOf(template)),template});setDragTemplate(null);};
-  return <div className="sp-workspace">
+  return <div className="sp-workspace" ref={workspace}>
     <section className="sp-intro">
       <div><span className="eyebrow">PLAN FIRST. MAKE ROOM FOR YOU.</span><h2>내 일정에서 시작하는 건강한 하루</h2><p>반복되는 일정을 먼저 담고, 달라지는 약속을 더하세요. 날짜에 맞는 계획이 오늘의 루틴으로 이어집니다.</p></div>
       <div className="sp-steps"><button className={!planner.setupComplete?"active":""} disabled={busy} onClick={()=>void commit({...planner,setupComplete:false}).catch(e=>setNotice(e.message))}><span>01</span><div><b>고정 계획표</b><small>수업·회사·정기 알바</small></div></button><ArrowRight size={16}/><button className={planner.setupComplete?"active":""} disabled={busy} onClick={()=>void commit({...planner,setupComplete:true}).catch(e=>setNotice(e.message))}><span>02</span><div><b>날짜별 일정</b><small>운동·과제·친구와 약속</small></div></button></div>

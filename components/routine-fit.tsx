@@ -16,6 +16,7 @@ import { editSavedBlockPlans } from "@/lib/planner-edit";
 import { removeSavedBlockPlans,restoreSavedBlockPlans,type PlannerChange } from "@/lib/planner-removal";
 import { Dialog, Field, Input, Onboarding, Scale, Select, Toggle } from "./forms";
 import { AccountSignOut } from "./account-sign-out";
+import { useChapterScroll } from "./use-chapter-scroll";
 
 type View = "today" | "planner" | "analysis" | "supplements" | "report" | "inbody" | "settings";
 type Modal = "onboard" | "checkin" | "custom" | "schedule" | "inbody" | "delete" | "info" | null;
@@ -52,6 +53,8 @@ export default function RoutineFit({ user }: {user:{name:string;email:string}|nu
   const [draft,setDraft]=useState<{answers:Answers;step:number}>();
   const [editing,setEditing]=useState<Routine>();
   const saving = useRef(false);
+  const contentRef = useRef<HTMLElement>(null);
+  useChapterScroll(contentRef, state ? `${demo ? "demo" : "account"}:${view}` : "landing", { resetPage: true });
   const today = localDate();
   const savedDay = state?.days.find(d => d.date === today);
   const day = savedDay&&state?{...savedDay,routines:holdUnsafeRoutines(savedDay.routines,savedDay.checkin,state.answers.movementLimit)}:savedDay;
@@ -76,7 +79,7 @@ export default function RoutineFit({ user }: {user:{name:string;email:string}|nu
   }
   const close = () => {if(!busy){setModal(null);setError("");}};
   const open = (m:Modal) => {if(m==="custom")setEditing(undefined);setError("");setModal(m);};
-  const go = (v:View) => {setView(v);setMobile(false);setError("");window.scrollTo({top:0,behavior:"smooth"});};
+  const go = (v:View) => {setView(v);setMobile(false);setError("");};
   function beginDemo() {
     const answers:Answers = {...defaultAnswers,name:"지우",sleepHours:6.5,vegetables:3,fish:1,dairy:2,stress:4,caffeineTime:"16:00",scheduleShiftHours:1,fruitVegGrams:250,legumeDays:2,wholegrainDays:3,processedMeatDays:1,moderateWeeklyMinutes:40,vigorousWeeklyMinutes:0,strengthAllGroups:"no"};
     const next:AppState={version:1,consentAt:new Date().toISOString(),consentVersion:"2026-10-v1",answers,schedule:{...defaultSchedule},inbody:[],days:[buildDay(answers,initialCheckin(answers),"core",defaultSchedule)]};
@@ -158,7 +161,7 @@ export default function RoutineFit({ user }: {user:{name:string;email:string}|nu
     </aside>
     {mobile&&<button className="sidebar-scrim" aria-label="메뉴 닫기" onClick={()=>setMobile(false)}/>}
     <div className="app-main"><header className="topbar"><div className="breadcrumb"><button className="mobile-menu icon-button" aria-label="메뉴 열기" onClick={()=>setMobile(true)}><Menu size={21}/></button><span>나의 건강 여정</span><ChevronRight size={13}/><b>{nav.find(n=>n.id===view)?.label??"설정"}</b></div><div className="top-actions"><span className="storage-status"><span/>{demo?"예시 · 서버 미저장":busy?"저장 중…":"계정에 저장됨"}</span><button className="icon-button" aria-label="서비스 안내" onClick={()=>open("info")}><CircleHelp size={19}/></button><div className="avatar small">{a!.name.slice(0,1)}</div></div></header>
-    <main className="content">
+    <main className="content" ref={contentRef}>
       {demo&&<div className="demo-banner"><span><Sparkles size={16}/>예시 데이터로 체험 중이에요. 변경 내용은 서버에 저장되지 않아요.</span>{user?<button onClick={()=>{setDraft(undefined);setDemo(false);setState(null);open("onboard");}}>내 정보로 시작 <ArrowRight size={14}/></button>:<a href="/sign-in">로그인하고 시작 <ArrowRight size={14}/></a>}</div>}
       <div className="page-heading"><div><div className="eyebrow">{view==="today"?"A LITTLE BETTER, EVERY DAY":"YOUR PERSONAL HEALTH COMPANION"}</div><h1>{titles[view].title}</h1><p>{titles[view].subtitle}</p></div><div className="date-wrap"><button className="date-chip" onClick={()=>setShowDates(v=>!v)} aria-expanded={showDates}><CalendarDays size={16}/>{new Intl.DateTimeFormat("ko-KR",{timeZone:"Asia/Seoul",month:"long",day:"numeric",weekday:"short"}).format(new Date())}</button>{showDates&&<div className="date-note">모든 기록은 한국 시간 기준이에요.<br/>이전 날짜의 실천은 주간 리포트에서 확인해요.</div>}</div></div>
       {error&&!modal&&<div className="error-banner" role="alert">{error}<button onClick={()=>setError("")} aria-label="오류 닫기"><X size={16}/></button></div>}

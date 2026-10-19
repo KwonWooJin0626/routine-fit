@@ -1,10 +1,11 @@
 "use client";
-import { useEffect, useLayoutEffect, useId, useRef, type ReactNode } from "react";
+import { useLayoutEffect, useId, useRef, type ReactNode } from "react";
 import { X, ArrowLeft, ArrowRight, Check, ShieldCheck } from "lucide-react";
 import { type Answers, defaultAnswers, answersSchema, goalLabels } from "@/lib/model";
 import { useState } from "react";
 import { QuestionSources } from "./evidence-sources";
 import { ServiceWalkthrough } from "./service-walkthrough";
+import { useChapterScroll } from "./use-chapter-scroll";
 
 export function Field({ label, hint, children, question }: { label: string; hint?: string; children: ReactNode; question?:string }) {
   return <div className="field"><div className="field-heading"><span>{label}</span>{hint && <span className="field-hint">{hint}</span>}</div>{children}{question&&<QuestionSources question={question}/>}</div>;
@@ -24,16 +25,9 @@ export function Toggle({ label, checked, onChange, hint, question }: { label: st
 }
 export function Dialog({ title, subtitle, children, onClose, wide = false, resetKey }: { title: string; subtitle?: string; children: ReactNode; onClose: () => void; wide?: boolean; resetKey?: string | number }) {
   const ref = useRef<HTMLDialogElement>(null); const id = useId();
-  useEffect(() => { const d = ref.current; if (!d) return; const trigger=document.activeElement instanceof HTMLElement?document.activeElement:null; d.showModal(); const previous = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { d.close(); document.body.style.overflow = previous; trigger?.focus(); }; }, []);
-  useLayoutEffect(() => {
-    if (resetKey === undefined) return;
-    const dialog = ref.current;
-    if (!dialog) return;
-    // The native dialog, not window, owns the wizard's scroll position.
-    dialog.querySelector<HTMLElement>("[data-step-heading]")?.focus({ preventScroll: true });
-    dialog.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, [resetKey]);
-  return <dialog ref={ref} className={`dialog ${wide ? "wide" : ""}`} aria-labelledby={id} onCancel={e=>{e.preventDefault();onClose();}}><header className="dialog-head"><div><h2 id={id}>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" aria-label="닫기" onClick={onClose}><X size={20} /></button></header><div className="dialog-content">{children}</div></dialog>;
+  useLayoutEffect(() => { const d = ref.current; if (!d) return; const trigger=document.activeElement instanceof HTMLElement?document.activeElement:null; d.showModal(); const previous = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { d.close(); document.body.style.overflow = previous; trigger?.focus({preventScroll:true}); }; }, []);
+  useChapterScroll(ref, `${title}:${resetKey ?? ""}`);
+  return <dialog ref={ref} className={`dialog ${wide ? "wide" : ""}`} aria-labelledby={id} onCancel={e=>{e.preventDefault();onClose();}}><header className="dialog-head"><div><h2 id={id} tabIndex={-1} data-chapter-heading>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" aria-label="닫기" onClick={onClose}><X size={20} /></button></header><div className="dialog-content">{children}</div></dialog>;
 }
 
 const steps = ["기본 정보", "수면·회복", "식사·영양", "움직임·일상", "안전 확인", "분석 준비"];
