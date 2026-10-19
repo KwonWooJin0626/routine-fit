@@ -1,6 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 @import "./planner.css";
+@import "./onboarding-guide.css";
 
 .import-page{max-width:800px;margin:0 auto;padding:40px 20px;min-height:100vh}
 .import-page>.panel{margin-top:22px}.import-page h1{font-size:28px;margin:14px 0}

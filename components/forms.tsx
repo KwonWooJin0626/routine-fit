@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useId, useRef, type ReactNode } from "react";
 import { X, ArrowLeft, ArrowRight, Check, ShieldCheck } from "lucide-react";
 import { type Answers, defaultAnswers, answersSchema, goalLabels } from "@/lib/model";
 import { useState } from "react";
 import { QuestionSources } from "./evidence-sources";
+import { ServiceWalkthrough } from "./service-walkthrough";
 
 export function Field({ label, hint, children, question }: { label: string; hint?: string; children: ReactNode; question?:string }) {
   return <div className="field"><div className="field-heading"><span>{label}</span>{hint && <span className="field-hint">{hint}</span>}</div>{children}{question&&<QuestionSources question={question}/>}</div>;
@@ -21,9 +22,17 @@ export function Scale({ label, value, onChange, min = 1, max = 5, unit = "", hin
 export function Toggle({ label, checked, onChange, hint, question }: { label: string; checked: boolean; onChange: (value: boolean) => void; hint?: string; question?:string }) {
   return <div className="toggle-field"><label className="toggle-row"><span>{label}{hint && <small>{hint}</small>}</span><input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} /><span className="switch" aria-hidden="true" /></label>{question&&<QuestionSources question={question}/>}</div>;
 }
-export function Dialog({ title, subtitle, children, onClose, wide = false }: { title: string; subtitle?: string; children: ReactNode; onClose: () => void; wide?: boolean }) {
+export function Dialog({ title, subtitle, children, onClose, wide = false, resetKey }: { title: string; subtitle?: string; children: ReactNode; onClose: () => void; wide?: boolean; resetKey?: string | number }) {
   const ref = useRef<HTMLDialogElement>(null); const id = useId();
   useEffect(() => { const d = ref.current; if (!d) return; const trigger=document.activeElement instanceof HTMLElement?document.activeElement:null; d.showModal(); const previous = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { d.close(); document.body.style.overflow = previous; trigger?.focus(); }; }, []);
+  useLayoutEffect(() => {
+    if (resetKey === undefined) return;
+    const dialog = ref.current;
+    if (!dialog) return;
+    // The native dialog, not window, owns the wizard's scroll position.
+    dialog.querySelector<HTMLElement>("[data-step-heading]")?.focus({ preventScroll: true });
+    dialog.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [resetKey]);
   return <dialog ref={ref} className={`dialog ${wide ? "wide" : ""}`} aria-labelledby={id} onCancel={e=>{e.preventDefault();onClose();}}><header className="dialog-head"><div><h2 id={id}>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" aria-label="닫기" onClick={onClose}><X size={20} /></button></header><div className="dialog-content">{children}</div></dialog>;
 }
 
@@ -33,7 +42,10 @@ const reasons = ["나의 목표와 생활환경이 추천의 기준이 돼요.",
 export function Onboarding({ initial, draft, onDraft, busy, error, onComplete, onClose }: { initial?: Answers; draft?: {answers:Answers;step:number}; onDraft?:(draft:{answers:Answers;step:number}|undefined)=>void; busy: boolean; error: string; onComplete: (a: Answers) => void; onClose: () => void }) {
   const [a, set] = useState<Answers>(draft?.answers ?? initial ?? { ...defaultAnswers });
   const [step, setStep] = useState(draft?.step??0), [consent, setConsent] = useState(false), [localError, setLocalError] = useState("");
-  const keepAndClose=()=>{onDraft?.({answers:a,step});onClose();};
+  const [showGuide, setShowGuide] = useState(!initial && !draft);
+  const [guideStep, setGuideStep] = useState(0);
+  const [questionsStarted, setQuestionsStarted] = useState(!!initial || !!draft);
+  const keepAndClose=()=>{if(questionsStarted)onDraft?.({answers:a,step});onClose();};
   function update<K extends keyof Answers>(key: K, value: Answers[K]) { set(prev => ({ ...prev, ...( ["conditions","medicines","pregnancy","surgery","allergy","uncertainSafety","safetyDetails","currentSupplements","confirmedDeficiency"].includes(key)?{safetyReviewed:false}:{}), [key]: value })); }
   const number = (key: keyof Answers, label: string, min: number, max: number, hint?: string) => <Input key={key} question={key} label={label} hint={hint} type="number" value={a[key] as number} min={min} max={max} onChange={v => update(key, Number(v) as never)} />;
   const optionalNumber = (key:keyof Answers,label:string,max:number,hint:string) => <Input key={key} question={key} label={label} hint={hint} type="number" value={(a[key] as number|null|undefined)??""} min={0} max={max} placeholder="모르면 비워두세요" onChange={v=>update(key,(v.trim()===""?null:Number(v)) as never)}/>;
@@ -47,10 +59,12 @@ export function Onboarding({ initial, draft, onDraft, busy, error, onComplete, o
     if (!result.success) { setLocalError("입력 범위를 확인해주세요. 숫자가 비어 있거나 범위를 벗어나면 다음 단계로 갈 수 없어요."); return; }
     setLocalError(""); setStep(n => Math.min(5, n + 1));
   };
-  return <Dialog title={initial ? "생활패턴 다시 살펴보기" : "나를 알아가는 첫 번째 질문"} subtitle="정답은 없어요. 처음 표시된 값은 입력 예시입니다. 최근 일주일의 실제 모습으로 수정해주세요." onClose={keepAndClose} wide>
+  return <Dialog title={showGuide ? "ROUTINE FIT 사용 안내" : initial ? "생활패턴 다시 살펴보기" : "나를 알아가는 첫 번째 질문"} subtitle={showGuide ? "질문을 시작하기 전, 기능과 입력할 내용을 가볍게 알아보세요." : "정답은 없어요. 처음 표시된 값은 입력 예시입니다. 최근 일주일의 실제 모습으로 수정해주세요."} onClose={keepAndClose} wide resetKey={showGuide ? `guide-${guideStep}` : `question-${step}`}>
+    {showGuide ? <ServiceWalkthrough step={guideStep} onStepChange={setGuideStep} onStart={()=>{setQuestionsStarted(true);setShowGuide(false);}} resume={questionsStarted} /> : <>
+    <div className="wizard-guide-link"><span>답변하기 전에 기능이 궁금하다면</span><button type="button" className="text-link" onClick={()=>{setGuideStep(0);setShowGuide(true);}}>서비스 이용방법 보기<ArrowRight size={14}/></button></div>
     <div className="draft-notice">닫아도 이 탭에서 답변을 이어 쓸 수 있어요. 새로고침·로그아웃하면 초안은 사라져요. <button type="button" className="text-link" onClick={()=>{onDraft?.(undefined);set(initial??{...defaultAnswers});setStep(0);setConsent(false);}}>초안 초기화</button></div>
     <div className="wizard-steps">{steps.map((s, i) => <div key={s} className={i === step ? "current" : i < step ? "past" : ""}><span>{i < step ? <Check size={12} /> : i + 1}</span><small>{s}</small></div>)}</div>
-    <div className="wizard-intro"><span className="eyebrow">STEP {String(step + 1).padStart(2, "0")} / 06</span><h3>{steps[step]}</h3><p>{reasons[step]}</p></div>
+    <div className="wizard-intro"><span className="eyebrow">STEP {String(step + 1).padStart(2, "0")} / 06</span><h3 tabIndex={-1} data-step-heading>{steps[step]}</h3><p>{reasons[step]}</p></div>
     <p className="question-scope">가이드라인을 참고한 자체 생활패턴 질문입니다. PSQI·PSS·NQ 공식 검사는 아니에요. 각 항목의 ‘참고 자료’를 누르면 자료 제목을 확인할 수 있어요.</p>
     <form onSubmit={e => { e.preventDefault(); if (step === 5) { if (consent) onComplete(a); } else next(); }}>
     <div className="form-grid">
@@ -123,5 +137,6 @@ export function Onboarding({ initial, draft, onDraft, busy, error, onComplete, o
     {(localError || error) && <p className="form-error" role="alert">{localError || error}</p>}
     <footer className="wizard-actions"><button type="button" className="button secondary" disabled={step === 0 || busy} onClick={() => { setLocalError(""); setStep(n => n - 1); }}><ArrowLeft size={16}/> 이전</button><span className="muted">{step === 5 ? "동의 후 언제든 삭제할 수 있어요" : "약 4~6분 · 닫아도 이 탭에서 이어 쓸 수 있어요"}</span><button className="button primary" type="submit" disabled={busy || (step === 5 && !consent)}>{busy ? "루틴 준비 중…" : step === 5 ? "내 루틴 만들기" : "다음 질문"}<ArrowRight size={16}/></button></footer>
     </form>
+    </>}
   </Dialog>;
 }
