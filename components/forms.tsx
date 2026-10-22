@@ -6,6 +6,7 @@ import { useState } from "react";
 import { QuestionSources } from "./evidence-sources";
 import { ServiceWalkthrough } from "./service-walkthrough";
 import { useChapterScroll } from "./use-chapter-scroll";
+import { PlanningStyleChoice } from "./planning-style";
 
 export function Field({ label, hint, children, question }: { label: string; hint?: string; children: ReactNode; question?:string }) {
   return <div className="field"><div className="field-heading"><span>{label}</span>{hint && <span className="field-hint">{hint}</span>}</div>{children}{question&&<QuestionSources question={question}/>}</div>;
@@ -37,6 +38,7 @@ export function Onboarding({ initial, draft, onDraft, busy, error, onComplete, o
   const [a, set] = useState<Answers>(draft?.answers ?? initial ?? { ...defaultAnswers });
   const [step, setStep] = useState(draft?.step??0), [consent, setConsent] = useState(false), [localError, setLocalError] = useState("");
   const [showGuide, setShowGuide] = useState(!initial && !draft);
+  const [chooseStyle,setChooseStyle] = useState(!initial && !draft);
   const [guideStep, setGuideStep] = useState(0);
   const [questionsStarted, setQuestionsStarted] = useState(!!initial || !!draft);
   const keepAndClose=()=>{if(questionsStarted)onDraft?.({answers:a,step});onClose();};
@@ -53,8 +55,8 @@ export function Onboarding({ initial, draft, onDraft, busy, error, onComplete, o
     if (!result.success) { setLocalError("입력 범위를 확인해주세요. 숫자가 비어 있거나 범위를 벗어나면 다음 단계로 갈 수 없어요."); return; }
     setLocalError(""); setStep(n => Math.min(5, n + 1));
   };
-  return <Dialog title={showGuide ? "ROUTINE FIT 사용 안내" : initial ? "생활패턴 다시 살펴보기" : "나를 알아가는 첫 번째 질문"} subtitle={showGuide ? "질문을 시작하기 전, 기능과 입력할 내용을 가볍게 알아보세요." : "정답은 없어요. 처음 표시된 값은 입력 예시입니다. 최근 일주일의 실제 모습으로 수정해주세요."} onClose={keepAndClose} wide resetKey={showGuide ? `guide-${guideStep}` : `question-${step}`}>
-    {showGuide ? <ServiceWalkthrough step={guideStep} onStepChange={setGuideStep} onStart={()=>{setQuestionsStarted(true);setShowGuide(false);}} resume={questionsStarted} /> : <>
+  return <Dialog title={chooseStyle ? "나에게 맞는 시작 방식" : showGuide ? "ROUTINE FIT 사용 안내" : initial ? "생활패턴 다시 살펴보기" : "나를 알아가는 첫 번째 질문"} subtitle={chooseStyle ? "기능과 필요한 입력을 먼저 확인하고 시작해요." : showGuide ? "질문을 시작하기 전, 기능과 입력할 내용을 가볍게 알아보세요." : "정답은 없어요. 처음 표시된 값은 입력 예시입니다. 최근 일주일의 실제 모습으로 수정해주세요."} onClose={keepAndClose} wide resetKey={chooseStyle ? "style" : showGuide ? `guide-${guideStep}` : `question-${step}`}>
+    {chooseStyle ? <PlanningStyleChoice value={a.planningStyle} busy={busy} onChange={v=>{update("planningStyle",v);setChooseStyle(false);}}/> : showGuide ? <ServiceWalkthrough step={guideStep} onStepChange={setGuideStep} onStart={()=>{setQuestionsStarted(true);setShowGuide(false);}} resume={questionsStarted} /> : <>
     <div className="wizard-guide-link"><span>답변하기 전에 기능이 궁금하다면</span><button type="button" className="text-link" onClick={()=>{setGuideStep(0);setShowGuide(true);}}>서비스 이용방법 보기<ArrowRight size={14}/></button></div>
     <div className="draft-notice">닫아도 이 탭에서 답변을 이어 쓸 수 있어요. 새로고침·로그아웃하면 초안은 사라져요. <button type="button" className="text-link" onClick={()=>{onDraft?.(undefined);set(initial??{...defaultAnswers});setStep(0);setConsent(false);}}>초안 초기화</button></div>
     <div className="wizard-steps">{steps.map((s, i) => <div key={s} className={i === step ? "current" : i < step ? "past" : ""}><span>{i < step ? <Check size={12} /> : i + 1}</span><small>{s}</small></div>)}</div>
@@ -67,6 +69,7 @@ export function Onboarding({ initial, draft, onDraft, busy, error, onComplete, o
         {select("age", "연령대", {"18-29":"18–29세", "30-39":"30–39세", "40-49":"40–49세", "50-64":"50–64세", "65+":"65세 이상"})}
         {select("goal", "가장 먼저 챙기고 싶은 목표", goalLabels)}
         {select("work", "평소 일정 형태", {regular:"규칙적인 주간 일정", flexible:"유동적인 일정", shift:"교대근무", student:"학업 중심", care:"육아·돌봄 중심"})}
+        {select("planningStyle", "하루를 시작하는 방식", {spontaneous:"즉흥형 · 오늘 질문부터",planned:"계획형 · 주간 일정부터"})}
         <div className="form-span note">현재 MVP는 성인 대상이에요. 목표는 언제든 설정에서 다시 바꿀 수 있어요. 키·체중은 체성분 기록이 필요할 때 선택 입력해요.</div>
       </>}
       {step === 1 && <>

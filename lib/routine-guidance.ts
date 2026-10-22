@@ -1,4 +1,6 @@
 import type { Answers, Routine, RoutineGuidance } from "./model";
+import { emptyNutritionProfile, type NutritionProfile } from "./nutrition-profile";
+import { foodOptions, ingredients } from "./nutrition";
 
 const sources = {
   protein:{label:"USDA MyPlate · 단백질 식품",url:"https://www.myplate.gov/web/web/eat-healthy/protein-foods"},
@@ -54,9 +56,13 @@ const media:Record<string,RoutineGuidance>={
   "mind-music-bright":musicGuide([item("밝은 인디 팝 · 시티팝","가벼운 분위기의 곡을 듣고 싶을 때 골라요."),item("소울 · 펑크","기분에 맞는 리듬을 선택하고 듣기 싫은 곡은 건너뛰어요."),item("좋아하는 팝 · K-pop","익숙하고 즐거운 곡으로 짧은 휴식 시간을 만들어요.")],"분위기를 바꿔 쉬고 싶은 날의 선택 예시예요. 즐겁게 느껴지는 곡은 사람마다 달라요."),
 };
 
-export function guidanceForRoutine(r:Pick<Routine,"id"|"source"|"guidance">,a:Answers):RoutineGuidance|undefined {
+export function guidanceForRoutine(r:Pick<Routine,"id"|"source"|"guidance">,a:Answers,profile?:NutritionProfile|null):RoutineGuidance|undefined {
   if(r.source==="custom")return r.guidance;
-  return foodGuidance(r.id,a)??media[r.id]??r.guidance;
+  const guide=foodGuidance(r.id,a)??media[r.id]??r.guidance;
+  if(guide?.kind!=="food"||profile===undefined)return guide;
+  const ingredient=ingredients.find(i=>i.id===(r.id==="food-color"||r.id==="food-fruit"?"c":"protein"))!;
+  const foods=foodOptions(ingredient,a,profile??emptyNutritionProfile());
+  return {...guide,intro:foods.length?"저장한 음식정보로 원료를 걸러낸 예시예요. 실제 조리법·교차접촉·포장 라벨을 추가 확인하세요.":"식품 예시는 음식정보 확인 전 보류해요. 영양제 가이드에서 음식·섭취 프로필을 확인해주세요.",items:foods.map(f=>({name:f.name,note:ingredient.role})),caution:guide.caution};
 }
 
 export function routineSearchText(r:Routine):string {

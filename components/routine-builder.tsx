@@ -8,11 +8,13 @@ import { Dialog, Input, Scale, Select, Toggle } from "./forms";
 import { routineSearchText } from "@/lib/routine-guidance";
 import { RoutineGuidance } from "./routine-guidance";
 import { RoutineSources } from "./evidence-sources";
+import type { NutritionProfile } from "@/lib/nutrition-profile";
+import { guidanceForRoutine } from "@/lib/routine-guidance";
 
 const icons = {sleep:Moon,food:Coffee,move:Dumbbell,mind:Heart};
 const customSchema = z.object({title:z.string().trim().min(1,"루틴 이름을 입력해주세요.").max(80),category:z.enum(["sleep","food","move","mind"]),minutes:z.coerce.number().int().min(1).max(120),detail:z.string().trim().max(300),when:z.string().trim().min(1).max(80),preferredTime:z.union([z.literal(""),z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/)])});
 
-export function RoutineBuilder({answers,day,inbody,busy,onAdd}:{answers:Answers;day:Day;inbody?:Inbody;busy:boolean;onAdd:(r:Routine)=>void}) {
+export function RoutineBuilder({answers,day,inbody,busy,onAdd,nutrition}:{answers:Answers;day:Day;inbody?:Inbody;busy:boolean;onAdd:(r:Routine)=>void;nutrition?:NutritionProfile}) {
   const [category,setCategory] = useState("all"),[query,setQuery] = useState(""),[limit,setLimit] = useState(8);
   const [kind,setKind] = useState("all");
   const all = getRoutineCatalog(answers,day.checkin,inbody);
@@ -29,7 +31,7 @@ export function RoutineBuilder({answers,day,inbody,busy,onAdd}:{answers:Answers;
     <div className="picker-filters" role="group" aria-label="추천 루틴 분야">{[["all","전체"],...Object.entries(categoryLabels)].map(([key,label])=><button key={key} aria-pressed={category===key} className={category===key?"active":""} onClick={()=>{setCategory(key);setLimit(8);}}>{label}</button>)}</div>
     <div className="picker-filters picker-kinds" role="group" aria-label="루틴 안내 유형">{[["all","모든 활동"],["reading","독서"],["music","음악·장르"],["food","식품·영양"]].map(([key,label])=><button key={key} aria-pressed={kind===key} className={kind===key?"active":""} onClick={()=>{setKind(key);setLimit(8);}}>{label}</button>)}</div>
     <Input label="추천 루틴 검색" value={query} placeholder="예: 독서, 로파이, 브로콜리" onChange={v=>{setQuery(v);setLimit(8);}}/>
-    <div className="picker-grid">{filtered.slice(0,limit).map(r=>{const Icon=icons[r.category];const added=ids.has(r.id);return <article key={r.id} className={`picker-card ${added?"is-added":""}`}><div className="picker-card-top"><span className="routine-icon" data-category={r.category}><Icon size={19}/></span><span>{categoryLabels[r.category]}</span><small><Clock3 size={12}/>{r.minutes}분</small></div><h3>{r.title}</h3><p>{r.detail}</p><RoutineGuidance guide={r.guidance}/><RoutineSources routine={r}/><div className="picker-card-bottom"><span>{r.when}</span><button className="button secondary" disabled={busy||added||day.routines.length>=MAX_DAILY_ROUTINES} onClick={()=>onAdd({...r,guidance:undefined,source:"catalog"})} aria-label={`${r.title} ${added?"추가됨":"오늘 루틴에 추가"}`}>{added?<Check size={14}/>:<Plus size={14}/>} {added?"추가됨":"오늘에 담기"}</button></div>{!added && r.minutes>remaining && <small className="picker-budget">선택한 시간보다 많아질 수 있어요.</small>}</article>;})}</div>
+    <div className="picker-grid">{filtered.slice(0,limit).map(r=>{const Icon=icons[r.category];const added=ids.has(r.id);return <article key={r.id} className={`picker-card ${added?"is-added":""}`}><div className="picker-card-top"><span className="routine-icon" data-category={r.category}><Icon size={19}/></span><span>{categoryLabels[r.category]}</span><small><Clock3 size={12}/>{r.minutes}분</small></div><h3>{r.title}</h3><p>{r.detail}</p><RoutineGuidance guide={guidanceForRoutine(r,answers,nutrition??null)}/><RoutineSources routine={r}/><div className="picker-card-bottom"><span>{r.when}</span><button className="button secondary" disabled={busy||added||day.routines.length>=MAX_DAILY_ROUTINES} onClick={()=>onAdd({...r,guidance:undefined,source:"catalog"})} aria-label={`${r.title} ${added?"추가됨":"오늘 루틴에 추가"}`}>{added?<Check size={14}/>:<Plus size={14}/>} {added?"추가됨":"오늘에 담기"}</button></div>{!added && r.minutes>remaining && <small className="picker-budget">선택한 시간보다 많아질 수 있어요.</small>}</article>;})}</div>
     {!filtered.length&&<p className="picker-empty" role="status">찾는 루틴이 없어요. 검색어를 바꾸거나 직접 만들어보세요.</p>}
     {filtered.length>limit&&<button className="button secondary picker-more" onClick={()=>setLimit(n=>n+8)}>추천 더 보기 ({filtered.length-limit}개)<Plus size={14}/></button>}
     <p className="picker-footnote">자동 추천은 3~5개로 시작해요. 직접 만든 루틴과 골라 담은 루틴을 합쳐 오늘 최대 {MAX_DAILY_ROUTINES}개까지 관리할 수 있어요.</p>

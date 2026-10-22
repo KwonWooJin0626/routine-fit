@@ -7,10 +7,11 @@ import { ServiceWalkthrough } from "../components/service-walkthrough";
 import { defaultAnswers } from "../lib/model";
 
 const props = { busy: false, error: "", onClose() {}, onComplete() {} };
-test("새 사용자는 첫 질문 전에 기능·입력 안내를 먼저 본다", () => {
+test("새 사용자는 첫 질문 전에 즉흥형·계획형 시작 방식을 선택한다", () => {
   const html = renderToStaticMarkup(createElement(Onboarding, props));
-  assert.ok(html.includes("ROUTINE FIT 사용 안내"));
-  assert.ok(html.includes("설명은 건너뛰고 질문 시작하기"));
+  assert.ok(html.includes("나에게 맞는 시작 방식"));
+  assert.ok(html.includes("즉흥형"));
+  assert.ok(html.includes("계획형"));
   assert.ok(!html.includes("어떻게 불러드릴까요?"));
 });
 test("기존 프로필과 초안은 안내를 강제 반복하지 않고 질문을 이어간다", () => {

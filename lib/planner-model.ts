@@ -13,7 +13,8 @@ export const plannerBlockSchema=z.object({id:z.string().min(1).max(50),...blockF
   if(v.breakStart&&v.breakEnd){const min=(t:string)=>Number(t.slice(0,2))*60+Number(t.slice(3));const offset=(t:string)=>(min(t)-min(v.start)+1440)%1440;const end=offset(v.end);if(offset(v.breakStart)<=0||offset(v.breakEnd)>=end||offset(v.breakEnd)<=offset(v.breakStart))c.addIssue({code:"custom",message:"쉬는 시간은 일정 내부에 배치해주세요."});}
 });
 export const plannerTemplateSchema=z.object({id:z.string().min(1).max(50),...blockFields});
-export const plannerSchema=z.object({setupComplete:z.boolean(),blocks:z.array(plannerBlockSchema).max(180),templates:z.array(plannerTemplateSchema).max(100)}).superRefine((v,c)=>{for(const rows of [v.blocks,v.templates])if(new Set(rows.map(r=>r.id)).size!==rows.length)c.addIssue({code:"custom",message:"중복된 블록이 있어요."});});
+export const occurrenceRecordSchema=z.object({blockId:z.string().min(1).max(50),date:plannerDateSchema,status:z.enum(["done","partial","skipped"]),title:z.string().max(60),start:time,end:time,recordedAt:z.string().datetime()});
+export const plannerSchema=z.object({setupComplete:z.boolean(),blocks:z.array(plannerBlockSchema).max(180),templates:z.array(plannerTemplateSchema).max(100),records:z.array(occurrenceRecordSchema).max(1000).optional()}).superRefine((v,c)=>{for(const rows of [v.blocks,v.templates])if(new Set(rows.map(r=>r.id)).size!==rows.length)c.addIssue({code:"custom",message:"중복된 블록이 있어요."});if(new Set((v.records??[]).map(r=>`${r.blockId}:${r.date}`)).size!==(v.records??[]).length)c.addIssue({code:"custom",message:"같은 일정의 수행 기록이 중복됐어요."});});
 export type Planner=z.infer<typeof plannerSchema>;
 export type PlannerBlock=z.infer<typeof plannerBlockSchema>;
 export type PlannerTemplate=z.infer<typeof plannerTemplateSchema>;

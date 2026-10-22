@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { plannerSchema, plannerDateSchema } from "./planner-model";
+import { nutritionProfileSchema } from "./nutrition-profile";
 
 export const answersSchema = z.object({
   name: z.string().trim().min(1).max(24),
+  planningStyle: z.enum(["spontaneous","planned"]).optional(),
   age: z.enum(["18-29", "30-39", "40-49", "50-64", "65+"]),
   goal: z.enum(["balance", "sleep", "energy", "fitness", "food", "stress"]),
   work: z.enum(["regular", "flexible", "shift", "student", "care"]),
@@ -65,6 +67,11 @@ export const checkinSchema = z.object({
   sleep: z.coerce.number().min(0).max(14), energy: z.coerce.number().int().min(1).max(5),
   stress: z.coerce.number().int().min(1).max(5), minutes: z.coerce.number().int().min(5).max(60),
   unwell: z.boolean(), place: z.enum(["home", "office", "outside", "gym"]), busy: z.boolean(),
+  exerciseType:z.enum(["unknown","none","light","strength","cardio"]).optional(),
+  exerciseMinutes:z.number().int().min(0).max(180).optional(),
+  studyMinutes:z.number().int().min(0).max(720).optional(),
+  sleepQuality:z.enum(["good","okay","poor","unknown"]).optional(),
+  sleepOpportunity:z.number().min(0).max(14).nullable().optional(),
 });
 export type Checkin = z.infer<typeof checkinSchema>;
 export const eventSchema = z.object({ id: z.string().max(80), title: z.string().trim().min(1).max(60), start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/), end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/), category:z.string().max(30).optional(), description:z.string().max(300).optional(), breakStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(), breakEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional() });
@@ -116,6 +123,7 @@ export type Day = z.infer<typeof daySchema>;
 export const stateSchema = z.object({
   version: z.literal(1), consentAt: z.string().datetime(), consentVersion: z.literal("2026-10-v1"),
   answers: answersSchema, schedule: scheduleSchema, inbody: z.array(inbodySchema).max(30), days: z.array(daySchema).max(90), planner:plannerSchema.optional(),
+  nutrition:nutritionProfileSchema.optional(),
 });
 export type AppState = z.infer<typeof stateSchema>;
 export type AnalysisMetric = {label:string;value:string;reference:string;status:"met"|"below"|"unknown"|"self"|"individual"};

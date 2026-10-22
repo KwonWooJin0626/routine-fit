@@ -10,7 +10,7 @@ export function conditionSummary(c: Checkin): string {
 }
 
 export function getRoutineCatalog(a: Answers, c: Checkin, inbody?: Inbody): Routine[] {
-  const gentle = c.busy || c.energy <= 2 || c.sleep < 6;
+  const gentle = c.busy || c.energy <= 2 || c.sleep < 6 || c.sleepQuality === "poor" || (c.sleepOpportunity != null && c.sleepOpportunity < 6);
   const movement = Math.max(1, Math.min(c.minutes - 4, gentle ? 5 : Math.round(5 + c.energy * 2)));
   const why = `오늘 입력한 ${conditionSummary(c)}에 맞춰 선택할 수 있는 행동이에요.`;
   const r = (id: string, category: Routine["category"], title: string, detail: string, minutes: number, when: string, reason = why, fallback = "시간을 줄여 가능한 만큼만 실천하기"): Routine => ({id,category,title,detail,minutes,when,reason,fallback,source:"auto"});
@@ -23,7 +23,7 @@ export function getRoutineCatalog(a: Answers, c: Checkin, inbody?: Inbody): Rout
     r("sleep-caffeine","sleep","늦은 카페인 대신 카페인 없는 음료 고르기","마지막 카페인 섭취시간을 확인하고 다음 음료를 골라요.",1,"오후",`평소 마지막 카페인이 ${a.caffeineTime}예요. 오늘 수면과 함께 참고했어요.`),
     r("food-first","food","거르던 식사에 간단한 한 끼 준비하기","식이 제한·알레르기에 맞춰 다음 식사를 미리 생각해요.",1,"첫 식사 전"),
     r("food-color","food","한 끼에 채소 한 가지 더하기","가능한 식사 한 번에 채소가 있는지 살펴보세요.",1,"점심 또는 저녁",`평소 채소 섭취 주 ${a.vegetables}일을 참고했어요.`),
-    r("food-protein","food","다음 식사에 단백질 식품이 있는지 확인하기","식단에 맞는 콩·두부·달걀 등 가능한 식품을 골라요.",1,"식사 전"),
+    r("food-protein","food","다음 식사에 단백질 식품이 있는지 확인하기","음식·섭취 프로필과 실제 원료를 확인하고 먹을 수 있는 식품을 골라요.",1,"식사 전"),
     r("food-menu","food","바쁜 날에도 먹을 수 있는 메뉴 하나 정하기","주변에서 구할 수 있고 식이 제한에 맞는 메뉴를 정해요.",1,"식사 전"),
     r("food-fruit","food","다음 간식으로 먹을 과일 한 가지 정하기","식이 제한에 맞는 식품을 골라 미리 준비해요.",2,"간식 전"),
     r("food-table","food","식사할 때 화면을 잠깐 내려놓기","식사 한 번만 화면 대신 먹는 시간에 집중해요.",1,"식사 전"),
@@ -72,7 +72,7 @@ export function getRoutineCatalog(a: Answers, c: Checkin, inbody?: Inbody): Rout
 export function recommendCore(a: Answers, c: Checkin, history: Day[] = [], inbody?: Inbody, generation = 0): Routine[] {
   const tracked = history.slice(-7).filter(d => Object.keys(d.statuses).length).flatMap(d => d.routines.map(r => d.statuses[r.id] ?? "pending"));
   const adherence = tracked.length ? tracked.filter(s => s === "done").length / tracked.length : 1;
-  const gentle = c.busy || c.energy <= 2 || c.sleep < 6 || c.unwell || adherence < .4;
+  const gentle = c.busy || c.energy <= 2 || c.sleep < 6 || c.unwell || adherence < .4 || c.sleepQuality === "poor" || (c.sleepOpportunity != null && c.sleepOpportunity < 6);
   const catalog = getRoutineCatalog(a,c,inbody);
   const pick = (ids: string[]) => {const candidates = ids.map(id => catalog.find(r => r.id === id)).filter((r):r is Routine => !!r);return candidates[generation % candidates.length];};
   const rows: Routine[] = [];
@@ -86,7 +86,7 @@ export function recommendCore(a: Answers, c: Checkin, history: Day[] = [], inbod
   if(!gentle && c.minutes >= 15 && a.caffeine > 0 && Number(a.caffeineTime.slice(0,2)) >= 15) rows.push(catalog.find(r => r.id === "sleep-caffeine")!);
   else if(!gentle && c.minutes >= 20) rows.push(pick(c.stress >= 4 ? ["mind-screen","mind-good","mind-priority"] : ["food-plan","food-fruit","food-menu"]));
   const activeAlready=(a.moderateWeeklyMinutes??0)+2*(a.vigorousWeeklyMinutes??0)>=150 || (a.exerciseIntensity!=="light"&&a.exerciseDays*a.exerciseMinutes>=150);
-  if(activeAlready&&!c.unwell&&!a.movementLimit) rows[2]={...pick(["move-stretch","move-posture","move-desk"]),reason:"이미 하고 있는 활동을 고려해 추가 운동량보다 짧은 몸 풀기·자세 전환을 제안해요."};
+  if((activeAlready||c.exerciseType==="strength"||c.exerciseType==="cardio")&&!c.unwell&&!a.movementLimit) rows[2]={...pick(["move-stretch","move-posture","move-desk"]),reason:"평소 활동 또는 오늘 예정된 운동을 고려해 추가 운동량보다 짧은 몸 풀기·자세 전환을 제안해요."};
   if(a.goal==="stress") { if(!rows.some(r=>r.category==="mind")) rows[0]=mind; rows.sort((x,y)=>Number(y.category==="mind")-Number(x.category==="mind")); }
   else if(a.goal==="fitness") rows.sort((x,y)=>Number(y.category==="move")-Number(x.category==="move"));
   else if(a.goal==="food") rows.sort((x,y)=>Number(y.category==="food")-Number(x.category==="food"));

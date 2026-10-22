@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { stateSchema } from "./model";
+import { localDate, stateSchema } from "./model";
 import { validatePlanner } from "./planner";
 
 export type StateRow = { payload: string; revision: number };
@@ -40,6 +40,7 @@ export function createStateHandlers(identity: () => Promise<string | null>, repo
         input = inputSchema.parse(JSON.parse(raw));
       } catch { return response({ error: "입력값을 확인해주세요." }, 400); }
       if (input.state.planner) {
+        if(input.state.planner.records?.some(r=>r.date>localDate()))return response({error:"미래 일정의 수행 기록은 저장할 수 없어요."},400);
         const conflicts = validatePlanner(input.state.planner);
         if (conflicts.length) return response({ error: conflicts.join("\n") }, 400);
       }
