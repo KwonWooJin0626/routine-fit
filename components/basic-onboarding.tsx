@@ -11,10 +11,12 @@ import { QuestionSources } from "./evidence-sources";
 export function BasicOnboarding({initial,draft,onDraft,busy,error,onComplete,onClose}:{initial?:Answers;draft?:{answers:Answers;step:number};onDraft?:(d:{answers:Answers;step:number}|undefined)=>void;busy:boolean;error:string;onComplete:(a:Answers)=>void;onClose:()=>void}){
   const [a,set]=useState<Answers>(()=>{const old=draft?.answers??initial;return {...(old??defaultAnswers),basic:old?.basic??emptyBasicProfile(),...(!old?{supplementOptIn:true,uncertainSafety:true,safetyReviewed:false}:{} )};});
   const [step,setStep]=useState(draft?.step??0),[consent,setConsent]=useState(!!initial||(draft?.step??0)>0),[notice,setNotice]=useState("");
-  const [group,setGroup]=useState("비타민");
+  const [group,setGroup]=useState("비타민"),[page,setPage]=useState(0);
   const b=a.basic!;
   const update=(patch:Partial<typeof b>)=>set(p=>({...p,basic:{...p.basic!,...patch}}));
   const choices=[{id:"multi",name:"종합비타민",group:"기타"},...ingredients];
+  const filtered=choices.filter(i=>group==="기타"?!["비타민","미네랄"].includes(i.group):i.group===group);
+  const visibleChoices=filtered.slice(page*6,page*6+6);
   const total=b.supplementStatus==="yes"?8:7;
   const finish=()=>{
     if(step===0&&!consent){setNotice("안내를 확인하고 동의하거나 닫기를 선택해주세요.");return;}
@@ -33,6 +35,6 @@ export function BasicOnboarding({initial,draft,onDraft,busy,error,onComplete,onC
     {step===4&&<><ChoiceButtons label="일주일 총 운동 시간" value={b.exerciseRange} options={exerciseRanges} onChange={v=>update({exerciseRange:v as typeof b.exerciseRange})}/><QuestionSources question="exerciseDays"/></>}
     {step===5&&<><ChoiceButtons label="하루 평균 앉아 있는 시간" value={b.sittingRange} options={sittingRanges} onChange={v=>update({sittingRange:v as typeof b.sittingRange})}/><QuestionSources question="sitting"/></>}
     {step===6&&<ChoiceButtons label="영양제 복용 여부" value={b.supplementStatus} options={{yes:"먹고 있어요",none:"먹지 않아요",unknown:"잘 모르겠어요"}} onChange={v=>update({supplementStatus:v as typeof b.supplementStatus,supplements:v==="yes"?b.supplements:[]})}/>}
-    {step===7&&<><div className="choice-buttons category-tabs">{["비타민","미네랄","기본 영양소","지방산","운동 보충 성분","기타"].map(g=><button type="button" key={g} aria-pressed={group===g} onClick={()=>setGroup(g)}>{g==="기본 영양소"?"단백질":g}</button>)}</div><div className="supplement-choice-grid">{choices.filter(i=>i.group===group||group==="기타"&&!["비타민","미네랄","기본 영양소","지방산","운동 보충 성분"].includes(i.group)).map(i=><button key={i.id} type="button" aria-pressed={b.supplements.includes(i.id as never)} onClick={()=>update({supplements:b.supplements.includes(i.id as never)?b.supplements.filter(id=>id!==i.id):[...b.supplements,i.id as never]})}>{i.name}</button>)}</div><p className="question-small" role="status">{b.supplements.length}개 선택 · 제품명·함량은 영양 가이드에서 따로 확인해요.</p></>}
+    {step===7&&<><div className="choice-buttons category-tabs">{["비타민","미네랄","기타"].map(g=><button type="button" key={g} aria-pressed={group===g} onClick={()=>{setGroup(g);setPage(0);}}>{g==="기타"?"단백질·기타":g}</button>)}</div><div className="supplement-choice-grid">{visibleChoices.map(i=><button key={i.id} type="button" aria-pressed={b.supplements.includes(i.id as never)} onClick={()=>update({supplements:b.supplements.includes(i.id as never)?b.supplements.filter(id=>id!==i.id):[...b.supplements,i.id as never]})}>{i.name}</button>)}</div>{filtered.length>6&&<div className="supplement-pagination"><button type="button" disabled={page===0} onClick={()=>setPage(p=>p-1)}>이전 항목</button><span>{page+1} / {Math.ceil(filtered.length/6)}</span><button type="button" disabled={(page+1)*6>=filtered.length} onClick={()=>setPage(p=>p+1)}>다음 항목</button></div>}<p className="question-small" role="status">{b.supplements.length}개 선택 · 제품명·함량은 영양 가이드에서 따로 확인해요.</p></>}
   </QuestionFrame>;
 }

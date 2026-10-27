@@ -28,6 +28,11 @@ test("수면 범위 화면은 정확한 시간 입력을 강제하거나 범위�
   assert.equal(stateSchema.parse({...state(),answers}).answers.basic?.sleepRange,"5-7");
   assert.equal(initialCheckin(answers).sleepKnown,false);
 });
+test("긴 성분 목록은 한 화면 여섯 항목으로 나눠 다중 선택을 유지한다",()=>{
+  const answers={...a,basic:{...a.basic,supplementStatus:"yes" as const,supplements:["biotin" as const]}};
+  const html=renderToStaticMarkup(<BasicOnboarding draft={{answers,step:7}} busy={false} error="" onComplete={()=>{}} onClose={()=>{}}/>);
+  assert.ok(html.includes("다음 항목"));assert.ok(html.includes("1개 선택"));assert.ok(html.includes("비타민 B12"));assert.ok(!html.includes(">비오틴 · B7</button>"));
+});
 test("기초 프로필은 생략 가능한 신체 수치·미확인과 비복용을 구분하고 모순·중복을 거절한다",()=>{
   assert.ok(basicProfileSchema.safeParse(emptyBasicProfile()).success);
   assert.ok(!basicProfileSchema.safeParse({...a.basic,height:0}).success);
