@@ -6,10 +6,12 @@ import { allergenLabels, emptyNutritionProfile, nutritionProfileSchema, type Nut
 import { foodOptions, formatChoices, formatComparison, ingredients, proteinDirections, rankIngredients, supplementHolds, type Ingredient } from "@/lib/nutrition";
 import { ChoiceButtons } from "./choice-buttons";
 import { Input } from "./forms";
+import { NutritionSurvey } from "./nutrition-survey";
 import { useChapterScroll } from "./use-chapter-scroll";
 
 export function NutritionGuide({state,busy,onSave,onEdit}:{state:AppState;busy:boolean;onSave:(p:NutritionProfile)=>Promise<void>;onEdit:()=>void}){
   const [profile,setProfile]=useState<NutritionProfile>(()=>state.nutrition??emptyNutritionProfile());
+  const [showSurvey,setShowSurvey]=useState(false);
   const [selected,setSelected]=useState<string|null>(null),[error,setError]=useState("");
   const root=useRef<HTMLElement>(null);
   useChapterScroll(root,selected??"overview",{resetPage:true,skipInitial:true});
@@ -24,16 +26,11 @@ export function NutritionGuide({state,busy,onSave,onEdit}:{state:AppState;busy:b
     try{setError("");await onSave(parsed.data);setProfile(parsed.data);}catch(e){setError((e as Error).message);}
   };
   return <section className="nutrition-workspace" ref={root}>
-    <div className="nutrition-intro"><span className="eyebrow">NUTRIENTS FIRST · NO GENERATIVE AI</span><h2 data-chapter-heading tabIndex={-1}>성분을 이해하고, 나에게 맞게 챙겨요.</h2><p>여러 후보 중 먼저 살펴볼 성분을 최대 5개 골라요. 결핍 진단이나 모두 복용하라는 뜻은 아니에요.</p><button className="text-link" disabled={busy} onClick={onEdit}>기본 문진·복용약·현재 영양제 확인</button></div>
+    <div className="nutrition-intro"><span className="eyebrow">OPTIONAL NUTRITION · NO GENERATIVE AI</span><h2 data-chapter-heading tabIndex={-1}>성분을 이해하고, 나에게 맞게 챙겨요.</h2><p>여러 후보 중 먼저 살펴볼 성분을 최대 5개 골라요. 결핍 진단이나 모두 복용하라는 뜻은 아니에요.</p><button className="text-link" disabled={busy} onClick={onEdit}>제품 비교 전 안전정보 확인</button></div>
     {!state.answers.supplementOptIn?<div className="panel"><h3>영양정보 제공을 선택하지 않으셨어요</h3><p>영양정보 없이도 일정·루틴을 이용할 수 있어요.</p><button className="button secondary" onClick={onEdit}>문진에서 선택 변경</button></div>:<>
-    <details className="panel nutrition-profile" open={!state.nutrition?.reviewed}><summary>나의 음식·섭취 프로필 <span>{isSaved&&profile.reviewed?"저장된 답변 사용 중":"추천 전 한 번 확인해요"}</span></summary><p>음식 알레르기·소화 불편·기호를 구분해서 저장해요. 자유 입력의 의미를 자동으로 진단하지 않아요.</p><div className="form-grid">
-      <div className="form-span"><ChoiceButtons label="음식 알레르기가 있나요?" value={profile.allergyStatus} options={{none:"없어요",known:"있어요",unknown:"잘 모르겠어요"}} disabled={busy} onChange={v=>setProfile(p=>({...p,allergyStatus:v as NutritionProfile["allergyStatus"],allergens:v==="known"?p.allergens:[],allergyNotes:"",reviewed:false}))}/></div>
-      {profile.allergyStatus==="known"&&<div className="form-span"><fieldset><legend>반응이 있는 원료를 모두 선택해주세요</legend><div className="choice-buttons">{Object.entries(allergenLabels).map(([key,label])=><label className="check-choice" key={key}><input type="checkbox" disabled={busy} checked={profile.allergens.includes(key as never)} onChange={e=>update("allergens",e.target.checked?[...profile.allergens,key as never]:profile.allergens.filter(a=>a!==key))}/>{label}</label>)}</div></fieldset><Input label="기타 알레르기·반응 설명 (선택)" value={profile.allergyNotes} onChange={v=>update("allergyNotes",v.slice(0,250))}/></div>}
-      <div className="form-span"><ChoiceButtons label="우유·유제품을 먹었을 때 소화는 어떤가요?" value={profile.lactose} options={{comfortable:"특별히 불편하지 않아요",discomfort:"복통·가스·설사 등이 있어요",unknown:"잘 모르겠어요"}} disabled={busy} onChange={v=>update("lactose",v as NutritionProfile["lactose"])}/><small>이 답변만으로 유당불내증을 진단하지 않아요. 우유 알레르기와는 다른 항목이에요.</small></div>
-      <Input label="다른 음식의 소화 불편 (선택)" value={profile.digestiveNotes} onChange={v=>update("digestiveNotes",v.slice(0,250))}/><Input label="피하거나 먹기 어려운 음식 (선택)" value={profile.avoidFoods} onChange={v=>update("avoidFoods",v.slice(0,250))}/>
-      <div className="form-span"><ChoiceButtons label="평소 식사에서 단백질은 어떻게 챙기나요?" value={profile.proteinIntake} options={{unknown:"얼마나 먹는지 몰라요",adequate:"식사로 충분히 챙겨요",difficult:"챙겨 먹기 어려워요"}} disabled={busy} onChange={v=>update("proteinIntake",v as NutritionProfile["proteinIntake"])}/></div>
-      </div><p className="muted">모르는 정보는 ‘없음’으로 처리하지 않아요. 내용이 바뀌면 수정 후 다시 저장해주세요.</p><button type="button" className="button primary" disabled={busy} onClick={()=>void save()}>{busy?"저장 중…":"확인한 음식·섭취 정보 저장"}</button>{error&&<p role="alert" className="form-error">{error}</p>}
-    </details>
+    <section className="panel nutrition-profile"><h3>나의 음식·섭취 프로필</h3><p>{profile.reviewed?"확인한 음식 정보를 사용하고 있어요.":"음식·알레르기 정보는 아직 확인 전이에요. 필요한 질문만 하나씩 진행해요."}</p><button className="button secondary" disabled={busy} onClick={()=>setShowSurvey(true)}>음식·섭취 정보 확인</button></section>
+    {showSurvey&&<NutritionSurvey initial={profile} busy={busy} onSave={async next=>{await onSave(next);setProfile(next);}} onClose={()=>setShowSurvey(false)}/>}
+    {state.answers.basic&&<section className="panel current-supplements"><span className="eyebrow">CURRENT · 현재 선택한 성분</span><h3>먹고 있는 영양제부터 이해해요</h3><p>계획표 작성 여부와 관계없이 기본 정보·주의사항은 확인할 수 있어요. 성분 선택만으로 새 제품의 필요성이나 함께 복용할 안전성을 확정하지 않아요.</p>{state.answers.basic.supplements.length?state.answers.basic.supplements.map(id=>{const i=ingredients.find(row=>row.id===id);return i?<details key={id}><summary>{i.name}</summary><p>{i.role}</p><p>{i.benefit}</p><p><b>섭취 시기</b> 제품 형태·함량과 약물에 따라 달라요. 라벨의 식전·식후·섭취 간격을 확인하고 성분명만으로 시간을 확정하지 않아요.</p><p><b>함께 챙길 때</b> {i.pairing}</p><p>{i.limit} {i.caution}</p><a className="text-link" href={i.source} target="_blank" rel="noopener noreferrer">{i.sourceTitle}</a></details>:<details key={id}><summary>종합비타민</summary><p>제품마다 성분·함량이 달라요. 다른 제품과의 중복과 전체 라벨을 확인하고, 함께 먹을 새 제품을 자동으로 추가하지 않아요.</p><a className="text-link" href="https://ods.od.nih.gov/factsheets/MVMS-Consumer/" target="_blank" rel="noopener noreferrer">NIH · Multivitamin/mineral Supplements</a></details>;}):<p>{state.answers.basic.supplementStatus==="none"?"현재 먹는 영양제가 없다고 답하셨어요. 추가 복용은 필수가 아니에요.":"현재 제품은 아직 확인 전이에요. 아래 성분 자료를 자유롭게 살펴볼 수 있어요."}</p>}</section>}
     {active?<><button className="text-link" type="button" onClick={()=>setSelected(null)}>← 우선 성분·전체 목록</button><IngredientDetail key={active.id} ingredient={active} answers={state.answers} profile={profile} dirty={!isSaved} holds={holds} busy={busy} onUpdate={update} onSave={save}/></>:<>
       <div className="section-head"><div><span className="eyebrow">YOUR FIRST PICKS</span><h2>먼저 살펴볼 성분 {ranked.length}개</h2><p>평소 식사·운동 정보를 기준으로 정렬해요. 오늘 피로나 공부 시간만으로 새 영양제를 권하지 않아요.</p></div></div>
       {!ranked.length&&<div className="panel"><h3>현재는 추가 후보를 정할 정보가 충분하지 않아요.</h3><p>식생활을 확인하거나 아래 성분 정보를 살펴볼 수 있어요. 추천 수를 억지로 채우지 않아요.</p></div>}

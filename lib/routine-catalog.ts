@@ -1,15 +1,18 @@
 import type { Answers, Checkin, Day, Inbody, Routine } from "./model";
 import { guidanceForRoutine } from "./routine-guidance";
+import { growthCatalog } from "./growth-routines";
 
 export const MAX_DAILY_ROUTINES = 20;
 export const routineSourceLabel = (r: Routine) => r.source === "custom" ? "직접 만든 루틴" : r.source === "catalog" ? "내가 고른 루틴" : "컨디션 맞춤";
 
 export function conditionSummary(c: Checkin): string {
+  if(c.reported===false)return `기초 설문 기반 · 실제 컨디션 미확인 · 루틴 가능 시간 ${c.minutes}분`;
   const places = {home:"집",office:"회사·학교",outside:"야외",gym:"운동시설"};
-  return `수면 ${c.sleep}시간 · 에너지 ${c.energy}/5 · 스트레스 ${c.stress}/5 · ${c.minutes}분 · ${places[c.place]}${c.busy ? " · 바쁜 날" : ""}${c.unwell ? " · 회복 우선" : ""}`;
+  return `${c.sleepKnown===false?"실제 수면 미입력":`수면 ${c.sleep}시간`} · 에너지 ${c.energy}/5 · 스트레스 ${c.stress}/5 · ${c.minutes}분 · ${places[c.place]}${c.busy ? " · 바쁜 날" : ""}${c.unwell ? " · 회복 우선" : ""}`;
 }
 
 export function getRoutineCatalog(a: Answers, c: Checkin, inbody?: Inbody): Routine[] {
+  if(a.basic)return growthCatalog().map(r=>({...r,source:"catalog"}));
   const gentle = c.busy || c.energy <= 2 || c.sleep < 6 || c.sleepQuality === "poor" || (c.sleepOpportunity != null && c.sleepOpportunity < 6);
   const movement = Math.max(1, Math.min(c.minutes - 4, gentle ? 5 : Math.round(5 + c.energy * 2)));
   const why = `오늘 입력한 ${conditionSummary(c)}에 맞춰 선택할 수 있는 행동이에요.`;

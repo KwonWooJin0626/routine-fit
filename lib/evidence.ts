@@ -36,6 +36,7 @@ const groups:{keys:string[];ids:EvidenceId[];note:string}[]=[
 ];
 export function questionEvidence(key:string):EvidenceInfo {return groups.find(g=>g.keys.includes(key))??service;}
 export function routineEvidence(r:Pick<Routine,"id"|"source"|"category">):EvidenceInfo {
+  if(r.id.startsWith("growth-"))return {ids:[],note:"작은 실천을 돕기 위한 서비스 자체 제안이에요. 특정 시간·분량의 효과를 검증한 외부 근거를 적용한 것은 아니에요."};
   if(r.source==="custom"||r.id.startsWith("custom-"))return {ids:[],note:"직접 만든 루틴입니다. 서비스가 외부 근거나 안전성을 검증한 활동이 아닙니다."};
   if(["food-table","sleep-room","move-posture","mind-screen","mind-priority"].includes(r.id))return {ids:[],note:"실행 편의를 위한 서비스 자체 제안입니다. 해당 행동·분량의 효과를 검증한 외부 근거를 적용한 것은 아닙니다."};
   if(r.id.includes("music"))return {ids:r.category==="sleep"?["music","habits"]:["music"],note:"음악 관련 배경 자료입니다. 장르·곡·분량은 취향에 따른 서비스 제안이며 치료 효과를 보장하지 않습니다."};

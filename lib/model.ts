@@ -1,8 +1,10 @@
 import { z } from "zod";
 import { plannerSchema, plannerDateSchema } from "./planner-model";
 import { nutritionProfileSchema } from "./nutrition-profile";
+import { basicProfileSchema } from "./basic-profile";
 
 export const answersSchema = z.object({
+  basic: basicProfileSchema.optional(),
   name: z.string().trim().min(1).max(24),
   planningStyle: z.enum(["spontaneous","planned"]).optional(),
   age: z.enum(["18-29", "30-39", "40-49", "50-64", "65+"]),
@@ -64,6 +66,8 @@ export const defaultAnswers: Answers = {
   safetyDetails: "", currentSupplements: "", confirmedDeficiency: "",
 };
 export const checkinSchema = z.object({
+  reported:z.boolean().optional(),
+  sleepKnown:z.boolean().optional(),
   sleep: z.coerce.number().min(0).max(14), energy: z.coerce.number().int().min(1).max(5),
   stress: z.coerce.number().int().min(1).max(5), minutes: z.coerce.number().int().min(5).max(60),
   unwell: z.boolean(), place: z.enum(["home", "office", "outside", "gym"]), busy: z.boolean(),
@@ -121,16 +125,17 @@ export const daySchema = z.object({
 });
 export type Day = z.infer<typeof daySchema>;
 export const stateSchema = z.object({
-  version: z.literal(1), consentAt: z.string().datetime(), consentVersion: z.literal("2026-10-v1"),
+  version: z.literal(1), consentAt: z.string().datetime(), consentVersion: z.enum(["2026-10-v1","2026-10-growth-v1"]),
   answers: answersSchema, schedule: scheduleSchema, inbody: z.array(inbodySchema).max(30), days: z.array(daySchema).max(90), planner:plannerSchema.optional(),
   nutrition:nutritionProfileSchema.optional(),
+  growth:z.object({hideQuotes:z.boolean().default(false),reflections:z.record(plannerDateSchema,z.string().trim().max(300)).refine(v=>Object.keys(v).length<=90,"회고는 최근 90일까지 보관해요.").default({})}).optional(),
 });
 export type AppState = z.infer<typeof stateSchema>;
 export type AnalysisMetric = {label:string;value:string;reference:string;status:"met"|"below"|"unknown"|"self"|"individual"};
 export type Analysis = { category: "sleep" | "food" | "move" | "mind"; label: string; status:string; headline: string; observation: string; metrics:AnalysisMetric[]; limitation:string; sources:import("./evidence").EvidenceId[]; };
-export const categoryLabels = { sleep: "수면·회복", food: "식사·영양", move: "움직임", mind: "스트레스" };
+export const categoryLabels = { sleep: "수면·회복", food: "식사·영양", move: "움직임", mind: "집중·성장" };
 export const goalLabels = { balance: "균형 있는 일상", sleep: "숙면", energy: "활력 회복", fitness: "운동 습관", food: "식사 균형", stress: "스트레스 관리" };
 export function localDate(date = new Date()): string { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(date); }
 export function toMinutes(time: string) { const [h, m] = time.split(":").map(Number); return h * 60 + m; }
 export function toTime(m: number) { return `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; }
-export function initialCheckin(a: Answers): Checkin { return { sleep: a.sleepHours, energy: a.energy, stress: a.stress, minutes: a.available, unwell: false, place: "home", busy: false }; }
+export function initialCheckin(a: Answers): Checkin { return { reported:a.basic?false:undefined,sleep: a.basic?7:a.sleepHours, sleepKnown:a.basic?false:undefined, energy: a.energy, stress: a.stress, minutes: a.available, unwell: false, place: "home", busy: false }; }

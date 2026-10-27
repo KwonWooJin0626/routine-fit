@@ -34,7 +34,7 @@ export function RoutineBuilder({answers,day,inbody,busy,onAdd,nutrition}:{answer
     <div className="picker-grid">{filtered.slice(0,limit).map(r=>{const Icon=icons[r.category];const added=ids.has(r.id);return <article key={r.id} className={`picker-card ${added?"is-added":""}`}><div className="picker-card-top"><span className="routine-icon" data-category={r.category}><Icon size={19}/></span><span>{categoryLabels[r.category]}</span><small><Clock3 size={12}/>{r.minutes}분</small></div><h3>{r.title}</h3><p>{r.detail}</p><RoutineGuidance guide={guidanceForRoutine(r,answers,nutrition??null)}/><RoutineSources routine={r}/><div className="picker-card-bottom"><span>{r.when}</span><button className="button secondary" disabled={busy||added||day.routines.length>=MAX_DAILY_ROUTINES} onClick={()=>onAdd({...r,guidance:undefined,source:"catalog"})} aria-label={`${r.title} ${added?"추가됨":"오늘 루틴에 추가"}`}>{added?<Check size={14}/>:<Plus size={14}/>} {added?"추가됨":"오늘에 담기"}</button></div>{!added && r.minutes>remaining && <small className="picker-budget">선택한 시간보다 많아질 수 있어요.</small>}</article>;})}</div>
     {!filtered.length&&<p className="picker-empty" role="status">찾는 루틴이 없어요. 검색어를 바꾸거나 직접 만들어보세요.</p>}
     {filtered.length>limit&&<button className="button secondary picker-more" onClick={()=>setLimit(n=>n+8)}>추천 더 보기 ({filtered.length-limit}개)<Plus size={14}/></button>}
-    <p className="picker-footnote">자동 추천은 3~5개로 시작해요. 직접 만든 루틴과 골라 담은 루틴을 합쳐 오늘 최대 {MAX_DAILY_ROUTINES}개까지 관리할 수 있어요.</p>
+    <p className="picker-footnote">자동 추천은 가능한 시간에 맞는 작은 루틴부터 시작해요. 직접 만든 루틴과 골라 담은 루틴을 합쳐 오늘 최대 {MAX_DAILY_ROUTINES}개까지 관리할 수 있어요.</p>
   </section>;
 }
 

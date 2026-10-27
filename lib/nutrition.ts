@@ -34,6 +34,8 @@ export const ingredients:Ingredient[]=[
 
 export function supplementHolds(a:Answers,p:NutritionProfile):string[]{
   const reasons:string[]=[];
+  if(a.basic&&!a.basic.nutritionAgeKnown)reasons.push("제품 비교 전 연령대 확인이 필요해요.");
+  if(a.basic&&a.basic.supplementStatus!=="none")reasons.push("현재 제품·함량·섭취 횟수가 확인되지 않았어요. 성분 선택만으로 중복이나 병용 가능 여부를 확정하지 않아요.");
   if(a.safetyReviewed!==true)reasons.push("기본 문진의 안전정보를 직접 확인해주세요.");
   if(!p.reviewed || p.allergyStatus==="unknown")reasons.push("음식·섭취 프로필 확인이 필요해요.");
   if(a.conditions||a.medicines||a.pregnancy||a.surgery||a.uncertainSafety||a.age==="65+")reasons.push("질환·복용약·생애단계 또는 불확실한 정보는 전문가 확인이 필요해요.");
@@ -48,6 +50,7 @@ export function foodOptions(i:Ingredient,a:Answers,p:NutritionProfile=emptyNutri
 }
 export function rankIngredients(a:Answers,p:NutritionProfile=emptyNutritionProfile()){
   if(!a.supplementOptIn)return [];
+  if(a.basic)return [];
   const rows:{ingredient:Ingredient;reason:string;score:number}[]=[];
   const add=(id:IngredientId,score:number,reason:string)=>rows.push({ingredient:ingredients.find(i=>i.id===id)!,score,reason});
   if(a.diet==="vegan"||a.diet==="vegetarian")add("b12",100,"채식 식단을 선택하셨어요. B12 급원·강화식품 섭취를 먼저 확인해요.");

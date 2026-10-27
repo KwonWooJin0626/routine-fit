@@ -21,5 +21,5 @@ test("즉흥형과 계획형 체크인은 다른 진입 설명과 단계를 사�
   const c=initialCheckin(answers),props={initial:c,busy:false,error:"",onSubmit(){},onClose(){},preview:()=>buildDay(answers,c,"core",defaultSchedule)};
   const quick=renderToStaticMarkup(<DailyCheckin {...props} style="spontaneous"/>);
   const planned=renderToStaticMarkup(<DailyCheckin {...props} style="planned"/>);
-  assert.ok(quick.includes("CHECK-IN 1 / 3"));assert.ok(planned.includes("CHECK-IN 1 / 2"));assert.ok(planned.includes("등록된 일정은 다시 묻지 않아요"));
+  assert.ok(quick.includes("CHECK-IN 1 / 8"));assert.ok(planned.includes("CHECK-IN 1 / 5"));assert.ok(planned.includes("등록된 일정은 다시 묻지 않아요"));
 });

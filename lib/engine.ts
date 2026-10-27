@@ -1,9 +1,11 @@
 import { type Answers, type Checkin, type Day, type Inbody, type Routine, type Schedule, type TimelineItem, toMinutes, toTime, localDate } from "./model";
 import { MAX_DAILY_ROUTINES, recommendCore } from "./routine-catalog";
+import { recommendGrowth } from "./growth-routines";
 
 export { analyze } from "./lifestyle-analysis";
 
 export function buildRoutines(a: Answers, c: Checkin, history: Day[] = [], inbody?: Inbody, generation = 0): Routine[] {
+  if(a.basic)return recommendGrowth(a,c,history,generation);
   return recommendCore(a, c, history, inbody, generation);
 }
 
@@ -137,6 +139,7 @@ export function buildDay(a: Answers, c: Checkin, mode: "core" | "full", schedule
 
 export type Supplement = { id: string; name: string; subtitle: string; reason: string; food: string; caution: string; label: string; query: string; source: string; blocked: boolean; };
 export function supplementGuides(a: Answers): Supplement[] {
+  if(a.basic)return [];
   if (!a.supplementOptIn) return [];
   const blocked = a.safetyReviewed!==true || a.conditions || a.medicines || a.pregnancy || a.surgery || a.allergy || a.uncertainSafety || !!a.currentSupplements.trim() || !!a.confirmedDeficiency.trim() || a.age === "65+";
   const guides: Supplement[] = [];

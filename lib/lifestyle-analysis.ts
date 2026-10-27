@@ -9,6 +9,7 @@ export function activityComparison(a:Answers){
   return {complete,equivalent};
 }
 export function analyze(a:Answers):Analysis[]{
+  if(a.basic)return (["sleep","food","move","mind"] as const).map(category=>({category,label:{sleep:"수면·회복",food:"식사·영양",move:"움직임",mind:"집중·성장"}[category],status:"기초 정보",headline:"범위 응답으로 시작했어요",observation:"정확한 시간·섭취량·강도는 아직 확인하지 않았어요.",metrics:[],limitation:"기초 응답을 임의의 정확한 수치나 건강 점수로 바꾸지 않아요.",sources:[]}));
   const tailored=individual(a),older=a.age==="65+";
   const sleepStatus:AnalysisMetric["status"]=tailored?"individual":a.sleepHours<7?"below":older&&a.sleepHours>8?"self":"met";
   const sleepReference=older?"65세 이상: 하루 7–8시간 (CDC)":a.age==="50-64"?"연령대 공통 최소 7시간. 61–64세는 7–9시간 (CDC)":"18–60세: 규칙적으로 하루 7시간 이상 (AASM·SRS)";
