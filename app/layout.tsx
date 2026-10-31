@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
+import "./pet.css";
 
 export const metadata: Metadata = {
   title: "ROUTINE FIT — 오늘의 작은 실천, 나다운 성장",
