@@ -24,7 +24,7 @@ type Seed={ranges?:PlacementRange[];date:string;start:string;end:string;category
 const swatch=(category:PlannerBlock["category"],shade=1)=>({"--block-hue":plannerColors[category],"--block-sat":`${35+shade*15}%`,"--block-light":`${98-shade*4}%`} as CSSProperties);
 const dateTitle=(date:string)=>new Intl.DateTimeFormat("ko-KR",{month:"long",day:"numeric",weekday:"long",timeZone:"UTC"}).format(new Date(`${date}T12:00Z`));
 
-export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings}:{state:AppState;busy:boolean;onSave:(p:Planner,change?:PlannerChange)=>Promise<void>;onGenerate:()=>void;onSettings:()=>void}){
+export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRecord}:{state:AppState;busy:boolean;onRecord?:(b:PlannerBlock,date:string,status:"done"|"partial"|"skipped")=>Promise<void>;onSave:(p:Planner,change?:PlannerChange)=>Promise<void>;onGenerate:()=>void;onSettings:()=>void}){
   const planner=state.planner??emptyPlanner(),today=localDate();
   const [compact,setCompact]=useState(false);
   const [selected,setSelected]=useState(today),[mode,setMode]=useState<"week"|"day">("week"),[filter,setFilter]=useState("all");
@@ -49,7 +49,7 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings}:{sta
   const entries=blocksForDate(planner,selected),fixed=entries.filter(b=>b.kind==="fixed"),extras=entries.filter(b=>b.kind==="once");
   const occurrences=occurrencesInWindow(planner,selected);
   const doneCount=occurrences.filter(o=>planner.records?.some(r=>r.blockId===o.block.id&&r.date===o.date&&r.status==="done")).length;
-  const mark=async(b:PlannerBlock,date:string,status:"done"|"partial"|"skipped")=>{try{await commit(recordOccurrence(planner,b,date,status,today));}catch(e){setNotice((e as Error).message);}};
+  const mark=async(b:PlannerBlock,date:string,status:"done"|"partial"|"skipped")=>{try{if(onRecord)await onRecord(b,date,status);else await commit(recordOccurrence(planner,b,date,status,today));}catch(e){setNotice((e as Error).message);}};
   const commit=async(next:Planner,change?:PlannerChange)=>{setNotice("");const parsed=plannerSchema.safeParse(next);if(!parsed.success)throw new Error(parsed.error.issues[0].message);const conflicts=validatePlanner(parsed.data);if(conflicts.length)throw new Error(conflicts.join("\n"));await onSave(parsed.data,change);};
   const startNew=(value?:Partial<Seed>)=>{setNotice("");setPlacement(null);setSeed({date:selected,start:"09:00",end:"10:00",...value});};
   const beginPlacement=(category:PlannerBlock["category"],template?:PlannerTemplate)=>{

@@ -1,0 +1,42 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { parseEnv } from "node:util";
+import { eq } from "drizzle-orm";
+import { getDb } from "../db";
+import { userStates,petCompanions,sleepProfiles,sleepRecords } from "../db/schema";
+import { petRepository } from "../lib/pet-repository";
+import { sleepRepository } from "../lib/sleep-repository";
+import { defaultSleepSettings } from "../lib/sleep";
+import { defaultAnswers,defaultSchedule,type AppState } from "../lib/model";
+import type { PetRequest } from "../lib/pet-model";
+
+const production=parseEnv(await readFile(".env.production.local","utf8"));
+assert.ok(process.env.DATABASE_URL&&process.env.DATABASE_URL!==production.DATABASE_URL,"Separate development DB required");
+const db=getDb(),id=`qa_pet_${randomUUID()}`,other=`${id}_other`,now=new Date(),earlier=new Date(now.getTime()-3600000),at=now.toISOString();
+const app:AppState={version:1,consentVersion:"2026-10-growth-v1",consentAt:at,answers:{...defaultAnswers,name:"합성 강아지 검증"},schedule:defaultSchedule,days:[],inbody:[]};
+let stage="setup";
+try{
+ await db.insert(userStates).values({userId:id,payload:JSON.stringify(app),revision:1,updatedAt:at});
+ stage="adoption + retry";const adopt:PetRequest={key:randomUUID(),revision:0,appRevision:1,command:{action:"adopt",name:"검증용 솜이"}};
+ const first=await petRepository.mutate(id,adopt,earlier);const again=await petRepository.mutate(id,adopt,earlier);assert.equal(again.duplicate,true);assert.equal(again.revision,first.revision);
+ assert.equal((await petRepository.get(other,now)).document,null);
+ stage="concurrent mutation CAS";
+ const make=(title:string):PetRequest=>({key:randomUUID(),revision:1,appRevision:2,command:{action:"record",record:{title,type:"exercise",start:new Date(now.getTime()-1800000).toISOString(),end:at,intensity:"moderate",source:{kind:"manual",id:randomUUID(),date:at.slice(0,10)},status:"done"}}});
+ const commands=[make("동시 A"),make("동시 B")],results=await Promise.allSettled(commands.map(c=>petRepository.mutate(id,c,now)));
+ assert.equal(results.filter(r=>r.status==="fulfilled").length,1);assert.equal(results.filter(r=>r.status==="rejected").length,1);
+ const saved=await petRepository.get(id,now);assert.equal(saved.document!.records.length,1);assert.equal(saved.view!.stats.fitnessTotalXP,5);
+ const [row]=await db.select().from(petCompanions).where(eq(petCompanions.userId,id));assert.equal(JSON.parse(row.payload).records.length,1);
+ stage="sleep correction atomic rollback";
+ await db.insert(sleepProfiles).values({userId:id,settings:JSON.stringify(defaultSleepSettings()),email:"synthetic@example.test",updatedAt:at});
+ const sessionDate=at.slice(0,10),bed=new Date(now.getTime()-3600000).toISOString(),wake=new Date(now.getTime()-1800000).toISOString();
+ await db.insert(sleepRecords).values([ {id:`${id}_bed`,userId:id,sessionDate,kind:"bed",plannedAt:bed,checkedAt:at,actualAt:bed,method:"web",updatedAt:at},{id:`${id}_wake`,userId:id,sessionDate,kind:"wake",plannedAt:wake,checkedAt:at,actualAt:wake,method:"web",updatedAt:at}]);
+ const sleep=await petRepository.mutate(id,{key:randomUUID(),revision:saved.revision,appRevision:saved.appRevision,command:{action:"record",record:{title:"수면",type:"sleep",start:bed,end:wake,intensity:"moderate",source:{kind:"sleep",id:sessionDate,date:sessionDate},status:"done"}}},now);
+ await assert.rejects(sleepRepository.correct(id,`${id}_wake`,at,at),/겹쳐/);
+ const [unchanged]=await db.select().from(sleepRecords).where(eq(sleepRecords.id,`${id}_wake`));assert.equal(unchanged.actualAt,wake);
+ await sleepRepository.correct(id,`${id}_wake`,new Date(Date.parse(wake)-60000).toISOString(),at);
+ const changed=await petRepository.get(id,now);assert.equal(changed.revision,sleep.revision+1);
+ assert.equal(changed.document!.records.find(r=>r.type==="sleep")!.end,new Date(Date.parse(wake)-60000).toISOString());
+ stage="cascade delete";await db.delete(userStates).where(eq(userStates.userId,id));assert.equal((await db.select().from(petCompanions).where(eq(petCompanions.userId,id))).length,0);
+ console.log("PASS: Neon pet adoption, idempotent retry, concurrent CAS, isolation, persistence, atomic sleep correction/rollback, cascade cleanup.");
+}catch{console.error(`FAIL pet DB integration at ${stage}`);process.exitCode=1;}finally{await db.delete(userStates).where(eq(userStates.userId,id));await db.$client.end();}

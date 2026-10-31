@@ -2,7 +2,8 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { and,eq,lt,desc } from "drizzle-orm";
 import { getDb } from "@/db";
-import { sleepProfiles,sleepRecords,sleepDeliveries } from "@/db/schema";
+import { sleepProfiles,sleepRecords,sleepDeliveries,userStates } from "@/db/schema";
+import { syncPetSleep } from "./pet-repository";
 import { sleepSettingsSchema,koreanDate,shiftDate,type SleepRecord } from "./sleep";
 import { readSleepToken } from "./sleep-token";
 import type { SleepRepository } from "./sleep-api";
@@ -23,12 +24,15 @@ export const sleepRepository:SleepRepository={
     return rows[0]?{settings,revision:rows[0].revision,email}:null;
   },
   async checkin(userId,value){
-    const rows=await getDb().insert(sleepRecords).values({...value,id:recordId(userId,value.sessionDate,value.kind),userId}).onConflictDoNothing().returning();
+    return getDb().transaction(async tx=>{
+    await tx.select().from(userStates).where(eq(userStates.userId,userId)).for("update");
+    const rows=await tx.insert(sleepRecords).values({...value,id:recordId(userId,value.sessionDate,value.kind),userId}).onConflictDoNothing().returning();
     if(rows[0])return record(rows[0]);
-    const old=await getDb().select().from(sleepRecords).where(and(eq(sleepRecords.id,recordId(userId,value.sessionDate,value.kind)),eq(sleepRecords.userId,userId))).limit(1);
+    const old=await tx.select().from(sleepRecords).where(and(eq(sleepRecords.id,recordId(userId,value.sessionDate,value.kind)),eq(sleepRecords.userId,userId))).limit(1);
     return record(old[0]);
+    });
   },
-  async correct(userId,id,actualAt,now){const rows=await getDb().update(sleepRecords).set({actualAt,updatedAt:now}).where(and(eq(sleepRecords.userId,userId),eq(sleepRecords.id,id))).returning();return rows[0]?record(rows[0]):null;},
+  async correct(userId,id,actualAt,now){return getDb().transaction(async tx=>{await tx.select().from(userStates).where(eq(userStates.userId,userId)).for("update");const rows=await tx.update(sleepRecords).set({actualAt,updatedAt:now}).where(and(eq(sleepRecords.userId,userId),eq(sleepRecords.id,id))).returning();if(rows[0])await syncPetSleep(tx,userId,new Date(now));return rows[0]?record(rows[0]):null;});},
   async emailCheckin(userId,token,now){
     const secret=process.env.SLEEP_TOKEN_SECRET;if(!secret)return null;
     const claim=readSleepToken(token,secret,now.getTime());if(!claim||claim.userId!==userId)return null;

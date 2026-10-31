@@ -15,6 +15,13 @@
       "when": 1793072133014,
       "tag": "0001_friendly_gargoyle",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793429914846,
+      "tag": "0002_pet_companion",
+      "breakpoints": true
     }
   ]
 }

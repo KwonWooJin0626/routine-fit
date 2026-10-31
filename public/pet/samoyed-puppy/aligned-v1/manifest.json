@@ -1,0 +1,20 @@
+{
+  "version": "aligned-v1",
+  "cell": 560,
+  "columns": 3,
+  "rows": 2,
+  "leftInset": {
+    "idle": 100,
+    "bark": 100,
+    "happy": 90,
+    "tired": 64
+  },
+  "offsetXRatio": -0.04,
+  "frameMs": {
+    "idle": 150,
+    "bark": 180,
+    "happy": 140,
+    "tired": 380
+  },
+  "source": "approved aligned first motion; preserve full-pose movement"
+}

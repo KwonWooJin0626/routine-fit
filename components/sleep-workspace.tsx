@@ -8,7 +8,7 @@ import { ChoiceButtons } from "./choice-buttons";
 
 async function sleepApi(method="GET",body?:unknown){const res=await fetch("/api/sleep",{method,headers:{"Content-Type":"application/json"},...(body?{body:JSON.stringify(body)}:{})});const data=await res.json();if(!res.ok)throw Error(data.error??"요청을 처리하지 못했어요.");return data;}
 const display=(value:string|null)=>value?new Intl.DateTimeFormat("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(value)):"미입력";
-export function SleepWorkspace({demo,initialBed,initialWake}:{demo:boolean;initialBed:string;initialWake:string}){
+export function SleepWorkspace({demo,initialBed,initialWake,onPetRecord,onRecordsChange}:{demo:boolean;initialBed:string;initialWake:string;onPetRecord?:(bed:SleepRecord,wake:SleepRecord)=>void;onRecordsChange?:(records:SleepRecord[])=>Promise<void>}){
   const [settings,setSettings]=useState<SleepSettings>(()=>defaultSleepSettings(initialBed,initialWake)),[profile,setProfile]=useState<SleepProfile|null>(null),[records,setRecords]=useState<SleepRecord[]>([]);
   const [capability,setCapability]=useState({mailConfigured:false,schedulerConfigured:false}),[loading,setLoading]=useState(!demo),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
   const [editing,setEditing]=useState<SleepRecord|null>(null),[actual,setActual]=useState("");
@@ -24,13 +24,13 @@ export function SleepWorkspace({demo,initialBed,initialWake}:{demo:boolean;initi
     let record:SleepRecord;
     if(demo){const now=new Date(),date=sleepSessionDate(kind,now,profile.settings),old=records.find(r=>r.sessionDate===date&&r.kind===kind);record=old??{id:`demo-${date}-${kind}`,sessionDate:date,kind,plannedAt:plannedSleepTime(date,kind,profile.settings),checkedAt:now.toISOString(),actualAt:null,method:kind==="bed"&&profile.settings.bedReference==="alarm-setting"?"alarm-setting":"web",updatedAt:now.toISOString()};}
     else record=(await sleepApi("POST",{kind})).record;
-    setRecords(rows=>[record,...rows.filter(r=>r.id!==record.id)].slice(0,180));setNotice(`${kind==="bed"?"취침 준비":"기상"} 체크인을 기록했어요. 같은 날 반복 클릭해도 최초 확인 시각을 유지해요.`);
+    const next=[record,...records.filter(r=>r.id!==record.id)].slice(0,180);await onRecordsChange?.(next);setRecords(next);setNotice(`${kind==="bed"?"취침 준비":"기상"} 체크인을 기록했어요. 같은 날 반복 클릭해도 최초 확인 시각을 유지해요.`);
   });
   const correct=()=>void perform(async()=>{
     if(!editing)return;const actualAt=actual?new Date(`${actual}:00+09:00`).toISOString():null;
     if(actualAt&&(new Date(actualAt)>new Date()||Math.abs(new Date(actualAt).getTime()-new Date(editing.checkedAt).getTime())>36*3600000))throw Error("미래 시각이나 확인 시각에서 36시간 넘게 떨어진 시각은 입력할 수 없어요.");
     const record=demo?{...editing,actualAt,updatedAt:new Date().toISOString()}:(await sleepApi("PATCH",{id:editing.id,actualAt})).record;
-    setRecords(rows=>rows.map(r=>r.id===record.id?record:r));setEditing(null);setNotice("자기보고 시각을 수정했어요. 최초 체크인 시각은 유지돼요.");
+    const next=records.map(r=>r.id===record.id?record:r);await onRecordsChange?.(next);setRecords(next);setEditing(null);setNotice("자기보고 시각을 수정했어요. 최초 체크인 시각은 유지돼요.");
   });
   if(loading)return <section className="panel"><p>수면 기록을 불러오고 있어요.</p></section>;
   const available=capability.mailConfigured&&capability.schedulerConfigured&&!demo;
@@ -42,6 +42,7 @@ export function SleepWorkspace({demo,initialBed,initialWake}:{demo:boolean;initi
       <button className="button primary" disabled={busy||!!error||!settings.weekdays.length} onClick={save}>목표·알림 설정 저장</button>
     </section>
     <section className="panel sleep-checkin"><h2>지금 체크인하기</h2><p>버튼을 누른 확인 시각을 기록해요. 실제 잠든 시각·눈을 뜬 시각의 증명은 아니에요.</p><div className="choice-buttons"><button className="button secondary" disabled={busy||!profile} onClick={()=>checkin("bed")}><Moon size={17}/>{profile?.settings.bedReference==="alarm-setting"?"지금 알람을 맞췄어요":"이제 잠자리에 들어요"}</button><button className="button primary" disabled={busy||!profile} onClick={()=>checkin("wake")}><Sun size={17}/>일어났어요</button></div>{!profile&&<p className="muted">목표를 먼저 저장하면 체크인을 남길 수 있어요.</p>}</section>
+    {onPetRecord&&<section className="panel pet-sleep-link"><h2>확인한 수면을 사모예드에게 연결</h2><p>취침·기상 두 실제 시각이 모두 있어야 해요. 체크인 버튼 시각이나 알람 설정만으로는 반영하지 않아요.</p>{Array.from(new Set(records.map(r=>r.sessionDate))).sort().reverse().map(date=>{const bed=records.find(r=>r.sessionDate===date&&r.kind==="bed"),wake=records.find(r=>r.sessionDate===date&&r.kind==="wake");return <div className="pet-sleep-session" key={date}><div><b>{date}</b><p>{bed?.actualAt&&wake?.actualAt?`${display(bed.actualAt)} ~ ${display(wake.actualAt)}`:"아래에서 취침·기상 실제 시각을 입력해주세요."}</p></div><button className="button secondary" disabled={busy||!bed?.actualAt||!wake?.actualAt} onClick={()=>bed&&wake&&onPetRecord(bed,wake)}>실제 수면 확인·반영</button></div>;})}{!records.length&&<p className="muted">먼저 체크인을 남기고 실제 시각을 확인해주세요.</p>}</section>}
     <section className="panel sleep-records"><h2>내 수면 체크인 기록</h2><p>날짜는 기상일 기준이에요. 미확인은 실패로 처리하지 않아요. 취침 준비와 기상 확인 사이의 간격을 실제 수면시간으로 계산하지 않아요.</p>{records.length?<div className="record-table"><table><thead><tr><th>기상일</th><th>종류</th><th>목표</th><th>최초 확인</th><th>자기보고 시각</th><th>관리</th></tr></thead><tbody>{[...records].sort((a,b)=>b.checkedAt.localeCompare(a.checkedAt)).map(r=><tr key={r.id}><td>{r.sessionDate}</td><td>{r.kind==="bed"?"취침 준비":"기상"}{r.method==="alarm-setting"?" · 알람 설정":""}</td><td>{display(r.plannedAt)}</td><td>{display(r.checkedAt)}</td><td>{display(r.actualAt)}</td><td><button className="text-link" disabled={busy} onClick={()=>{setEditing(r);setActual(r.actualAt?`${koreanDate(new Date(r.actualAt))}T${koreanTime(new Date(r.actualAt))}`:"");}}>실제 시각 수정</button></td></tr>)}</tbody></table></div>:<p className="sleep-status">아직 기록이 없어요. 미기록을 늦잠으로 판단하지 않아요.</p>}
       {editing&&<div className="sleep-status"><Input label={editing.kind==="wake"?"실제 일어난 시각 (자기보고)":"실제 잠자리에 든 시각 (자기보고)"} type="datetime-local" value={actual} onChange={setActual}/><p>비워서 저장하면 자기보고 시각을 지워요. 확인 시각과 최대 36시간 차이까지 입력할 수 있어요.</p><div className="choice-buttons"><button className="button primary" disabled={busy} onClick={correct}>수정 저장</button><button className="button secondary" disabled={busy} onClick={()=>setEditing(null)}>취소</button></div></div>}
     </section>

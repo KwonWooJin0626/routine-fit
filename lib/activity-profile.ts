@@ -16,7 +16,7 @@ export const activityGoals:Record<ActivityDomain,Record<string,string>>={
 export const activityWhen={morning:"하루 시작",afterMeal:"식사 후",beforeStudy:"공부·업무 전",between:"활동 사이",evening:"하루 마무리",calendar:"계획표 빈 시간에 배치"} as const;
 export const activityFeedbackSchema=z.object({
   reason:z.enum(["okay","time","hard","dislike","environment","condition","other"]).optional(),
-  actualMinutes:z.number().int().min(0).max(240).nullable(),recordedAt:z.string().datetime(),
+  actualMinutes:z.number().int().min(0).max(1440).nullable(),recordedAt:z.string().datetime(),
 });
 export type ActivityFeedback=z.infer<typeof activityFeedbackSchema>;
 export const activityProfileSchema=z.object({

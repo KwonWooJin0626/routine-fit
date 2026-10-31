@@ -1,7 +1,10 @@
 import { eq, and } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
 import { getDb } from "@/db";
-import { userStates } from "@/db/schema";
+import { userStates,petCompanions } from "@/db/schema";
+import { stateSchema } from "@/lib/model";
+import { protectsPetRecords } from "@/lib/pet-actions";
+import { readPetDocument } from "@/lib/pet-repository";
 import { createStateHandlers, type StateRepository } from "@/lib/state-api";
 
 const repository: StateRepository = {
@@ -17,10 +20,14 @@ const repository: StateRepository = {
         .onConflictDoNothing().returning({ revision: userStates.revision });
       return rows[0]?.revision ?? null;
     }
-    const rows = await db.update(userStates).set({ payload, updatedAt, revision: expectedRevision + 1 })
-      .where(and(eq(userStates.userId, userId), eq(userStates.revision, expectedRevision)))
-      .returning({ revision: userStates.revision });
-    return rows[0]?.revision ?? null;
+    return db.transaction(async tx=>{
+      const [old]=await tx.select().from(userStates).where(eq(userStates.userId,userId)).for("update");
+      if(!old||old.revision!==expectedRevision)return null;
+      const [pet]=await tx.select().from(petCompanions).where(eq(petCompanions.userId,userId));
+      if(!protectsPetRecords(stateSchema.parse(JSON.parse(old.payload)),stateSchema.parse(JSON.parse(payload)),pet?readPetDocument(pet.payload):null))return null;
+      const rows=await tx.update(userStates).set({payload,updatedAt,revision:expectedRevision+1}).where(and(eq(userStates.userId,userId),eq(userStates.revision,expectedRevision))).returning({revision:userStates.revision});
+      return rows[0]?.revision??null;
+    });
   },
   async remove(userId) { await getDb().delete(userStates).where(eq(userStates.userId, userId)); },
 };

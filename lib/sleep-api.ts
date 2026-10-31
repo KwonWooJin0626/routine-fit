@@ -1,4 +1,5 @@
 import { sleepSettingsSchema,sleepCheckinSchema,sleepCorrectionSchema,plannedSleepTime,sleepSessionDate,validateActualAt,type SleepSettings,type SleepRecord } from "./sleep";
+import { PetError } from "./pet-model";
 
 export type SleepProfile={settings:SleepSettings;revision:number;email:string};
 export type SleepIdentity={userId:string;email:string;verified:boolean};
@@ -45,7 +46,7 @@ export function createSleepHandlers(identity:()=>Promise<SleepIdentity|null>,rep
         if(!old)return response({error:"기록을 찾을 수 없어요."},404);
         if(!validateActualAt(input.data.actualAt,old.checkedAt,now))return response({error:"실제 시각은 미래이거나 확인 시각과 36시간 넘게 차이 날 수 없어요."},400);
         const record=await repo.correct(user.userId,old.id,input.data.actualAt,now.toISOString());return record?response({record}):response({error:"기록을 찾을 수 없어요."},404);
-      }catch{return response({error:"수정 내용을 저장하지 못했어요."},503);}
+      }catch(e){return e instanceof PetError?response({error:e.message},e.status):response({error:"수정 내용을 저장하지 못했어요."},503);}
     },
   };
 }

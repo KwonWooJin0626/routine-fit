@@ -6,6 +6,7 @@
 @import "./growth.css";
 @import "./profile-menu.css";
 @import "./activities.css";
+@import "./pet.css";
 
 .import-page{max-width:800px;margin:0 auto;padding:40px 20px;min-height:100vh}
 .import-page>.panel{margin-top:22px}.import-page h1{font-size:28px;margin:14px 0}
