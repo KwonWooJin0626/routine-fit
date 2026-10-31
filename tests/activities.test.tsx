@@ -11,6 +11,9 @@ import { emptyBasicProfile } from "../lib/basic-profile";
 import { ActivityWizard } from "../components/activity-wizard";
 import { ActivityGoals } from "../components/activity-goals";
 import { createStateHandlers, type StateRepository } from "../lib/state-api";
+import { checkpointActivity } from "../lib/activity-checkpoint";
+import { selectedEquipment, toggleEquipment, exerciseAdjustment } from "../lib/activity-catalog";
+import { ActivityCategoryResult } from "../components/activity-category-result";
 
 const date="2026-10-31";
 function profile(domain:ActivityDomain,id?:string):ActivityProfile{
@@ -29,13 +32,54 @@ test("7개 분야의 모든 활동이 유효한 설문 답변과 다른 실행 �
     const r=activityRoutine(p,20);assert.equal(r.activity?.domain,p.domain);assert.ok(r.detail.length>10);assert.ok(r.minutes===20);
   }
 });
-test("하루·주간·요일의 불일치와 중복·불확실한 운동·잘못된 활동·응답을 저장 전에 거절한다",()=>{
+test("하루·주간·요일의 불일치와 중복·잘못된 활동·응답을 저장 전에 거절한다",()=>{
   const p=profile("exercise","walk");
-  for(const patch of [{weekly:120},{days:[1,1,6]},{activity:"invented"},{fields:{...p.fields,restriction:"unknown"}},{fields:{...p.fields,experience:"unknown"}},{goal:"__proto__"},{fields:{...p.fields,place:"invented"}}])assert.ok(!activityProfileSchema.safeParse({...p,...patch}).success);
+  for(const patch of [{weekly:120},{days:[1,1,6]},{activity:"invented"},{goal:"__proto__"},{fields:{...p.fields,place:"invented"}}])assert.ok(!activityProfileSchema.safeParse({...p,...patch}).success);
   assert.ok(activityProfileSchema.safeParse({...profile("exercise","prepare"),fields:{interest:"unknown",place:"home"}}).success);
   assert.ok(!activityPreferencesSchema.safeParse({version:1,route:"routine",profiles:[p,profile("reading"),profile("study")]}).success);
   assert.ok(!activityProfileSchema.safeParse({...profile("study"),fields:{...profile("study").fields,deadline:"2026-02-30"}}).success);
   assert.ok(!activityCandidates({...p,fields:{...p.fields,place:"home"}}).some(a=>a.id==="gym"));
+});
+test("사용 가능한 기구는 복수 선택하며 없음의 배타성·기존 단일 값·잘못된 조합을 검증한다",()=>{
+  const p=profile("exercise","home"),fields=p.fields;
+  assert.equal(toggleEquipment("none","mat"),"mat");assert.equal(toggleEquipment("mat,band","none"),"none");
+  assert.deepEqual(selectedEquipment(toggleEquipment("mat","band")),["mat","band"]);assert.equal(toggleEquipment("mat,band","mat"),"band");
+  assert.ok(activityProfileSchema.safeParse({...p,fields:{...fields,equipment:"mat"}}).success);
+  assert.ok(activityProfileSchema.safeParse({...p,fields:{...fields,equipment:"mat,band,dumbbell"}}).success);
+  for(const equipment of ["mat,mat","mat,none","invented","",",mat"])assert.ok(!activityProfileSchema.safeParse({...p,fields:{...fields,equipment}}).success);
+  assert.match(activityRoutine({...p,fields:{...fields,equipment:"mat,band"}},20).detail,/매트·밴드/);
+});
+test("불편한 동작 답변은 저장·다음 분야 진행을 막지 않고 실행만 제외·보류한다",()=>{
+  const p=profile("exercise","home");
+  const adapted={...p,fields:{...p.fields,restriction:"impact",equipment:"mat,band"}};
+  assert.ok(activityProfileSchema.safeParse(adapted).success);assert.equal(exerciseAdjustment(adapted).level,"adapt");
+  assert.match(activityRoutine(adapted,20).detail,/뛰기·점프를 제외/);
+  for(const restriction of ["knee","wrist","other","unknown"]){
+    const held={...p,fields:{...p.fields,restriction}};
+    assert.ok(activityProfileSchema.safeParse(held).success,restriction);const routine=activityRoutine(held,30);
+    assert.equal(routine.category,"mind");assert.equal(routine.activity?.id,"prepare");assert.ok(routine.minutes<=5);
+    const next=checkpointActivity(undefined,held,["exercise","reading"],"routine");assert.deepEqual(next.pendingDomains,["reading"]);
+    const a=answers([held]);assert.ok(recommendActivities(a,initialCheckin(a),[],date).every(r=>r.category!=="move"));
+  }
+  const unknown={...p,fields:{...p.fields,experience:"unknown"}};
+  assert.ok(activityProfileSchema.safeParse(unknown).success);assert.equal(exerciseAdjustment(unknown).level,"hold");
+});
+test("분야 하나만 먼저 저장하고 다른 분야의 미확정 답변 없이 새 문서에서도 이어간다",()=>{
+  const first=checkpointActivity(undefined,profile("exercise"),["exercise","reading"],"routine");
+  assert.equal(first.profiles.length,1);assert.deepEqual(first.pendingDomains,["reading"]);
+  const s={...state([]),answers:{...answers([]),activities:first}},parsed=stateSchema.parse(JSON.parse(JSON.stringify(s)));
+  const html=renderToStaticMarkup(<ActivityWizard state={parsed} busy={false} error="" onComplete={async()=>buildDay(s.answers,initialCheckin(s.answers),"core",defaultSchedule)} onClose={()=>{}} onPlan={()=>{}}/>);
+  assert.match(html,/독서에서 원하는 변화/);assert.doesNotMatch(html,/어떤 방식으로 시작/);
+  const second=checkpointActivity(parsed.answers.activities,profile("reading"),["exercise","reading"],"routine");
+  assert.equal(second.profiles.length,2);assert.deepEqual(second.pendingDomains,[]);assert.deepEqual(second.profiles.find(p=>p.domain==="exercise"),first.profiles[0]);
+  const invalid={...first,pendingDomains:["study"]};assert.ok(!activityPreferencesSchema.safeParse(invalid).success);
+});
+test("분야 결과는 설문 완료·실천 완료를 구분하고 다음 설문을 나중에 이어가도록 안내한다",()=>{
+  const p=profile("reading"),a=answers([p]),day=buildDay(a,initialCheckin(a),"core",defaultSchedule,[],undefined,date);
+  const html=renderToStaticMarkup(<ActivityCategoryResult profile={p} day={day} pending={["exercise"]} busy={false} onClose={()=>{}} onEdit={()=>{}}/>);
+  assert.match(html,/독서 설문을 마쳤어요/);assert.match(html,/활동 실천 완료와는 달라요/);assert.match(html,/운동 질문 이어하기/);assert.match(html,/루틴으로 돌아가기/);
+  const goals=renderToStaticMarkup(<ActivityGoals state={{...state([p]),answers:{...a,activities:checkpointActivity(undefined,p,["reading","exercise"],"routine")}}} busy={false} onRefine={()=>{}} onPlan={()=>{}}/>);
+  assert.match(goals,/운동 질문 이어하기/);
 });
 test("주간 목표는 요일에 정확히 분배하고 주간 목표 없는 활동은 선택한 날에만 추천한다",()=>{
   const p={...profile("reading"),daily:30,weekly:50,days:[1,3,6]};
@@ -79,7 +123,7 @@ test("기존 운동 일정은 중복 배치하지 않고 완료를 추정하지 
 test("기존 계정은 추가 질문 없이 열리고 첫 화면은 두 시작 경로를 제공한다",()=>{
   const legacy=state([]);delete legacy.answers.activities;
   assert.ok(stateSchema.safeParse(legacy).success);
-  const html=renderToStaticMarkup(<ActivityWizard state={legacy} busy={false} error="" onComplete={()=>{}} onClose={()=>{}} onPlan={()=>{}}/>);
+  const html=renderToStaticMarkup(<ActivityWizard state={legacy} busy={false} error="" onComplete={async()=>buildDay(legacy.answers,initialCheckin(legacy.answers),"core",defaultSchedule)} onClose={()=>{}} onPlan={()=>{}}/>);
   assert.match(html,/먼저 루틴 추천받기/);assert.match(html,/일정에 맞춰 추천받기/);assert.doesNotMatch(html,/BMI/);
   const s=state([profile("reading")]);s.days=[buildDay(s.answers,initialCheckin(s.answers),"core",defaultSchedule,[],undefined,date)];s.days[0].statuses[s.days[0].routines[0].id]="done";
   const goals=renderToStaticMarkup(<ActivityGoals state={s} busy={false} onRefine={()=>{}} onPlan={()=>{}}/>);assert.match(goals,/직접 기록한 실제 시간/);assert.doesNotMatch(goals,/<strong>30분/);

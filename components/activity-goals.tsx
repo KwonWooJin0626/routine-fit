@@ -10,15 +10,17 @@ import { ChoiceButtons } from "./choice-buttons";
 import { Input } from "./forms";
 
 export function ActivityGoals({state,busy,onRefine,onPlan}:{state:AppState;busy:boolean;onRefine:()=>void;onPlan:()=>void}){
+  const pending=state.answers.activities?.pendingDomains??[];
   const profiles=state.answers.activities?.profiles.filter(p=>p.enabled)??[],today=localDate(),start=mondayOf(today),end=addDate(start,6);
-  return <section className="activity-goals" aria-label="나의 분야별 목표"><header><div><span className="eyebrow">MAKE IT YOURS</span><h2>{profiles.length?"내 목표에서 시작하는 루틴":"어떤 활동인지까지, 나에게 맞게"}</h2><p>{profiles.length?"희망 목표·예정 분량·직접 기록한 실천 시간을 구분해요.":"운동·공부·독서 등 관심 분야를 고르면 후보를 먼저 보여드려요. 선택한 활동만 더 알아봐요."}</p></div><button className="button primary" disabled={busy} onClick={onRefine}><Sparkles size={16}/>{profiles.length?"목표·활동 수정":"루틴 구체화 시작"}</button></header>
+  return <section className="activity-goals" aria-label="나의 분야별 목표"><header><div><span className="eyebrow">MAKE IT YOURS</span><h2>{profiles.length?"내 목표에서 시작하는 루틴":"어떤 활동인지까지, 나에게 맞게"}</h2><p>{profiles.length?"희망 목표·예정 분량·직접 기록한 실천 시간을 구분해요.":"운동·공부·독서 등 관심 분야를 고르면 후보를 먼저 보여드려요. 선택한 활동만 더 알아봐요."}</p></div><button className="button primary" disabled={busy} onClick={onRefine}><Sparkles size={16}/>{pending.length?`${activityDomains[pending[0]]} 질문 이어하기`:profiles.length?"목표·활동 수정":"루틴 구체화 시작"}</button></header>
+    {!!pending.length&&<div className="activity-next-note"><b>완료한 분야의 결과부터 살펴보세요.</b><p>{pending.map(d=>activityDomains[d]).join(" · ")} 설문이 남아 있어요. 다음 분야는 준비됐을 때 이어갈 수 있어요. 새로고침하거나 다시 로그인해도 완료한 분야는 유지돼요.</p></div>}
     {!!profiles.length&&<div className="activity-goal-grid">{profiles.map(p=>{
       const actual=state.days.filter(d=>d.date>=start&&d.date<=end&&d.date<=today).reduce((n,d)=>n+d.routines.filter(r=>r.activity?.domain===p.domain).reduce((sum,r)=>sum+(d.activityFeedback?.[r.id]?.actualMinutes??0),0),0);
       const checked=state.days.filter(d=>d.date>=start&&d.date<=end&&d.date<=today).flatMap(d=>d.routines.filter(r=>r.activity?.domain===p.domain&&d.statuses[r.id]==="done")).length;
       const planned=activityMinutesOn(p,today);
       return <article key={p.domain}><b>{activityDomains[p.domain]} · {activityGoals[p.domain][p.goal]}</b><p>{p.weekly===null?"주간 목표 없음":`주간 목표 ${p.weekly}분`} · 오늘 예정 {planned}분</p><p>직접 기록한 실제 시간 <strong>{actual}분</strong> · 완료 체크 {checked}회</p><small>시간 미입력은 0분 수행으로 판정하지 않아요.</small></article>;
     })}</div>}
-    <footer><span>{profiles.length?"요일·활동 목표는 유지하고 오늘의 컨디션과 가능한 시간으로 분량을 조정해요.":"기초 질문을 반복하지 않아요. 확정 전 답변은 닫으면 사라져요."}</span><button className="text-link" onClick={onPlan}>계획표로 정밀화 <ArrowRight size={14}/></button></footer>
+    <footer><span>{profiles.length?"요일·활동 목표는 유지하고 오늘의 컨디션과 가능한 시간으로 분량을 조정해요.":"기초 질문을 반복하지 않아요. 완료한 분야는 저장하고, 작성 중인 분야의 미확정 답변만 닫으면 사라져요."}</span><button className="text-link" onClick={onPlan}>계획표로 정밀화 <ArrowRight size={14}/></button></footer>
   </section>;
 }
 export function ActivityFeedbackForm({routine,initial,busy,onSave}:{routine:Routine;initial?:ActivityFeedback;busy:boolean;onSave:(feedback:ActivityFeedback)=>Promise<void>}){

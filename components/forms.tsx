@@ -70,7 +70,7 @@ export function Onboarding({ initial, draft, onDraft, busy, error, onComplete, o
         {select("goal", "가장 먼저 챙기고 싶은 목표", goalLabels)}
         {select("work", "평소 일정 형태", {regular:"규칙적인 주간 일정", flexible:"유동적인 일정", shift:"교대근무", student:"학업 중심", care:"육아·돌봄 중심"})}
         {select("planningStyle", "하루를 시작하는 방식", {spontaneous:"즉흥형 · 오늘 질문부터",planned:"계획형 · 주간 일정부터"})}
-        <div className="form-span note">현재 MVP는 성인 대상이에요. 목표는 언제든 설정에서 다시 바꿀 수 있어요. 키·체중은 체성분 기록이 필요할 때 선택 입력해요.</div>
+        <div className="form-span note">목표는 언제든 설정에서 다시 바꿀 수 있어요. 키·체중은 체성분 기록이 필요할 때 선택 입력해요.</div>
       </>}
       {step === 1 && <>
         <Input question="bed" label="평소 잠드는 시간" type="time" value={a.bed} onChange={v => update("bed", v)} required />

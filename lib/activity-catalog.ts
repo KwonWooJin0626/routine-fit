@@ -1,6 +1,6 @@
 import type { ActivityDomain } from "./activity-profile";
 
-export type ActivityQuestion={key:string;title:string;why:string;options?:Record<string,string>;type?:"text"|"date"};
+export type ActivityQuestion={key:string;title:string;why:string;options?:Record<string,string>;type?:"text"|"date";multiple?:boolean};
 const question=(key:string,title:string,why:string,options:Record<string,string>):ActivityQuestion=>({key,title,why,options});
 const text=(key:string,title:string,why:string):ActivityQuestion=>({key,title,why,type:"text"});
 export const baseActivityQuestions:Record<ActivityDomain,ActivityQuestion[]>={
@@ -22,7 +22,7 @@ export const activityCatalog:ActivityDefinition[]=[
   exercise("run","걷기와 러닝 이어가기","처음이면 걷기를 중심으로 시작하고, 익숙한 경우에만 편한 달리기를 섞어요. 속도 경쟁은 하지 않아요.",["stamina"],[question("running","최근 편했던 방식은요?","걷기부터 시작할지 익숙한 달리기를 이어갈지 반영해요.",{first:"경험 없음",walk:"걷기",alternate:"걷기·달리기 번갈아",continuous:"쉬지 않고 달리기"})]),
   exercise("gym","헬스장에서 익숙한 운동하기","처음에는 기구 사용 안내를 받고 익숙한 운동을 고르세요. 사용법을 모르는 기구는 혼자 시작하지 않아요.",["strength"],[question("equipmentSkill","기구 사용법을 알고 있나요?","처음이면 기구 안내를 받는 준비 활동으로 바꿔요.",{yes:"익숙한 기구가 있어요",no:"안내가 필요해요",body:"맨몸 위주로 할게요"})]),
   exercise("yoga","기초 요가 동작 살펴보기","초보자 안내에서 편안하게 할 수 있는 동작만 선택해요. 통증을 참거나 자세를 억지로 유지하지 않아요.",["flexibility"],[question("yogaGuide","어떤 안내가 편한가요?","사용할 동작 안내를 고르는 데 반영해요.",{beginner:"처음부터 자세 안내",familiar:"익숙한 동작 중심",chair:"의자 등 보조도구 활용"})]),
-  exercise("home","조용한 홈트레이닝","동작 안내를 보며 익숙하고 불편 없는 맨몸 동작을 골라요. 처음이면 자세 확인부터 해요.",["strength","habit"],[question("equipment","사용 가능한 기구가 있나요?","준비물이 없는 활동도 선택할 수 있어요.",{none:"없어요",mat:"매트",band:"밴드",dumbbell:"덤벨"}),question("noise","뛰는 동작이 가능한 공간인가요?","불가능하면 점프 없는 방식으로 안내해요.",{yes:"가능해요",no:"소음 때문에 어려워요",unknown:"잘 모르겠어요"})]),
+  exercise("home","조용한 홈트레이닝","동작 안내를 보며 익숙하고 불편 없는 맨몸 동작을 골라요. 처음이면 자세 확인부터 해요.",["strength","habit"],[{...question("equipment","사용 가능한 기구가 있나요?","여러 개를 선택할 수 있어요. ‘없어요’는 다른 기구와 함께 선택되지 않아요.",{none:"없어요",mat:"매트",band:"밴드",dumbbell:"덤벨"}),multiple:true},question("noise","뛰는 동작이 가능한 공간인가요?","불가능하면 점프 없는 방식으로 안내해요.",{yes:"가능해요",no:"소음 때문에 어려워요",unknown:"잘 모르겠어요"})]),
   exercise("cycle","익숙한 환경에서 자전거 타기","안전장비와 주변을 확인하고 익숙한 환경에서 편한 속도로 타요. 처음에는 사용법 확인부터 시작해요.",["stamina"]),
   make("exercise","prepare","운동 장소·준비물 확인하기","운동 실행은 보류하고 가능한 장소와 준비물을 확인해요. 불편한 동작과 운동 방법이 불확실하면 먼저 확인하세요.",["unknown"],[],"mind"),
   make("study","concept","개념을 내 말로 정리하기","자료에서 개념 3개를 골라 내 말로 정리하고 모르는 부분을 표시해요.",["understand","memorize","exam"],[text("unit","이번에 다룰 단원이나 주제는요?","생략하면 가지고 있는 자료에서 직접 고르도록 안내해요.")]),
@@ -54,6 +54,21 @@ export function activityCandidates(p:{domain:ActivityDomain;activity:string;goal
 }
 export function activityCompatibility(p:{domain:ActivityDomain;activity:string;goal:string;fields:Record<string,string>}):string|null{
   if(!activityCandidates(p).some(a=>a.id===p.activity))return "선택한 장소에 맞는 활동을 다시 골라주세요.";
-  if(p.domain==="exercise"&&p.activity!=="prepare"&&(!p.fields.experience||p.fields.experience==="unknown"||p.fields.restriction!=="none"))return "운동 경험·불편한 동작이 미확인이거나 제한이 있어요. 운동 실행 대신 ‘운동 장소·준비물 확인하기’를 선택할 수 있어요.";
   return null;
+}
+
+export const equipmentLabels={none:"없어요",mat:"매트",band:"밴드",dumbbell:"덤벨"} as const;
+export function selectedEquipment(value:string|undefined){return value?value.split(","):[];}
+export function toggleEquipment(value:string,key:string){
+  const old=selectedEquipment(value);
+  if(key==="none")return old.includes("none")?"":"none";
+  return old.includes(key)?old.filter(v=>v!==key&&v!=="none").join(","):[...old.filter(v=>v!=="none"),key].join(",");
+}
+export function exerciseAdjustment(p:{domain:ActivityDomain;activity:string;fields:Record<string,string>}):{level:"normal"|"adapt"|"hold";message:string}{
+  if(p.domain!=="exercise"||p.activity==="prepare")return {level:"normal",message:""};
+  if(!p.fields.experience||p.fields.experience==="unknown")return {level:"hold",message:"경험이 아직 확인되지 않아 운동 실행은 보류하고 장소·준비물 확인부터 제안해요. 설문은 계속할 수 있어요."};
+  const restriction=p.fields.restriction;
+  if(restriction==="none")return {level:"normal",message:"선택한 경험과 환경을 반영했어요. 활동 중 불편하면 멈추고 수정해주세요."};
+  if(restriction==="impact"&&["walk","home"].includes(p.activity))return {level:"adapt",message:"뛰기·점프 등 충격이 큰 동작을 제외하는 방식만 제안해요. 통증에 맞는 운동을 판정한 결과는 아니에요."};
+  return {level:"hold",message:"불편한 동작이나 통증의 원인을 설문만으로 판단할 수 없어 선택한 운동의 실행 추천은 보류해요. 답변·목표는 저장하고 준비 활동과 다음 분야 설문을 이어갈 수 있어요."};
 }

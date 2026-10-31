@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { activityCompatibility, activityDefinition, baseActivityQuestions } from "./activity-catalog";
+import { activityCompatibility, activityDefinition, baseActivityQuestions, selectedEquipment } from "./activity-catalog";
 
 export const activityDomains = {exercise:"운동",study:"학업·공부",reading:"독서",language:"외국어",career:"기술·커리어",rest:"휴식·음악",organize:"생활 정리"} as const;
 export const domainIds = ["exercise","study","reading","language","career","rest","organize"] as const;
@@ -31,18 +31,19 @@ export const activityProfileSchema=z.object({
   if(!(Object.hasOwn(activityGoals[v.domain],v.goal)))c.addIssue({code:"custom",message:"분야에 맞는 목표를 선택해주세요."});
   if(new Set(v.days).size!==v.days.length)c.addIssue({code:"custom",message:"요일이 중복됐어요."});
   if(v.weekly!==null&&(v.weekly>v.daily*v.days.length||v.weekly<5*v.days.length))c.addIssue({code:"custom",message:"주간 목표를 선택한 요일에 나눌 수 없어요. 하루 시간·주간 목표·요일을 조정해주세요."});
-  if(v.domain==="exercise"&&v.activity!=="prepare"&&(!v.fields.experience||v.fields.experience==="unknown"||v.fields.restriction!=="none"))c.addIssue({code:"custom",message:"운동 경험·불편한 동작을 확인하거나 운동 준비 활동으로 바꿔주세요."});
   const compatibility=activityCompatibility(v);if(compatibility)c.addIssue({code:"custom",message:compatibility});
   for(const q of [...baseActivityQuestions[v.domain],...(activityDefinition(v)?.questions??[])]){
-    if(q.options&&!(Object.hasOwn(q.options,v.fields[q.key])))c.addIssue({code:"custom",message:`‘${q.title}’의 답변을 선택해주세요.`});
+    if(q.options){const values=q.multiple?selectedEquipment(v.fields[q.key]):[v.fields[q.key]];if(!values.length||new Set(values).size!==values.length||values.some(value=>!Object.hasOwn(q.options!,value))||(q.multiple&&values.includes("none")&&values.length>1))c.addIssue({code:"custom",message:`‘${q.title}’의 답변을 확인해주세요.`});}
     if(q.type==="date"&&v.fields[q.key]&&(!/^\d{4}-\d{2}-\d{2}$/.test(v.fields[q.key])||Number.isNaN(new Date(`${v.fields[q.key]}T12:00Z`).getTime())||new Date(`${v.fields[q.key]}T12:00Z`).toISOString().slice(0,10)!==v.fields[q.key]))c.addIssue({code:"custom",message:"마감 날짜를 확인해주세요."});
   }
   if((v.weekly===null)!==(v.weeklySource==="none"))c.addIssue({code:"custom",message:"주간 목표의 입력 출처를 확인해주세요."});
 });
 export type ActivityProfile=z.infer<typeof activityProfileSchema>;
-export const activityPreferencesSchema=z.object({version:z.literal(1),route:z.enum(["routine","schedule"]),profiles:z.array(activityProfileSchema).max(7)}).superRefine((v,c)=>{
+export const activityPreferencesSchema=z.object({version:z.literal(1),route:z.enum(["routine","schedule"]),profiles:z.array(activityProfileSchema).max(7),pendingDomains:z.array(z.enum(domainIds)).max(2).optional(),selectedDomains:z.array(z.enum(domainIds)).min(1).max(2).optional()}).superRefine((v,c)=>{
   if(new Set(v.profiles.map(p=>p.domain)).size!==v.profiles.length)c.addIssue({code:"custom",message:"같은 분야가 중복됐어요."});
   if(v.profiles.filter(p=>p.enabled).length>2)c.addIssue({code:"custom",message:"한 번에는 최대 두 분야를 활성화해주세요."});
+  for(const rows of [v.pendingDomains??[],v.selectedDomains??[]])if(new Set(rows).size!==rows.length)c.addIssue({code:"custom",message:"설문 진행 분야가 중복됐어요."});
+  if(v.pendingDomains?.length&&(!v.selectedDomains||v.pendingDomains.some(d=>!v.selectedDomains!.includes(d))))c.addIssue({code:"custom",message:"이어서 진행할 설문 분야를 확인해주세요."});
 });
 export type ActivityPreferences=z.infer<typeof activityPreferencesSchema>;
 export function newActivityProfile(domain:ActivityDomain):ActivityProfile{return {domain,enabled:true,goal:"",current:"unknown",daily:10,weekly:30,dailySource:"proposal",weeklySource:"proposal",fields:{},activity:"",days:[],when:"between",updatedAt:new Date().toISOString()};}
