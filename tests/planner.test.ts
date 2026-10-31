@@ -36,7 +36,7 @@ test("예상 조건을 바꾸면 회복·시간 제한을 반영하고 과거 �
   const state=previewState(),snapshot=structuredClone(state);
   const expected={...c,sleep:4,energy:1,stress:5,minutes:5,unwell:true};
   const preview=buildRoutinePreview(state,"2026-10-14",expected,"core",date);assert.deepEqual(preview.checkin,expected);assert.ok(preview.routines.filter(r=>!r.held).reduce((n,r)=>n+r.minutes,0)<=5);assert.ok(preview.routines.filter(r=>r.category==="move").every(r=>["move-recovery","move-rest"].includes(r.id)));
-  assert.deepEqual(state,snapshot);assert.throws(()=>buildRoutinePreview(state,"2026-02-30",c,"core",date));assert.throws(()=>buildRoutinePreview(state,"2026-10-16",{...c,minutes:90},"core",date));
+  assert.deepEqual(state,snapshot);assert.throws(()=>buildRoutinePreview(state,"2026-02-30",c,"core",date));assert.throws(()=>buildRoutinePreview(state,"2026-10-16",{...c,minutes:241},"core",date));
 });
 test("날짜별 미리보기는 해당 날짜 이후의 InBody를 사용하지 않는다",()=>{
   const state=previewState();state.inbody=[{measuredAt:date,height:170,weight:65,muscle:26,fat:20}];

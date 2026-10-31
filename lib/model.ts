@@ -2,9 +2,11 @@ import { z } from "zod";
 import { plannerSchema, plannerDateSchema } from "./planner-model";
 import { nutritionProfileSchema } from "./nutrition-profile";
 import { basicProfileSchema } from "./basic-profile";
+import { activityPreferencesSchema, activityFeedbackSchema, domainIds } from "./activity-profile";
 
 export const answersSchema = z.object({
   basic: basicProfileSchema.optional(),
+  activities: activityPreferencesSchema.optional(),
   name: z.string().trim().min(1).max(24),
   planningStyle: z.enum(["spontaneous","planned"]).optional(),
   age: z.enum(["18-29", "30-39", "40-49", "50-64", "65+"]),
@@ -48,7 +50,7 @@ export const answersSchema = z.object({
   movementLimit: z.boolean(),
   stress: z.coerce.number().int().min(1).max(5),
   energy: z.coerce.number().int().min(1).max(5),
-  available: z.coerce.number().int().min(5).max(60),
+  available: z.coerce.number().int().min(5).max(240),
   barrier: z.enum(["time", "tired", "forget", "hard", "environment"]),
   supplementOptIn: z.boolean(), conditions: z.boolean(), medicines: z.boolean(), pregnancy: z.boolean(),
   surgery: z.boolean(), allergy: z.boolean(), uncertainSafety: z.boolean(),
@@ -68,14 +70,16 @@ export const defaultAnswers: Answers = {
 export const checkinSchema = z.object({
   reported:z.boolean().optional(),
   sleepKnown:z.boolean().optional(),
+  stressKnown:z.boolean().optional(),
   sleep: z.coerce.number().min(0).max(14), energy: z.coerce.number().int().min(1).max(5),
-  stress: z.coerce.number().int().min(1).max(5), minutes: z.coerce.number().int().min(5).max(60),
+  stress: z.coerce.number().int().min(1).max(5), minutes: z.coerce.number().int().min(5).max(240),
   unwell: z.boolean(), place: z.enum(["home", "office", "outside", "gym"]), busy: z.boolean(),
   exerciseType:z.enum(["unknown","none","light","strength","cardio"]).optional(),
   exerciseMinutes:z.number().int().min(0).max(180).optional(),
   studyMinutes:z.number().int().min(0).max(720).optional(),
   sleepQuality:z.enum(["good","okay","poor","unknown"]).optional(),
   sleepOpportunity:z.number().min(0).max(14).nullable().optional(),
+  activityMode:z.enum(["same","light","rest"]).optional(),
 });
 export type Checkin = z.infer<typeof checkinSchema>;
 export const eventSchema = z.object({ id: z.string().max(80), title: z.string().trim().min(1).max(60), start: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/), end: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/), category:z.string().max(30).optional(), description:z.string().max(300).optional(), breakStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(), breakEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional() });
@@ -113,6 +117,7 @@ export const routineSchema = z.object({
   preferredTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   held: z.boolean().optional(),
   guidance: routineGuidanceSchema.optional(),
+  activity:z.object({domain:z.enum(domainIds),id:z.string().max(40),goalMinutes:z.number().min(0).max(120),overheadMinutes:z.number().min(0).max(30).optional(),linkedEvent:z.string().max(80).optional()}).optional(),
 });
 export type Routine = z.infer<typeof routineSchema>;
 export const timelineSchema = z.object({id: z.string().max(150), title: z.string().max(150), start: z.string().max(5), end: z.string().max(5), kind: z.enum(["fixed", "routine", "meal", "rest"]), detail: z.string().max(300), routineId: z.string().max(100).optional()});
@@ -120,8 +125,9 @@ export type TimelineItem = z.infer<typeof timelineSchema>;
 export const daySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), routines: z.array(routineSchema).max(20).refine(rows => new Set(rows.map(r => r.id)).size === rows.length, "같은 루틴을 중복해서 담을 수 없어요."),
   statuses: z.record(z.enum(["done", "partial", "skipped"])), notes: z.record(z.string().max(150)).default({}),
+  activityFeedback:z.record(z.string().max(100),activityFeedbackSchema).refine(v=>Object.keys(v).length<=20,"활동 기록이 너무 많아요.").optional(),
   checkin: checkinSchema, generation: z.number().int().min(0).max(1000000).optional(), mode: z.enum(["core", "full"]), timeline: z.array(timelineSchema).max(150), warnings: z.array(z.string().max(300)).max(100),
-  planningContext:z.object({date:plannerDateSchema,scheduledMinutes:z.number().min(0).max(1440),mental:z.number().min(1).max(5),physical:z.number().min(1).max(5),effectiveMinutes:z.number().min(0).max(60),importedIds:z.array(z.string().max(80)).max(40)}).optional(),
+  planningContext:z.object({date:plannerDateSchema,scheduledMinutes:z.number().min(0).max(1440),mental:z.number().min(1).max(5),physical:z.number().min(1).max(5),effectiveMinutes:z.number().min(0).max(240),importedIds:z.array(z.string().max(80)).max(40)}).optional(),
 });
 export type Day = z.infer<typeof daySchema>;
 export const stateSchema = z.object({
@@ -138,4 +144,4 @@ export const goalLabels = { balance: "균형 있는 일상", sleep: "숙면", en
 export function localDate(date = new Date()): string { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit" }).format(date); }
 export function toMinutes(time: string) { const [h, m] = time.split(":").map(Number); return h * 60 + m; }
 export function toTime(m: number) { return `${String(Math.floor(m / 60) % 24).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; }
-export function initialCheckin(a: Answers): Checkin { return { reported:a.basic?false:undefined,sleep: a.basic?7:a.sleepHours, sleepKnown:a.basic?false:undefined, energy: a.energy, stress: a.stress, minutes: a.available, unwell: false, place: "home", busy: false }; }
+export function initialCheckin(a: Answers): Checkin { return { reported:a.basic?false:undefined,stressKnown:a.basic?false:undefined,sleep: a.basic?7:a.sleepHours, sleepKnown:a.basic?false:undefined, energy: a.energy, stress: a.stress, minutes: a.available, unwell: false, place: "home", busy: false }; }

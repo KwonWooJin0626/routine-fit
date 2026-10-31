@@ -58,7 +58,7 @@ export function scheduleContext(base:Schedule,p:Planner|undefined,date:string,c:
   const s=scheduleForDate(base,p,date),intervals=s.events.flatMap(e=>{const start=toMinutes(e.start)+(toMinutes(e.start)<wake?1440:0),end=start+(toMinutes(e.end)-toMinutes(e.start)+1440)%1440;return e.breakStart&&e.breakEnd?[{from:start,until:start+(toMinutes(e.breakStart)-toMinutes(e.start)+1440)%1440},{from:start+(toMinutes(e.breakEnd)-toMinutes(e.start)+1440)%1440,until:end}]:[{from:start,until:end}];}).sort((a,b)=>a.from-b.from);
   let occupied=0,last=wake;for(const x of intervals){const from=Math.max(wake,x.from,last),until=Math.min(bed,x.until);if(until>from)occupied+=until-from;last=Math.max(last,until);}
   const free=Math.max(0,bed-wake-occupied-base.preparation-(s.events.length?base.commute*2:0)-60);
-  const effectiveMinutes=Math.min(c.minutes,free,physical>=4||mental>=4?10:60);
+  const effectiveMinutes=Math.min(c.minutes,free,physical>=4||mental>=4?10:240);
   return {date,scheduledMinutes:Math.min(1440,occupied),mental:Math.round(mental*10)/10,physical:Math.round(physical*10)/10,effectiveMinutes,importedIds:rows.map(o=>`plan-${o.block.id}-${o.date}`)};
 }
 export function buildPlannedDay(a:Answers,c:Checkin,mode:"core"|"full",base:Schedule,history:Day[]=[],inbody?:Inbody,date=localDate(),refresh=true,p?:Planner):Day{
@@ -69,7 +69,7 @@ export function buildPlannedDay(a:Answers,c:Checkin,mode:"core"|"full",base:Sche
   // Do not discard a user's blocks or progress to force-fit a new recommendation.
   const prior=history.find(d=>d.date===date),protectedIds=new Set(prior?.routines.filter(r=>r.source==="custom"||r.source==="catalog"||prior.statuses[r.id]).map(r=>r.id));
   let remaining=context.effectiveMinutes;
-  const routines=day.routines.filter(r=>{if(protectedIds.has(r.id)){if(!r.held&&day.statuses[r.id]!=="done")remaining-=r.minutes;return true;}if(!refresh&&prior)return true;if(r.minutes>remaining)return false;remaining-=r.minutes;return true;}).map(r=>protectedIds.has(r.id)?r:{...r,reason:`${r.reason.split(conditionSummary(adjusted)).join(conditionSummary(c))} 일정의 예상 부담·피로도를 참고해 분량을 조정했어요.`.slice(0,300)});
+  const routines=day.routines.filter(r=>{if(protectedIds.has(r.id)){if(!r.held&&day.statuses[r.id]!=="done")remaining-=r.minutes+(r.activity?.overheadMinutes??0);return true;}if(!refresh&&prior)return true;if(r.minutes+(r.activity?.overheadMinutes??0)>remaining)return false;remaining-=r.minutes+(r.activity?.overheadMinutes??0);return true;}).map(r=>protectedIds.has(r.id)?r:{...r,reason:`${r.reason.split(conditionSummary(adjusted)).join(conditionSummary(c))} 일정의 예상 부담·피로도를 참고해 분량을 조정했어요.`.slice(0,300)});
   day=reviseDayRoutines({...day,checkin:c,planningContext:context},routines,s);
   if(remaining<0)day.warnings.push("유지한 루틴이 일정 사이의 여유시간보다 많아요. 직접 담은 루틴과 실천 기록은 보존했으니 가능한 만큼 조정해주세요.");
   if(!routines.length)day.warnings.push("오늘 일정에 여유가 부족해 새로운 건강 루틴을 추가하지 않았어요. 식사·휴식 시간을 먼저 확보해주세요.");

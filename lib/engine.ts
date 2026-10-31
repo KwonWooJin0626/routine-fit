@@ -1,10 +1,12 @@
 import { type Answers, type Checkin, type Day, type Inbody, type Routine, type Schedule, type TimelineItem, toMinutes, toTime, localDate } from "./model";
 import { MAX_DAILY_ROUTINES, recommendCore } from "./routine-catalog";
+import { recommendActivities } from "./activity-recommendations";
 import { recommendGrowth } from "./growth-routines";
 
 export { analyze } from "./lifestyle-analysis";
 
-export function buildRoutines(a: Answers, c: Checkin, history: Day[] = [], inbody?: Inbody, generation = 0): Routine[] {
+export function buildRoutines(a: Answers, c: Checkin, history: Day[] = [], inbody?: Inbody, generation = 0, date=localDate(), schedule?:Schedule,omitIds?:Set<string>): Routine[] {
+  if(a.activities?.profiles.some(p=>p.enabled))return recommendActivities(a,c,history,date,schedule,omitIds);
   if(a.basic)return recommendGrowth(a,c,history,generation);
   return recommendCore(a, c, history, inbody, generation);
 }
@@ -96,19 +98,23 @@ export function buildTimeline(routines: Routine[], s: Schedule): { timeline: Tim
     const mealId=r.id==="food-first"?(r.when.startsWith("저녁")?"dinner":r.when.startsWith("점심")?"lunch":"breakfast"):"lunch";
     const meal=timeline.find(t=>t.id===mealId)??timeline.find(t=>t.kind==="meal"&&Math.abs(absolute(t.start)-absolute(s[mealId]))<=60);
     const afterMeal = meal ? absolute(meal.end) + s.buffer : wake;
+    if(r.activity?.linkedEvent)continue;
+    const overhead=r.activity?.overheadMinutes??0;
+    const slotMinutes=Math.max(1,r.minutes+overhead);
     const caffeineEnd = Math.max(wake + 30, bed - 6 * 60);
+    const anchor=r.activity?.domain&&r.when==="하루 시작"?wake+30:r.activity&&r.when==="하루 마무리"?bed-r.minutes-20:r.activity&&r.when==="식사 후"?afterMeal:undefined;
     const customTime = r.preferredTime ? absolute(r.preferredTime) : undefined;
-    const sleepPrep = r.category === "sleep" && r.id !== "sleep-caffeine" && r.source !== "custom";
+    const sleepPrep = !r.activity && r.category === "sleep" && r.id !== "sleep-caffeine" && r.source !== "custom";
     const afterFood = r.category === "move" && (r.id === "move-break" || r.id === "move-outside");
-    const pref = customTime ?? (r.id === "sleep-caffeine" ? caffeineEnd - 30 : sleepPrep ? bed - 10 : r.category === "food" && meal ? absolute(meal.start) - s.buffer - r.minutes : afterFood ? afterMeal : s.peak === "morning" ? wake + 3 * 60 : s.peak === "afternoon" ? wake + 8 * 60 : bed - 3 * 60);
+    const pref = customTime ?? anchor ?? (r.id === "sleep-caffeine" ? caffeineEnd - 30 : sleepPrep ? bed - 10 : r.category === "food" && meal ? absolute(meal.start) - s.buffer - r.minutes : afterFood ? afterMeal : s.peak === "morning" ? wake + 3 * 60 : s.peak === "afternoon" ? wake + 8 * 60 : bed - 3 * 60);
     const min = customTime !== undefined ? wake : afterFood ? afterMeal : sleepPrep ? Math.max(wake, bed - 60) : wake;
     const max = customTime !== undefined ? bed : r.id === "sleep-caffeine" ? caffeineEnd : r.category === "food" && meal ? absolute(meal.start) : bed;
-    const slot = find(Math.min(bed - r.minutes, Math.max(wake, pref)), Math.max(1, r.minutes), min, max);
+    const slot = find(Math.min(bed - slotMinutes, Math.max(wake, pref)), slotMinutes, min, max);
     if (slot === null) warnings.push(`“${r.title}”를 넣을 시간이 부족해요. 대체 행동을 확인해주세요.`);
     else {
       if(customTime !== undefined && slot !== customTime) warnings.push(`“${r.title}”의 희망시간은 다른 일정과 겹쳐 ${toTime(slot)}로 이동했어요.`);
       const stretching = r.id === "move-break" && s.exercise === "stretch";
-      add(`routine-${r.id}`, stretching ? `${r.minutes}분 가벼운 스트레칭` : r.title, slot, Math.max(1, r.minutes), "routine", stretching ? "반동을 주거나 통증을 참지 않고, 편안한 범위에서 몸을 풀어보세요." : r.detail, r.id);
+      add(`routine-${r.id}`, stretching ? `${r.minutes}분 가벼운 스트레칭` : r.title, slot, slotMinutes, "routine", stretching ? "반동을 주거나 통증을 참지 않고, 편안한 범위에서 몸을 풀어보세요." : r.detail, r.id);
     }
   }
   return { timeline: timeline.sort((a, b) => { const n = (t: string) => toMinutes(t) < wake ? toMinutes(t) + 1440 : toMinutes(t); return n(a.start) - n(b.start); }), warnings };
@@ -119,11 +125,11 @@ export function reviseDayRoutines(day: Day, routines: Routine[], schedule: Sched
   if(new Set(routines.map(r => r.id)).size !== routines.length) throw new Error("이미 담은 루틴이에요.");
   const ids = new Set(routines.map(r => r.id));
   const plan = day.mode === "full" ? buildTimeline(routines,schedule) : {timeline:[],warnings:[]};
-  const minutes = routines.filter(r=>!r.held).reduce((n,r) => n+r.minutes,0);
+  const minutes = routines.filter(r=>!r.held&&(!r.activity||day.statuses[r.id]!=="done")).reduce((n,r) => n+r.minutes+(r.activity?.overheadMinutes??0),0);
   const budget=day.planningContext?.effectiveMinutes??day.checkin.minutes;
   if(minutes > budget) plan.warnings.push(`담은 루틴은 총 ${minutes}분으로, ${day.planningContext?"하루 계획을 반영한":"선택한"} ${budget}분보다 많아요. 루틴을 줄이거나 가능한 시간을 조정해주세요.`);
   if(routines.some(r=>r.held)) plan.warnings.push("몸 상태·운동 제한에 따라 활동 루틴을 보류했어요. 기존 실천 기록은 유지하고, 보류한 활동은 일정에 넣지 않아요.");
-  return {...day,routines,statuses:Object.fromEntries(Object.entries(day.statuses).filter(([id]) => ids.has(id))),notes:Object.fromEntries(Object.entries(day.notes).filter(([id]) => ids.has(id))),...plan};
+  return {...day,activityFeedback:day.activityFeedback?Object.fromEntries(Object.entries(day.activityFeedback).filter(([id])=>ids.has(id))):undefined,routines,statuses:Object.fromEntries(Object.entries(day.statuses).filter(([id]) => ids.has(id))),notes:Object.fromEntries(Object.entries(day.notes).filter(([id]) => ids.has(id))),...plan};
 }
 
 export function buildDay(a: Answers, c: Checkin, mode: "core" | "full", schedule: Schedule, history: Day[] = [], inbody?: Inbody, date = localDate(), refresh = true): Day {
@@ -131,10 +137,17 @@ export function buildDay(a: Answers, c: Checkin, mode: "core" | "full", schedule
   const generation = previous ? (previous.generation ?? 0) + (refresh ? 1 : 0) : 0;
   const retained = previous?.routines.filter(r => (r.source && r.source !== "auto") || !!previous.statuses[r.id]) ?? [];
   const protectedIds = new Set(retained.map(r => r.id));
-  const recommendations = buildRoutines(a,c,history.filter(d => d.date !== date),inbody,generation).filter(r => !protectedIds.has(r.id));
+  const recommendationCheckin=a.activities?{...c,minutes:Math.max(0,c.minutes-retained.filter(r=>!r.held&&previous?.statuses[r.id]!=="done").reduce((n,r)=>n+r.minutes+(r.activity?.overheadMinutes??0),0))}:c;
+  const recommendations = buildRoutines(a,recommendationCheckin,history.filter(d => d.date !== date),inbody,generation,date,schedule,protectedIds).filter(r => !protectedIds.has(r.id));
   const routines = !refresh && previous ? previous.routines : [...retained,...recommendations].slice(0,MAX_DAILY_ROUTINES);
-  const safe=holdUnsafeRoutines(routines,c,a.movementLimit);
-  return reviseDayRoutines({date,routines:safe,checkin:c,generation,mode,statuses:previous?.statuses ?? {},notes:previous?.notes ?? {},timeline:[],warnings:[]},safe,schedule);
+  let safe=holdUnsafeRoutines(routines,c,a.movementLimit);
+  let placementWarnings:string[]=[];
+  if(mode==="core"&&safe.some(r=>r.activity&&!r.activity.linkedEvent&&r.when==="계획표 빈 시간에 배치")){
+    const placement=buildTimeline(safe,schedule);placementWarnings=placement.warnings;
+    safe=safe.map(r=>{if(!r.activity||r.activity.linkedEvent||r.when!=="계획표 빈 시간에 배치")return r;const slot=placement.timeline.find(t=>t.routineId===r.id);return slot?{...r,preferredTime:slot.start,when:`${slot.start} · 일정 사이`}:r;});
+  }
+  const result=reviseDayRoutines({date,routines:safe,checkin:c,generation,mode,statuses:previous?.statuses ?? {},notes:previous?.notes ?? {},activityFeedback:previous?.activityFeedback,timeline:[],warnings:[]},safe,schedule);
+  return {...result,warnings:[...result.warnings,...placementWarnings]};
 }
 
 export type Supplement = { id: string; name: string; subtitle: string; reason: string; food: string; caution: string; label: string; query: string; source: string; blocked: boolean; };
