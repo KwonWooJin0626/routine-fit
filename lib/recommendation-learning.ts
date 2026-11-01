@@ -2,6 +2,7 @@ import type { AppState,Routine } from "./model";
 import { localDate } from "./model";
 import { getRoutineCatalog } from "./routine-catalog";
 import { RECOMMENDATION_VERSION,RecommendationError,type RecommendationDocument,type RecommendationEvent,type RecommendationIntent,type RecommendationMemory,type RecommendationRequest,type RecommendationSignal } from "./recommendation-model";
+import { observeMLRecommendation,syncMLOutcomes } from "./routine-ml";
 
 const aliases:Record<string,string>={"activity-reading-read":"growth-reading","activity-study-focus":"growth-focus","mind-read":"growth-reading","mind-focus-read":"growth-reading","mind-priority":"growth-priority","mind-good":"growth-reflect","mind-screen":"growth-pause-screen","sleep-read":"growth-reading-essay","sleep-music":"growth-music-ambient","mind-music":"growth-music-piano"};
 export function canonicalRoutineId(r:Pick<Routine,"id"|"activity">|string){const id=typeof r==="string"?r:r.id;return aliases[id]??id;}
@@ -19,6 +20,7 @@ export function learnRecommendationEvents(doc:RecommendationDocument,app:AppStat
     const s=signal(doc,r,e.date);
     if(e.kind==="catalog_view")s.catalogSeen=true;
     if(e.kind==="recommendation_view"){s.recommendationSeen=true;s.censored=!!(day?.checkin.busy||day?.checkin.unwell||day?.checkin.activityMode==="rest"||r.held);}
+    if(e.kind==="recommendation_view"&&e.batchId&&e.position!==undefined){const batch=doc.batches.find(b=>b.meta.batchId===e.batchId&&b.meta.date===e.date);if(batch)observeMLRecommendation(batch,app,canonicalRoutineId(r),e.position,now);}
     if(e.kind==="detail"||e.kind==="search"){s.catalogSeen=true;s.interestWeight=Math.max(s.interestWeight,e.kind==="search"?.4:.1);}
   }
 }
@@ -36,7 +38,7 @@ export function syncRecommendationState(doc:RecommendationDocument,before:AppSta
     }
     for(const s of doc.signals.filter(s=>s.date===day.date))if(!day.routines.some(r=>canonicalRoutineId(r)===s.canonicalId)&&!s.removed&&s.status!=="done"&&s.status!=="partial")s.withdrawn=true;
   }
-  if(!intent)return;
+  if(!intent){syncMLOutcomes(doc,after,now);return;}
   if(intent.date>today)throw new RecommendationError("미래 날짜의 선호 반응은 저장할 수 없어요.");
   const oldDay=before?.days.find(d=>d.date===intent.date),newDay=after.days.find(d=>d.date===intent.date),old=oldDay?.routines.find(r=>r.id===intent.routineId),next=newDay?.routines.find(r=>r.id===intent.routineId);
   if(intent.kind==="remove"){
@@ -47,6 +49,7 @@ export function syncRecommendationState(doc:RecommendationDocument,before:AppSta
     const s=signal(doc,next,intent.date);if(intent.kind==="restore"&&s.removalReason==="never")doc.blocked=doc.blocked.filter(b=>b.id!==s.canonicalId);s.removed=false;s.removalReason=undefined;s.withdrawn=false;
     if(intent.kind==="add"&&next.source==="catalog"){s.selected=true;s.catalogSeen=true;s.interestWeight=1;}
   }
+  syncMLOutcomes(doc,after,now);
 }
 export function applyRecommendationRequest(doc:RecommendationDocument,app:AppState,input:RecommendationRequest,now=new Date()){
   if(input.action==="events")learnRecommendationEvents(doc,app,input.events,now);
@@ -58,6 +61,7 @@ export function applyRecommendationRequest(doc:RecommendationDocument,app:AppSta
     s.removalReason=input.reason;
     if(input.reason==="never"&&!doc.blocked.some(b=>b.id===s.canonicalId))doc.blocked.push({id:s.canonicalId,title:s.title});
   }
+  syncMLOutcomes(doc,app,now);
 }
 export function recommendationMemory(doc:RecommendationDocument,revision=0,now=new Date()):RecommendationMemory{
   const today=localDate(now),groups=new Map<string,RecommendationSignal[]>();

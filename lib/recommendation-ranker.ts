@@ -3,6 +3,8 @@ import { getRoutineCatalog } from "./routine-catalog";
 import { buildTimeline } from "./engine";
 import { canonicalRoutineId } from "./recommendation-learning";
 import { RECOMMENDATION_VERSION,type BehaviorScore,type RecommendationAudit,type RecommendationOptions } from "./recommendation-model";
+import { ML_SCHEMA,routineMLFeatures,routineMLSignature } from "./routine-ml";
+import { predictRoutineML } from "./routine-ml-inference";
 
 const neutral:BehaviorScore={execution:.5,interest:.5,deletion:.1,observations:0,recentDates:[]};
 export function recommendationHash(text:string){let h=2166136261;for(let i=0;i<text.length;i++){h^=text.charCodeAt(i);h=Math.imul(h,16777619);}return h>>>0;}
@@ -38,7 +40,12 @@ export function selectPersonalizedRoutines(base:Routine[],a:Answers,c:Checkin,hi
   const keptAutomatic=retained.filter(r=>!r.source||r.source==="auto").length,wanted=Math.max(0,memory.count-keptAutomatic);let target=wanted;while(target>0&&minimum(remaining,target,{})>budget)target--;
   const seed=recommendationHash(JSON.stringify([memory.seed,date,generation,a.basic?.growthGoal,a.activities,c,schedule,remaining.map(r=>r.id),memory.count,memory.stats]));let random=seed;
   const rng=()=>{random+=0x6D2B79F5;let t=random;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return ((t^t>>>14)>>>0)/4294967296;};
-  const audit:RecommendationAudit={meta:{batchId:`rec-${date}-${seed.toString(16)}`,version:RECOMMENDATION_VERSION,date,requested:memory.count,limited:false},context:{date,availableMinutes:budget,generation,seed,memoryRevision:memory.revision},choices:[]};
+  const audit:RecommendationAudit={meta:{batchId:options.learning?.batchId??`rec-${date}-${seed.toString(16)}`,version:RECOMMENDATION_VERSION,date,requested:memory.count,limited:false},context:{date,availableMinutes:budget,generation,seed,memoryRevision:memory.revision},choices:[]};
+  const features=(r:Routine)=>{const b=memory.stats[canonicalRoutineId(r)]??neutral,repeat=r.activity?1:1-.1*Math.min(3,b.recentDates.length)/3;return routineMLFeatures(r,a,c,date,budget,b,contextForRoutine(r,a,c),repeat,routineFamily(r),options.learning?.interests??[],options.learning?.generatedAt);};
+  if(options.learning){
+    audit.learning={schema:ML_SCHEMA,createdAt:options.learning.generatedAt,choices:[]};
+    if(options.shadowModel){try{const started=performance.now(),ranked=remaining.map(r=>({id:canonicalRoutineId(r),score:predictRoutineML(options.shadowModel!,features(r))})).sort((a,b)=>b.score-a.score||a.id.localeCompare(b.id));audit.learning.shadow={modelId:options.shadowModel.modelId,topIds:ranked.slice(0,5).map(r=>r.id),elapsedMs:performance.now()-started};}catch{/* Failed experiments never change the rule-based recommendation. */}}
+  }
   const chosen:Routine[]=[];let left=budget;
   for(let position=0;position<target;position++){
     const available=remaining.filter(r=>{const f=routineFamily(r);return cost(r)<=left&&(counts[f]??0)<2&&minimum(remaining.filter(x=>x.id!==r.id),target-position-1,{...counts,[f]:(counts[f]??0)+1})<=left-cost(r)&&canPlace([...chosen,r]);});
@@ -48,6 +55,7 @@ export function selectPersonalizedRoutines(base:Routine[],a:Answers,c:Checkin,hi
     const r=available[index],id=canonicalRoutineId(r),b=memory.stats[id]??neutral;
     const reason=b.observations>=2&&b.execution>.6?"최근 자주 실천한 기록을 반영했어요.":b.interest>.6?"직접 찾아보거나 담았던 관심을 반영했어요.":"오늘의 목표·컨디션과 가능한 시간을 참고했어요.";
     chosen.push({...r,reason:`${r.reason} ${reason}`.slice(0,300)});audit.choices.push({routineId:r.id,canonicalId:id,position,probability:probabilities[index],score:scores[index],parts:parts[index],pool:available.map((x,i)=>({id:canonicalRoutineId(x),score:scores[i],parts:parts[i]}))});
+    audit.learning?.choices.push({id,routineId:r.id,definition:routineMLSignature(r),features:features(r),ruleScore:scores[index]});
     const f=routineFamily(r);counts[f]=(counts[f]??0)+1;left-=cost(r);remaining=remaining.filter(x=>canonicalRoutineId(x)!==id);
   }
   audit.meta.limited=chosen.length<wanted;options.onBatch?.(audit);return chosen;

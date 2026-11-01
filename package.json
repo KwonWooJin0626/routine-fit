@@ -10,6 +10,8 @@
     "start": "next start --hostname localhost",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test-engine.mjs",
+    "ml:verify": "node scripts/verify-ml.mjs",
+    "ml:train": "python ml/train.py",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file=.env.local scripts/migrate.mjs"
   },

@@ -21,6 +21,8 @@ private-uploads/
 backups/
 coverage/
 outputs/
+__pycache__/
+*.pyc
 work/
 next-env.d.ts
 .neon

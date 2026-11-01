@@ -1,0 +1,5 @@
+{
+  "schema": "routine-completion-v1",
+  "status": "waiting_for_real_training_data",
+  "model": null
+}

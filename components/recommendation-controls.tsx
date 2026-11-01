@@ -3,15 +3,15 @@ import { useEffect,useRef,useState } from "react";
 import { localDate } from "@/lib/model";
 import type { RecommendationEvent,RecommendationMemory,RecommendationRequest } from "@/lib/recommendation-model";
 
-export function RecommendationVisibility({routineId,date,kind,onEvent}:{routineId:string;date:string;kind:"catalog_view"|"recommendation_view";onEvent?:(e:RecommendationEvent)=>void}){
+export function RecommendationVisibility({routineId,date,kind,batchId,position,onEvent}:{routineId:string;date:string;kind:"catalog_view"|"recommendation_view";batchId?:string;position?:number;onEvent?:(e:RecommendationEvent)=>void}){
   const marker=useRef<HTMLSpanElement>(null),callback=useRef(onEvent);callback.current=onEvent;
   useEffect(()=>{
     const card=marker.current?.parentElement;if(!card||!callback.current||date!==localDate())return;
     let timer:ReturnType<typeof setTimeout>|undefined,done=false;const clear=()=>{if(timer)clearTimeout(timer);timer=undefined;};
-    const observer=new IntersectionObserver(([entry])=>{clear();if(!done&&entry.intersectionRatio>=.5&&document.visibilityState==="visible")timer=setTimeout(()=>{if(document.visibilityState!=="visible"||document.querySelector("dialog[open]"))return;done=true;callback.current?.({kind,date,routineId});observer.disconnect();},1000);},{threshold:[.5]});
+    const observer=new IntersectionObserver(([entry])=>{clear();if(!done&&entry.intersectionRatio>=.5&&document.visibilityState==="visible")timer=setTimeout(()=>{if(document.visibilityState!=="visible"||document.querySelector("dialog[open]"))return;done=true;callback.current?.({kind,date,routineId,...(batchId?{batchId,position}:{})});observer.disconnect();},1000);},{threshold:[.5]});
     const visibility=()=>{clear();if(!done&&document.visibilityState==="visible"){observer.unobserve(card);observer.observe(card);}};observer.observe(card);document.addEventListener("visibilitychange",visibility);document.addEventListener("close",visibility,true);
     return()=>{clear();observer.disconnect();document.removeEventListener("visibilitychange",visibility);document.removeEventListener("close",visibility,true);};
-  },[routineId,date,kind]);
+  },[routineId,date,kind,batchId,position]);
   return <span ref={marker} hidden aria-hidden="true"/>;
 }
 export function RecommendationSettings({memory,error,busy,onChange}:{memory:RecommendationMemory;error:string;busy:boolean;onChange:(v:RecommendationRequest)=>Promise<void>}){

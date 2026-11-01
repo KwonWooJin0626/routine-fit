@@ -16,7 +16,7 @@ export function useRecommendations(app:AppState|null,demo:boolean){
     catch(e){if(version!==epoch.current)return;if(attempt<2)setTimeout(()=>void send(events,version,attempt+1),1000*(attempt+1));else setError((e as Error).message);}
   }
   function track(event:RecommendationEvent){
-    if(!live.current.app)return;const key=`${event.date}:${event.routineId}:${event.kind}`;if(seen.current.has(key))return;seen.current.add(key);
+    if(!live.current.app)return;const key=`${event.date}:${event.batchId??"daily"}:${event.routineId}:${event.kind}`;if(seen.current.has(key))return;seen.current.add(key);
     if(live.current.demo){applyRecommendationRequest(doc.current,live.current.app,{action:"events",events:[event]});setMemory(recommendationMemory(doc.current));return;}
     queue.current.push(event);if(timer.current)return;timer.current=setTimeout(()=>{timer.current=null;const events=queue.current.splice(0);for(let i=0;i<events.length;i+=25)void send(events.slice(i,i+25),epoch.current);},300);
   }
