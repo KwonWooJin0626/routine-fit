@@ -58,7 +58,8 @@ test("목표·집중 시간·오늘 컨디션과 계획 부담을 반영하면�
   const planned=buildPlannedDay(answers,c,"core",defaultSchedule,[],undefined,date,true,{setupComplete:true,templates:[],blocks:[{id:"work",title:"집중 일정",category:"study",location:"",task:"",start:"09:00",end:"18:00",mental:5,physical:1,shade:1,kind:"once",date,weekdays:[],excludedDates:[]}]});
   assert.ok(planned.planningContext);assert.ok(planned.routines.reduce((n,r)=>n+r.minutes,0)<=10);
 });
-test("계획 등록 여부와 실행 기록을 구분하고 일부 작성한 주를 전체 관측으로 오해하지 않는다",()=>{
+test("계획 등록 여부와 실행 기록을 구분하고 일부 작성한 주를 전체 관측으로 오해하지 않는다",context=>{
+  context.mock.timers.enable({apis:["Date"],now:new Date(`${date}T12:00:00+09:00`)});
   const s=state();assert.equal(growthAnalysis(s,date).unlocked,false);
   s.planner={setupComplete:true,templates:[],blocks:[{id:"one",title:"수업",category:"study",location:"",task:"",start:"09:00",end:"10:00",mental:3,physical:1,shade:1,kind:"once",date,weekdays:[],excludedDates:[]}]};
   const result=growthAnalysis(s,date);assert.equal(result.coveredDays,1);assert.equal(result.plannedMinutes,60);assert.equal(result.done,0);assert.equal(result.routineDays.length,0);

@@ -3,6 +3,8 @@ import { z } from "zod";
 export const effectTypes=["study","work","exercise","growth","social","sleep","rest","leisure","none","meal"] as const;
 export const effectLabels:Record<EffectType,string>={study:"학업·공부",work:"업무",exercise:"운동",growth:"자기계발",social:"교류",sleep:"수면",rest:"휴식",leisure:"여가",none:"준비·생활 기록",meal:"식사"};
 export type EffectType=typeof effectTypes[number];
+// Even a light meal (30) lasts through the longest regular meal gap: 18:00 → 07:00.
+export const PET_FULLNESS_DECAY_PER_HOUR=2;
 export const petSourceSchema=z.object({kind:z.enum(["routine","planner","sleep","manual"]),id:z.string().min(1).max(150),date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/)}).strict();
 export type PetSource=z.infer<typeof petSourceSchema>;
 export const sourceKey=(s:PetSource)=>`${s.kind}:${s.date}:${s.id}`;
@@ -16,7 +18,7 @@ export type PetExecution=Omit<ExecutionInput,"source"|"linkTo">&{id:string;sourc
 export type PetStats={stamina:number;maxStamina:number;stress:number;fullness:number;fitnessXP:number;fitnessTotalXP:number;learningXP:number;learningTotalXP:number;learningLevel:number};
 export const initialPetStats=():PetStats=>({stamina:80,maxStamina:100,stress:30,fullness:60,fitnessXP:0,fitnessTotalXP:0,learningXP:0,learningTotalXP:0,learningLevel:1});
 export type PetSeed={at:string;lastEvidenceAt:string;stats:PetStats};
-export type PetDocument={version:1;ruleVersion:"2026-10-pet-v1";lifecycleId:string;adoptedAt:string;name:string;visible:boolean;reducedMotion:boolean;records:PetExecution[];seed:PetSeed;archivedCount:number;receipts:{key:string;hash:string}[]};
+export type PetDocument={version:1;ruleVersion:"2026-10-pet-v1"|"2026-11-pet-v2";lifecycleId:string;adoptedAt:string;name:string;visible:boolean;reducedMotion:boolean;records:PetExecution[];seed:PetSeed;archivedCount:number;receipts:{key:string;hash:string}[]};
 export type PetEffect={id:string;title:string;type:EffectType;end:string;stamina:number;stress:number;fitnessXP:number;learningXP:number;requestedFitnessXP:number;fullness?:number};
 export type PetView={profile:{name:string;visible:boolean;reducedMotion:boolean;adoptedAt:string;archivedCount:number};stats:PetStats;baseState:"idle"|"tired";reasons:string[];evaluatedAt:string;changes:PetEffect[];todayFitnessXP:number;pausedByGap:boolean};
 export type PetResult={document:PetDocument|null;view:PetView|null;revision:number;appRevision:number;reactionId?:string;duplicate?:boolean};

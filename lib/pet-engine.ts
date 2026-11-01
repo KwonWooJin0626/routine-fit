@@ -1,5 +1,5 @@
 import { localDate } from "./model";
-import { initialPetStats,type EffectType,type PetDocument,type PetEffect,type PetExecution,type PetStats,type PetView } from "./pet-model";
+import { initialPetStats,PET_FULLNESS_DECAY_PER_HOUR,type EffectType,type PetDocument,type PetEffect,type PetExecution,type PetStats,type PetView } from "./pet-model";
 
 const MINUTE=60000,DAY=86400000;
 const rates:Record<EffectType,[number,number,number,number]>={study:[-3,3,10,0],work:[-4,3,0,0],exercise:[-8,2,0,5],growth:[-2,2,8,0],social:[2,-3,0,0],sleep:[8,-2,0,0],rest:[6,-4,0,0],leisure:[3,-3,0,0],none:[0,0,0,0],meal:[0,0,0,0]};
@@ -40,10 +40,10 @@ export function calculatePet(doc:PetDocument,now=new Date()):PetView&{lastEviden
       e.stamina+=s.stamina-staminaBefore;e.stress+=s.stress-stressBefore;
       const requested=rate[3]*minutes/30,fitness=Math.min(requested,Math.max(0,30-(fitnessByDate[date]??0))),learning=rate[2]*effective/30;
       fitnessByDate[date]=(fitnessByDate[date]??0)+fitness;e.requestedFitnessXP+=requested;e.fitnessXP+=fitness;e.learningXP+=learning;
-      addGrowth(s,fitness,learning);s.fullness=clamp(s.fullness-minutes*8/30,0,100);lastEvidence=until;
+      addGrowth(s,fitness,learning);s.fullness=clamp(s.fullness-minutes*PET_FULLNESS_DECAY_PER_HOUR/60,0,100);lastEvidence=until;
     }else{
       const autoMinutes=Math.max(0,Math.min(until,lastEvidence+DAY)-from)/MINUTE;
-      s.stamina=clamp(s.stamina+autoMinutes*2/60,0,s.maxStamina);s.stress=clamp(s.stress-autoMinutes/60,0,100);s.fullness=clamp(s.fullness-autoMinutes*8/30,0,100);
+      s.stamina=clamp(s.stamina+autoMinutes*2/60,0,s.maxStamina);s.stress=clamp(s.stress-autoMinutes/60,0,100);s.fullness=clamp(s.fullness-autoMinutes*PET_FULLNESS_DECAY_PER_HOUR/60,0,100);
     }
     instantaneous(until);
   }
@@ -51,7 +51,7 @@ export function calculatePet(doc:PetDocument,now=new Date()):PetView&{lastEviden
   return {profile:{name:doc.name,visible:doc.visible,reducedMotion:doc.reducedMotion,adoptedAt:doc.adoptedAt,archivedCount:doc.archivedCount},stats:s,
     baseState:petBaseState(s.fullness,s.stress),reasons,evaluatedAt:new Date(at).toISOString(),changes:[...effects.values()].sort((a,b)=>b.end.localeCompare(a.end)),todayFitnessXP:fitnessByDate[localDate(now)]??0,pausedByGap:at-lastEvidence>=DAY,lastEvidenceAt:new Date(lastEvidence).toISOString()};
 }
-export function newPetDocument(name:string,id:string,now:Date):PetDocument{const at=now.toISOString();return {version:1,ruleVersion:"2026-10-pet-v1",lifecycleId:id,adoptedAt:at,name,visible:true,reducedMotion:false,records:[],seed:{at,lastEvidenceAt:at,stats:initialPetStats()},archivedCount:0,receipts:[]};}
+export function newPetDocument(name:string,id:string,now:Date):PetDocument{const at=now.toISOString();return {version:1,ruleVersion:"2026-11-pet-v2",lifecycleId:id,adoptedAt:at,name,visible:true,reducedMotion:false,records:[],seed:{at,lastEvidenceAt:at,stats:initialPetStats()},archivedCount:0,receipts:[]};}
 export function compactPet(doc:PetDocument,now:Date):PetDocument{
   const cutoff=new Date(`${localDate(new Date(now.getTime()-90*DAY))}T00:00:00+09:00`);
   if(cutoff.getTime()<=new Date(doc.seed.at).getTime())return doc;
