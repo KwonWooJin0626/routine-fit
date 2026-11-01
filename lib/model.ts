@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { mediaProfileSchema } from "./media";
 import { plannerSchema, plannerDateSchema } from "./planner-model";
 import { nutritionProfileSchema } from "./nutrition-profile";
 import { basicProfileSchema } from "./basic-profile";
@@ -133,6 +134,7 @@ export const daySchema = z.object({
 });
 export type Day = z.infer<typeof daySchema>;
 export const stateSchema = z.object({
+  media:mediaProfileSchema.optional(),
   version: z.literal(1), consentAt: z.string().datetime(), consentVersion: z.enum(["2026-10-v1","2026-10-growth-v1"]),
   answers: answersSchema, schedule: scheduleSchema, inbody: z.array(inbodySchema).max(30), days: z.array(daySchema).max(90), planner:plannerSchema.optional(),
   nutrition:nutritionProfileSchema.optional(),
