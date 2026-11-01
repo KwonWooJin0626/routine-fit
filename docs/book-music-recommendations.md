@@ -14,7 +14,7 @@ The first release uses official Aladin category bestseller pages and activity-sp
 
 ## Ranking and storage
 
-Category score: .40 context fit + .30 explicit taste + .20 smoothed category feedback + .10 new-choice opportunity. These are experimental editorial coefficients, not an accuracy estimate. Vocal preference gates incompatible categories before ranking. Book and music feedback are separate. Books are not ranked by an invented global Top 10.
+Without selected interests, category score stays .40 context fit + .30 explicit taste + .20 smoothed category feedback + .10 new-choice opportunity. With interests, books use .25 context + .20 genre taste + .35 interest + .10 feedback + .10 novelty; music uses .40 context + .25 genre taste + .15 interest + .10 feedback + .10 novelty. The first book category in a topic mapping is its direct match (1), other related book categories receive .25; music matches receive 1. Interest match is bounded at 1, so selecting multiple matching topics does not multiply the bonus. This prevents a broadly related category such as essays from crowding out direct relationship/happiness choices; music keeps activity fit as its strongest component. These are experimental editorial coefficients, not an accuracy estimate. Vocal preference gates incompatible categories before ranking. Book and music feedback are separate. Books are not ranked by an invented global Top 10.
 
 The optional `media` field is Zod-validated within the existing authenticated Clerk/Neon AppState, with the same optimistic revision checks, export and full reset as other app data. There is no additional database migration. Read-state, pet projections, old imports and onboarding preserve optional media preferences through the existing state schema. URLs are restricted to known HTTPS Aladin hosts without credentials; titles are rendered as React text.
 
@@ -42,3 +42,11 @@ Existing empty routine reference rows are hidden; question provenance is unchang
 3. Redeploy Production, then verify actual video results as an authenticated user. Before that, live behavior remains unverified and the official search links remain available.
 
 Google instructions: https://developers.google.com/youtube/registering_an_application
+
+## Current interests
+
+The activity refinement wizard includes one optional, shared question after route selection and before choosing activity domains. All ten topics can be selected independently of the two-domain activity limit: relationships, growth, health, happiness, mind, learning, career, creativity, stories and life. Next saves interests immediately via the existing authenticated state endpoint; no activity category needs to be completed to retain them. Existing pending category surveys resume without requiring the extra question; interests remain editable in Settings and the content dialog.
+
+`media.interests` defaults to an empty array for old payloads. Duplicate/unknown values are rejected. Existing book entries, genres, reactions, routines and completion records are preserved. Clearing interests restores the prior ranking formula. Content selection explains matching interests; vocal preferences still filter incompatible music genres first.
+
+Topic-to-category mappings are editorial suggestions, not claims about an individual book's content or a track's lyrics or health effects. Health interest is not interpreted as a medical condition or nutrient deficiency. Only existing book categories are used; no new health-book collection or automated content retrieval is claimed. Interest IDs stay in the account state and are not added to external search queries. No additional API or paid service is introduced.

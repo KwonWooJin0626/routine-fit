@@ -14,6 +14,8 @@ import { occurrencesInWindow, mondayOf, addDate } from "@/lib/planner";
 import { QuestionFrame } from "./question-frame";
 import { ChoiceButtons } from "./choice-buttons";
 import { Input } from "./forms";
+import { emptyMediaProfile,type MediaProfile,type ContentInterest } from "@/lib/media";
+import { ContentInterestChoices } from "./content-interests";
 
 type Step={id:string;title:string;hint:string;question?:ActivityQuestion};
 function profileSteps(p:ActivityProfile):Step[]{
@@ -34,9 +36,10 @@ function profileSteps(p:ActivityProfile):Step[]{
   ];
 }
 
-export function ActivityWizard({state,busy,error,onComplete,onClose,onPlan,onResultsClose}:{state:AppState;busy:boolean;error:string;onComplete:(a:Answers)=>Promise<Day>;onClose:()=>void;onPlan:()=>void;onResultsClose?:()=>void}){
+export function ActivityWizard({state,busy,error,onComplete,onMediaSave,onClose,onPlan,onResultsClose}:{state:AppState;busy:boolean;error:string;onComplete:(a:Answers)=>Promise<Day>;onMediaSave:(profile:MediaProfile)=>Promise<void>;onClose:()=>void;onPlan:()=>void;onResultsClose?:()=>void}){
   const initial=state.answers.activities;
-  const [stage,setStage]=useState<"start"|"domains"|"flow"|"result">(initial?.pendingDomains?.length?"flow":"start");
+  const [stage,setStage]=useState<"start"|"interests"|"domains"|"flow"|"result">(initial?.pendingDomains?.length?"flow":"start");
+  const [interests,setInterests]=useState<ContentInterest[]>(state.media?.interests??[]),[interestsSaved,setInterestsSaved]=useState(false);
   const [route,setRoute]=useState<"routine"|"schedule">(initial?.route??(state.answers.planningStyle==="planned"?"schedule":"routine"));
   const [selected,setSelected]=useState<ActivityDomain[]>(initial?.pendingDomains?.length?initial.selectedDomains??initial.pendingDomains:initial?.profiles.filter(p=>p.enabled).map(p=>p.domain)??[]);
   const [draft,setDraft]=useState<Partial<Record<ActivityDomain,ActivityProfile>>>(()=>Object.fromEntries(initial?.profiles.map(p=>[p.domain,p])??[]));
@@ -53,7 +56,11 @@ export function ActivityWizard({state,busy,error,onComplete,onClose,onPlan,onRes
   const profileError=()=>{const parsed=activityProfileSchema.safeParse(p);return parsed.success?"":parsed.error.issues[0].message;};
   const advance=async()=>{
     setNotice("");
-    if(stage==="start"){if(route==="schedule"&&!hasPlanner){onPlan();return;}setStage("domains");return;}
+    if(stage==="start"){if(route==="schedule"&&!hasPlanner){onPlan();return;}setStage("interests");return;}
+    if(stage==="interests"){
+      try{await onMediaSave({...state.media??emptyMediaProfile(),interests});setInterestsSaved(true);setStage("domains");}catch(e){setNotice((e as Error).message);}
+      return;
+    }
     if(stage==="domains"){setDomainIndex(0);setStep(0);setStage("flow");return;}
     if(screen.id==="review"){
       const issue=profileError();if(issue){setNotice(issue);return;}
@@ -66,14 +73,15 @@ export function ActivityWizard({state,busy,error,onComplete,onClose,onPlan,onRes
     }
     setStep(i=>i+1);setCandidatePage(0);
   };
-  const back=()=>{setNotice("");if(stage==="domains")setStage("start");else if(stage==="flow"&&step>0)setStep(i=>i-1);else setStage("domains");};
-  const title=stage==="start"?"어떤 방식으로 시작할까요?":stage==="domains"?"어떤 분야부터 챙기고 싶나요?":screen.title;
+  const back=()=>{setNotice("");if(stage==="interests")setStage("start");else if(stage==="domains")setStage("interests");else if(stage==="flow"&&step>0)setStep(i=>i-1);else setStage("domains");};
+  const title=stage==="start"?"어떤 방식으로 시작할까요?":stage==="interests"?"요즘 어떤 주제에 관심이 있나요?":stage==="domains"?"어떤 분야부터 챙기고 싶나요?":screen.title;
   const disabled=stage==="domains"?!selected.length:stage==="flow"?(screen.id==="goal"?!p.goal:screen.id==="candidate"?!candidates.some(a=>a.id===p.activity):screen.id==="days"?!p.days.length:screen.question?.options?!p.fields[screen.question.key]:false):false;
   if(stage==="result"&&result)return <ActivityCategoryResult profile={result.profile} day={result.day} pending={result.pending} busy={busy} onClose={onResultsClose??onClose} onEdit={()=>{setStage("flow");setStep(profileSteps(result.profile).length-1);}}/>;
-  return <QuestionFrame step={stage==="flow"?step:stage==="domains"?1:0} total={stage==="flow"?steps.length:3} title={title} hint={stage==="flow"?screen.hint:stage==="start"?"기초 정보는 재사용하고 새 목표만 알아봐요. 분야를 마칠 때마다 저장하고 결과를 먼저 보여드려요.":stage==="domains"?"처음에는 1~2개 분야를 골라요. 기존 분야의 설정은 보관하고 선택한 분야를 활성화해요.":"목표는 희망 분량, 오늘의 시간은 전체 상한이에요. 완료 기록과 직접 담은 루틴은 유지해요."} onClose={onClose} onBack={stage==="start"?undefined:back} onNext={()=>void advance()} busy={busy} error={notice||error} disabled={disabled} nextLabel={stage==="start"&&route==="schedule"&&!hasPlanner?"계획표 만들기":stage==="flow"&&screen.id==="review"?"이 분야 저장하고 결과 보기":"다음"}>
-    <span className="activity-phase">{stage==="flow"?`${activityDomains[domain]} · ${domainIndex+1}/${selected.length}분야`:"목표 → 후보 → 구체화 → 실천"}</span>
-    {stage==="start"&&<><ChoiceButtons label="시작 방법" value={route} options={{routine:"먼저 루틴 추천받기",schedule:"일정에 맞춰 추천받기"}} onChange={v=>setRoute(v as typeof route)}/><p className="question-small">{route==="routine"?"기초 정보는 다시 묻지 않아요. 관심 활동부터 고른 뒤 계획표는 나중에 추가할 수 있어요.":hasPlanner?"등록된 일정을 재사용해요. 이번 주의 예정 시간과 목표를 구분해서 확인합니다.":"먼저 고정 일정과 날짜별 일정을 등록해주세요. 계획표의 ‘활동에 맞춘 루틴 구체화’로 돌아와 이어서 시작할 수 있어요."}</p>{hasPlanner&&<button type="button" className="text-link" onClick={onPlan}><CalendarDays size={15}/>계획표 확인·수정</button>}{route==="schedule"&&!hasPlanner&&<button className="text-link" type="button" onClick={()=>{setRoute("routine");setStage("domains");}}>계획표 없이 루틴부터 받을게요</button>}</>}
-    {stage==="domains"&&<><div className="activity-domain-grid" role="group" aria-label="관심 분야 최대 두 개">{Object.entries(activityDomains).map(([id,label])=><button type="button" key={id} aria-pressed={selected.includes(id as ActivityDomain)} disabled={!selected.includes(id as ActivityDomain)&&selected.length>=2} onClick={()=>{const d=id as ActivityDomain;setSelected(old=>old.includes(d)?old.filter(v=>v!==d):[...old,d]);setDraft(old=>({...old,[d]:old[d]??newActivityProfile(d)}));}}>{label}</button>)}</div><p className="question-small">이후 선택한 활동만 질문해요. 현재 설정하지 않는 분야의 기초 추천도 아래 추천 목록에서 직접 고를 수 있어요.</p></>}
+  return <QuestionFrame step={stage==="flow"?step:stage==="domains"?2:stage==="interests"?1:0} total={stage==="flow"?steps.length:3} title={title} hint={stage==="flow"?screen.hint:stage==="start"?"기초 정보는 재사용하고 새 목표만 알아봐요. 분야를 마칠 때마다 저장하고 결과를 먼저 보여드려요.":stage==="interests"?"여러 개 고를 수 있어요. 저장하면 책·음악 추천에 반영해요.":"처음에는 1~2개 활동 분야를 골라요. 앞에서 고른 관심사 개수와는 별개예요."} onClose={onClose} onBack={stage==="start"?undefined:back} onNext={()=>void advance()} busy={busy} error={notice||error} disabled={disabled} nextLabel={stage==="interests"?"관심사 저장하고 다음":stage==="start"&&route==="schedule"&&!hasPlanner?"계획표 만들기":stage==="flow"&&screen.id==="review"?"이 분야 저장하고 결과 보기":"다음"}>
+    {stage!=="interests"&&<span className="activity-phase">{stage==="flow"?`${activityDomains[domain]} · ${domainIndex+1}/${selected.length}분야`:"목표 → 후보 → 구체화 → 실천"}</span>}
+    {stage==="start"&&<><ChoiceButtons label="시작 방법" value={route} options={{routine:"먼저 루틴 추천받기",schedule:"일정에 맞춰 추천받기"}} onChange={v=>setRoute(v as typeof route)}/><p className="question-small">{route==="routine"?"기초 정보는 다시 묻지 않아요. 관심 활동부터 고른 뒤 계획표는 나중에 추가할 수 있어요.":hasPlanner?"등록된 일정을 재사용해요. 이번 주의 예정 시간과 목표를 구분해서 확인합니다.":"먼저 고정 일정과 날짜별 일정을 등록해주세요. 계획표의 ‘활동에 맞춘 루틴 구체화’로 돌아와 이어서 시작할 수 있어요."}</p>{hasPlanner&&<button type="button" className="text-link" onClick={onPlan}><CalendarDays size={15}/>계획표 확인·수정</button>}{route==="schedule"&&!hasPlanner&&<button className="text-link" type="button" onClick={()=>{setRoute("routine");setStage("interests");}}>계획표 없이 루틴부터 받을게요</button>}</>}
+    {stage==="interests"&&<><ContentInterestChoices value={interests} onChange={setInterests} disabled={busy}/><details className="question-help"><summary>추천에 어떻게 쓰이나요?</summary><p>예: 인간관계는 소통 관련 책 분야, 행복은 행복론·힐링 분야를 우선 비교해요. 음악은 관심사와 현재 활동에 어울리는 장르를 함께 비교하며, 선택한 가사 선호를 지켜요. 건강 관심사를 건강 상태나 영양소 부족으로 해석하지 않아요.</p></details></>}
+    {stage==="domains"&&<>{interestsSaved&&<p className="activity-baseline" role="status">{interests.length?`관심사 ${interests.length}개를 저장했어요. 책·음악 추천에 반영돼요.`:"관심사 없이도 활동을 추천받을 수 있어요."}</p>}<div className="activity-domain-grid" role="group" aria-label="관심 분야 최대 두 개">{Object.entries(activityDomains).map(([id,label])=><button type="button" key={id} aria-pressed={selected.includes(id as ActivityDomain)} disabled={!selected.includes(id as ActivityDomain)&&selected.length>=2} onClick={()=>{const d=id as ActivityDomain;setSelected(old=>old.includes(d)?old.filter(v=>v!==d):[...old,d]);setDraft(old=>({...old,[d]:old[d]??newActivityProfile(d)}));}}>{label}</button>)}</div><p className="question-small">이후 선택한 활동만 질문해요. 현재 설정하지 않는 분야의 기초 추천도 아래 추천 목록에서 직접 고를 수 있어요.</p></>}
     {stage==="flow"&&<>
       {screen.id==="goal"&&<ChoiceButtons label="이번 분야의 목표" value={p.goal} options={activityGoals[domain]} onChange={goal=>update({goal})}/>}
       {screen.id==="current"&&<>{domain==="exercise"&&state.answers.basic&&<p className="activity-baseline">기초 설문에 답한 최근 주간 운동량: {exerciseRanges[state.answers.basic.exerciseRange]} · 범위를 정확한 분으로 바꾸지 않아요.</p>}<ChoiceButtons label="최근 활동 상태" value={p.current} options={{none:"거의 안 해요",sometimes:"가끔 해요",regular:"꾸준히 해요",unknown:"잘 모르겠어요",...(domain==="exercise"&&state.answers.basic?{profile:"위 기초 설문 정보 사용"}:{})}} onChange={current=>update({current:current as ActivityProfile["current"]})}/></>}

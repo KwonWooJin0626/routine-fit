@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
-import { bookCid,bookListUrl,emptyMediaProfile,mediaContext,mediaKinds,mediaProfileSchema,musicSearchUrl,rankMediaCategories,readingBookSchema,recordMediaReaction } from "../lib/media";
+import { bookCid,bookListUrl,contentInterests,emptyMediaProfile,mediaContext,mediaKinds,mediaProfileSchema,musicSearchUrl,rankMediaCategories,readingBookSchema,recordMediaReaction } from "../lib/media";
+import { ContentInterestChoices } from "../components/content-interests";
 import { createMediaCatalogProvider,parseYouTubeItems } from "../lib/media-providers";
 import { stateSchema,defaultAnswers,defaultSchedule } from "../lib/model";
 import { MediaProvider,MediaSettings,RoutineMedia } from "../components/media-recommendations";
@@ -19,6 +20,29 @@ test("활동 문맥과 보컬 선호를 반영하고 음악 반응이 책 추천
   const instrumental=rankMediaCategories("music","exercise",{...p,vocals:"instrumental"},"2026-11-01");assert.ok(!instrumental.some(r=>r.key==="upbeat"||r.key==="pop"));
   const after=recordMediaReaction(p,"music","jazz","2026-11-01","like");assert.deepEqual(rankMediaCategories("book","rest",p,"2026-11-01"),rankMediaCategories("book","rest",after,"2026-11-01"));
   assert.deepEqual(mediaKinds({id:"custom-reading",source:"custom"}),[]);
+});
+
+test("기존 취향은 관심사 없이 복원되고 모든 관심사를 중복 없이 선택할 수 있다",()=>{
+  const legacy=mediaProfileSchema.parse({books:["poetry"],music:["jazz"],reading:[],reactions:[]});assert.deepEqual(legacy.interests,[]);assert.deepEqual(legacy.books,["poetry"]);
+  const all=contentInterests.map(i=>i.id);assert.deepEqual(mediaProfileSchema.parse({...legacy,interests:all}).interests,all);
+  for(const interests of [["relationships","relationships"],["unknown"]])assert.equal(mediaProfileSchema.safeParse({...legacy,interests}).success,false);
+});
+
+test("현재 관심사는 책과 음악 후보에 반영되고 지우면 기존 추천으로 돌아온다",()=>{
+  const base=emptyMediaProfile(),date="2026-11-01",profile={...base,interests:["relationships","happiness"] as const};
+  for(const [kind,key] of [["book","relationships"],["music","pop"]] as const){
+    const before=rankMediaCategories(kind,"rest",base,date),after=rankMediaCategories(kind,"rest",{...profile,interests:[...profile.interests]},date);
+    assert.ok(after.find(r=>r.key===key)!.score>before.find(r=>r.key===key)!.score);assert.equal(after.find(r=>r.key===key)!.interestFit,1);assert.match(after.find(r=>r.key===key)!.reason,/관심사/);
+    assert.deepEqual(rankMediaCategories(kind,"rest",{...profile,interests:[]},date),before);
+  }
+  const instrumental=rankMediaCategories("music","rest",{...base,interests:["happiness"],vocals:"instrumental"},date);assert.ok(!instrumental.some(r=>r.key==="pop"));
+  const books=rankMediaCategories("book","rest",{...base,interests:["relationships","happiness","health"]},date).slice(0,3).map(r=>r.key);assert.ok(books.includes("relationships"));assert.ok(books.includes("happiness"));assert.ok(books.includes("healing"));
+  const state=stateSchema.parse({version:1,consentAt:new Date().toISOString(),consentVersion:"2026-10-growth-v1",answers:{...defaultAnswers,name:"합성 관심사"},schedule:defaultSchedule,inbody:[],days:[],media:{...profile,interests:[...profile.interests]}});assert.deepEqual(state.days,[]);assert.deepEqual(state.media?.interests,["relationships","happiness"]);
+});
+
+test("관심사 선택은 복수 선택 상태와 수정·비우기 기능을 제공한다",()=>{
+  const html=renderToStaticMarkup(<ContentInterestChoices value={["relationships","health"]} onChange={()=>{}}/>);
+  assert.equal((html.match(/aria-pressed="true"/g)??[]).length,2);assert.equal((html.match(/aria-pressed=/g)??[]).length,contentInterests.length);assert.match(html,/관심사 선택 지우기/);assert.match(html,/2개 선택/);
 });
 test("외부 링크 열기는 하루 한 번 관심으로만 기록하고 루틴 실행 기록을 만들지 않는다",()=>{
   const p=recordMediaReaction(emptyMediaProfile(),"book","essay","2026-11-01","open"),again=recordMediaReaction(p,"book","essay","2026-11-01","open");assert.deepEqual(p,again);assert.equal(p.reactions[0].opened,true);assert.equal("statuses" in p,false);

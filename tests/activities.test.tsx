@@ -68,7 +68,7 @@ test("분야 하나만 먼저 저장하고 다른 분야의 미확정 답변 없
   const first=checkpointActivity(undefined,profile("exercise"),["exercise","reading"],"routine");
   assert.equal(first.profiles.length,1);assert.deepEqual(first.pendingDomains,["reading"]);
   const s={...state([]),answers:{...answers([]),activities:first}},parsed=stateSchema.parse(JSON.parse(JSON.stringify(s)));
-  const html=renderToStaticMarkup(<ActivityWizard state={parsed} busy={false} error="" onComplete={async()=>buildDay(s.answers,initialCheckin(s.answers),"core",defaultSchedule)} onClose={()=>{}} onPlan={()=>{}}/>);
+  const html=renderToStaticMarkup(<ActivityWizard onMediaSave={async()=>{}} state={parsed} busy={false} error="" onComplete={async()=>buildDay(s.answers,initialCheckin(s.answers),"core",defaultSchedule)} onClose={()=>{}} onPlan={()=>{}}/>);
   assert.match(html,/독서에서 원하는 변화/);assert.doesNotMatch(html,/어떤 방식으로 시작/);
   const second=checkpointActivity(parsed.answers.activities,profile("reading"),["exercise","reading"],"routine");
   assert.equal(second.profiles.length,2);assert.deepEqual(second.pendingDomains,[]);assert.deepEqual(second.profiles.find(p=>p.domain==="exercise"),first.profiles[0]);
@@ -123,7 +123,7 @@ test("기존 운동 일정은 중복 배치하지 않고 완료를 추정하지 
 test("기존 계정은 추가 질문 없이 열리고 첫 화면은 두 시작 경로를 제공한다",()=>{
   const legacy=state([]);delete legacy.answers.activities;
   assert.ok(stateSchema.safeParse(legacy).success);
-  const html=renderToStaticMarkup(<ActivityWizard state={legacy} busy={false} error="" onComplete={async()=>buildDay(legacy.answers,initialCheckin(legacy.answers),"core",defaultSchedule)} onClose={()=>{}} onPlan={()=>{}}/>);
+  const html=renderToStaticMarkup(<ActivityWizard onMediaSave={async()=>{}} state={legacy} busy={false} error="" onComplete={async()=>buildDay(legacy.answers,initialCheckin(legacy.answers),"core",defaultSchedule)} onClose={()=>{}} onPlan={()=>{}}/>);
   assert.match(html,/먼저 루틴 추천받기/);assert.match(html,/일정에 맞춰 추천받기/);assert.doesNotMatch(html,/BMI/);
   const s=state([profile("reading")]);s.days=[buildDay(s.answers,initialCheckin(s.answers),"core",defaultSchedule,[],undefined,date)];s.days[0].statuses[s.days[0].routines[0].id]="done";
   const goals=renderToStaticMarkup(<ActivityGoals state={s} busy={false} onRefine={()=>{}} onPlan={()=>{}}/>);assert.match(goals,/직접 기록한 실제 시간/);assert.doesNotMatch(goals,/<strong>30분/);

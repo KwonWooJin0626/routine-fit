@@ -26,6 +26,22 @@ export type MediaContext=keyof typeof contextLabels;
 export type MediaKind="book"|"music";
 export type BookCategory=typeof bookCategories[number]["id"];
 export type MusicCategory=typeof musicCategories[number]["id"];
+// Editorial links to content categories, not health or personality inferences.
+export const contentInterests = [
+  {id:"relationships",label:"인간관계·소통",books:["relationships","essay"],music:["acoustic","jazz"]},
+  {id:"growth",label:"자기개발·습관",books:["logic","essay"],music:["lofi","piano"]},
+  {id:"health",label:"건강·운동",books:["healing","essay"],music:["upbeat","acoustic","nature"]},
+  {id:"happiness",label:"행복·긍정",books:["happiness","healing"],music:["bossa","pop"]},
+  {id:"mind",label:"마음 돌보기·휴식",books:["healing","poetry"],music:["ambient","nature","piano"]},
+  {id:"learning",label:"지식·비판적 사고",books:["logic","essay"],music:["classical","lofi"]},
+  {id:"career",label:"진로·커리어",books:["logic","relationships"],music:["lofi","classical"]},
+  {id:"creativity",label:"예술·창의성",books:["poetry","fiction"],music:["jazz","classical"]},
+  {id:"stories",label:"소설·이야기",books:["fiction","essay"],music:["piano","acoustic"]},
+  {id:"life",label:"생활 정리·일상",books:["essay","happiness"],music:["bossa","upbeat"]},
+] as const satisfies readonly {id:string;label:string;books:readonly BookCategory[];music:readonly MusicCategory[]}[];
+export type ContentInterest=typeof contentInterests[number]["id"];
+const interestId=z.enum(["relationships","growth","health","happiness","mind","learning","career","creativity","stories","life"]);
+export const contentInterestSchema=z.array(interestId).max(contentInterests.length).refine(v=>new Set(v).size===v.length,"같은 관심사가 중복됐어요.");
 const bookId=z.enum(["poetry","fiction","essay","logic","healing","relationships","happiness"]);
 const musicId=z.enum(["classical","piano","pop","jazz","lofi","ambient","nature","acoustic","upbeat","bossa"]);
 export function safeAladinUrl(value:string){try{const u=new URL(value);return u.protocol==="https:"&&["www.aladin.co.kr","aladin.co.kr","www1.aladin.co.kr"].includes(u.hostname)&&!u.username&&!u.password;}catch{return false;}}
@@ -33,6 +49,7 @@ const aladinUrl=z.string().max(500).refine(v=>v===""||safeAladinUrl(v),"알라�
 export const readingBookSchema=z.object({id:z.string().min(1).max(80),title:z.string().trim().min(1).max(120),author:z.string().trim().max(100),category:bookId,url:aladinUrl,status:z.enum(["reading","finished","paused"]),updatedAt:z.string().datetime()}).strict();
 const reaction=z.object({kind:z.enum(["book","music"]),key:z.string().max(30),date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),opened:z.boolean().default(false),rating:z.enum(["like","dislike"]).optional()}).strict().refine(v=>(v.kind==="book"?bookCategories:musicCategories).some(c=>c.id===v.key),"올바른 추천 분야를 선택해주세요.");
 export const mediaProfileSchema=z.object({
+  interests:contentInterestSchema.default([]),
   books:z.array(bookId).max(7).default([]),music:z.array(musicId).max(10).default([]),
   novel:z.enum(["korean","english","japanese"]).default("korean"),vocals:z.enum(["any","instrumental","vocal"]).default("any"),
   reading:z.array(readingBookSchema).max(30).default([]),reactions:z.array(reaction).max(200).default([]),
@@ -74,7 +91,11 @@ export function rankMediaCategories(kind:MediaKind,context:MediaContext,profile:
   return categories.filter(c=>kind==="book"||profile.vocals==="any"||("vocals" in c&&c.vocals===(profile.vocals==="vocal"))).map(c=>{
     const rows=profile.reactions.filter(r=>r.kind===kind&&r.key===c.id&&r.date<=date),likes=rows.filter(r=>r.rating==="like").length,dislikes=rows.filter(r=>r.rating==="dislike").length,opens=rows.filter(r=>r.opened).length;
     const fit=(c.contexts as readonly string[]).includes(context)?1:.25,taste=preferred.includes(c.id as never)?1:preferred.length?.3:.5,feedback=(1+likes+.1*opens)/(2+likes+dislikes+.1*opens),novelty=1/(1+rows.filter(r=>r.date===date).length);
-    return {key:c.id,label:c.label,score:.4*fit+.3*taste+.2*feedback+.1*novelty,fit,preferred:preferred.includes(c.id as never),reason:`${contextLabels[context]} 활동${preferred.includes(c.id as never)?"과 저장한 취향":"에 맞는 선택지"}를 참고했어요.`};
+    const interests=profile.interests??[],matched=contentInterests.filter(i=>interests.includes(i.id)&&(i[kind==="book"?"books":"music"] as readonly string[]).includes(c.id));
+    const interestFit=!matched.length?0:kind==="book"?(matched.some(i=>i.books[0]===c.id)?1:.25):1;
+    const score=!interests.length?.4*fit+.3*taste+.2*feedback+.1*novelty:kind==="book"?.25*fit+.2*taste+.35*interestFit+.1*feedback+.1*novelty:.4*fit+.25*taste+.15*interestFit+.1*feedback+.1*novelty;
+    const reason=matched.length?`관심사: ${matched.slice(0,2).map(i=>i.label).join(" · ")} · ${contextLabels[context]} 활동을 함께 참고했어요.`:`${contextLabels[context]} 활동${preferred.includes(c.id as never)?"과 저장한 취향":"에 맞는 선택지"}를 참고했어요.`;
+    return {key:c.id,label:c.label,score,fit,interestFit,preferred:preferred.includes(c.id as never),reason};
   }).sort((a,b)=>b.score-a.score||a.key.localeCompare(b.key));
 }
 export type MediaItem={id:string;title:string;creator:string;url:string;image?:string;rank?:number;seconds?:number};
