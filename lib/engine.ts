@@ -2,10 +2,13 @@ import { type Answers, type Checkin, type Day, type Inbody, type Routine, type S
 import { MAX_DAILY_ROUTINES, recommendCore } from "./routine-catalog";
 import { recommendActivities } from "./activity-recommendations";
 import { recommendGrowth } from "./growth-routines";
+import { selectPersonalizedRoutines } from "./recommendation-ranker";
+import type { RecommendationOptions,RecommendationAudit } from "./recommendation-model";
 
 export { analyze } from "./lifestyle-analysis";
 
-export function buildRoutines(a: Answers, c: Checkin, history: Day[] = [], inbody?: Inbody, generation = 0, date=localDate(), schedule?:Schedule,omitIds?:Set<string>): Routine[] {
+export function buildRoutines(a: Answers, c: Checkin, history: Day[] = [], inbody?: Inbody, generation = 0, date=localDate(), schedule?:Schedule,omitIds?:Set<string>,personalization?:RecommendationOptions): Routine[] {
+  if(personalization){const available={...c,minutes:Math.max(1,c.minutes-(personalization.memory.count-1))};const base=a.activities?.profiles.some(p=>p.enabled)?recommendActivities(a,available,history,date,schedule,omitIds):a.basic?recommendGrowth(a,c,history,generation):recommendCore(a,c,history,inbody,generation);return selectPersonalizedRoutines(base,a,c,history,inbody,date,schedule,omitIds,generation,personalization);}
   if(a.activities?.profiles.some(p=>p.enabled))return recommendActivities(a,c,history,date,schedule,omitIds);
   if(a.basic)return recommendGrowth(a,c,history,generation);
   return recommendCore(a, c, history, inbody, generation);
@@ -132,13 +135,14 @@ export function reviseDayRoutines(day: Day, routines: Routine[], schedule: Sched
   return {...day,activityFeedback:day.activityFeedback?Object.fromEntries(Object.entries(day.activityFeedback).filter(([id])=>ids.has(id))):undefined,routines,statuses:Object.fromEntries(Object.entries(day.statuses).filter(([id]) => ids.has(id))),notes:Object.fromEntries(Object.entries(day.notes).filter(([id]) => ids.has(id))),...plan};
 }
 
-export function buildDay(a: Answers, c: Checkin, mode: "core" | "full", schedule: Schedule, history: Day[] = [], inbody?: Inbody, date = localDate(), refresh = true): Day {
+export function buildDay(a: Answers, c: Checkin, mode: "core" | "full", schedule: Schedule, history: Day[] = [], inbody?: Inbody, date = localDate(), refresh = true,personalization?:RecommendationOptions): Day {
   const previous = history.find(d => d.date === date);
   const generation = previous ? (previous.generation ?? 0) + (refresh ? 1 : 0) : 0;
   const retained = previous?.routines.filter(r => (r.source && r.source !== "auto") || !!previous.statuses[r.id]) ?? [];
   const protectedIds = new Set(retained.map(r => r.id));
   const recommendationCheckin=a.activities?{...c,minutes:Math.max(0,c.minutes-retained.filter(r=>!r.held&&previous?.statuses[r.id]!=="done").reduce((n,r)=>n+r.minutes+(r.activity?.overheadMinutes??0),0))}:c;
-  const recommendations = buildRoutines(a,recommendationCheckin,history.filter(d => d.date !== date),inbody,generation,date,schedule,protectedIds).filter(r => !protectedIds.has(r.id));
+  let audit:RecommendationAudit|undefined;
+  const recommendations = buildRoutines(a,recommendationCheckin,personalization?history:history.filter(d=>d.date!==date),inbody,generation,date,schedule,protectedIds,personalization&&(refresh||!previous)?{...personalization,retained,budget:Math.min(personalization.budget??recommendationCheckin.minutes,recommendationCheckin.minutes),onBatch:b=>{audit=b;personalization.onBatch?.(b);}}:undefined).filter(r => !protectedIds.has(r.id));
   const routines = !refresh && previous ? previous.routines : [...retained,...recommendations].slice(0,MAX_DAILY_ROUTINES);
   let safe=holdUnsafeRoutines(routines,c,a.movementLimit);
   let placementWarnings:string[]=[];
@@ -146,7 +150,8 @@ export function buildDay(a: Answers, c: Checkin, mode: "core" | "full", schedule
     const placement=buildTimeline(safe,schedule);placementWarnings=placement.warnings;
     safe=safe.map(r=>{if(!r.activity||r.activity.linkedEvent||r.when!=="계획표 빈 시간에 배치")return r;const slot=placement.timeline.find(t=>t.routineId===r.id);return slot?{...r,preferredTime:slot.start,when:`${slot.start} · 일정 사이`}:r;});
   }
-  const result=reviseDayRoutines({date,routines:safe,checkin:c,generation,mode,statuses:previous?.statuses ?? {},notes:previous?.notes ?? {},activityFeedback:previous?.activityFeedback,timeline:[],warnings:[]},safe,schedule);
+  const result=reviseDayRoutines({date,recommendation:!refresh&&previous?previous.recommendation:audit?.meta,routines:safe,checkin:c,generation,mode,statuses:previous?.statuses ?? {},notes:previous?.notes ?? {},activityFeedback:previous?.activityFeedback,timeline:[],warnings:[]},safe,schedule);
+  if(audit?.meta.limited&&refresh)result.warnings.push(`오늘의 시간·조건에 맞는 새 추천은 ${recommendations.length}개예요. 개수를 채우기 위해 무리한 활동을 더하지 않았어요.`);
   return {...result,warnings:[...result.warnings,...placementWarnings]};
 }
 

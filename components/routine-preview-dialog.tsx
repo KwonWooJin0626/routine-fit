@@ -8,11 +8,12 @@ import { guidanceForRoutine } from "@/lib/routine-guidance";
 import { Dialog,Input,Scale,Select,Toggle } from "./forms";
 import { RoutineSources } from "./evidence-sources";
 import { RoutineGuidance } from "./routine-guidance";
+import type { RecommendationMemory } from "@/lib/recommendation-model";
 
-export function RoutinePreviewDialog({state,date,today,onClose}:{state:AppState;date:string;today:string;onClose:()=>void}){
+export function RoutinePreviewDialog({state,date,today,onClose,recommendationMemory}:{state:AppState;date:string;today:string;onClose:()=>void;recommendationMemory?:RecommendationMemory}){
   const [expected,setExpected]=useState(()=>initialCheckin(state.answers)),[draft,setDraft]=useState(()=>initialCheckin(state.answers));
   const [mode,setMode]=useState<"core"|"full">("core"),[error,setError]=useState("");
-  const result=useMemo(()=>{try{return {day:buildRoutinePreview(state,date,expected,mode,today),error:""};}catch{return {day:undefined,error:"미리보기를 만들지 못했어요. 날짜와 예상 컨디션의 입력 범위를 확인해주세요."};}},[state,date,expected,mode,today]);
+  const result=useMemo(()=>{try{return {day:buildRoutinePreview(state,date,expected,mode,today,recommendationMemory),error:""};}catch{return {day:undefined,error:"미리보기를 만들지 못했어요. 날짜와 예상 컨디션의 입력 범위를 확인해주세요."};}},[state,date,expected,mode,today,recommendationMemory]);
   const day=result.day;
   const change=<K extends keyof Checkin>(key:K,value:Checkin[K])=>setDraft(old=>({...old,[key]:value}));
   const apply=()=>{const p=checkinSchema.safeParse(draft);if(!p.success){setError("수면은 0~14시간, 건강관리 시간은 5~60분 범위로 입력해주세요.");return;}setError("");setExpected(p.data);};

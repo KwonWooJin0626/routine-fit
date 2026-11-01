@@ -3,6 +3,7 @@ import { plannerSchema, plannerDateSchema } from "./planner-model";
 import { nutritionProfileSchema } from "./nutrition-profile";
 import { basicProfileSchema } from "./basic-profile";
 import { activityPreferencesSchema, activityFeedbackSchema, domainIds } from "./activity-profile";
+import { recommendationMetaSchema } from "./recommendation-model";
 
 export const answersSchema = z.object({
   basic: basicProfileSchema.optional(),
@@ -123,6 +124,7 @@ export type Routine = z.infer<typeof routineSchema>;
 export const timelineSchema = z.object({id: z.string().max(150), title: z.string().max(150), start: z.string().max(5), end: z.string().max(5), kind: z.enum(["fixed", "routine", "meal", "rest"]), detail: z.string().max(300), routineId: z.string().max(100).optional()});
 export type TimelineItem = z.infer<typeof timelineSchema>;
 export const daySchema = z.object({
+  recommendation:recommendationMetaSchema.optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), routines: z.array(routineSchema).max(20).refine(rows => new Set(rows.map(r => r.id)).size === rows.length, "같은 루틴을 중복해서 담을 수 없어요."),
   statuses: z.record(z.enum(["done", "partial", "skipped"])), notes: z.record(z.string().max(150)).default({}),
   activityFeedback:z.record(z.string().max(100),activityFeedbackSchema).refine(v=>Object.keys(v).length<=20,"활동 기록이 너무 많아요.").optional(),

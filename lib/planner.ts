@@ -2,6 +2,7 @@ import { type Answers,type Checkin,type Day,type Inbody,type Schedule,localDate,
 import { type Planner,type PlannerBlock,plannerCategories } from "./planner-model";
 import { buildDay,reviseDayRoutines } from "./engine";
 import { conditionSummary } from "./routine-catalog";
+import type { RecommendationOptions } from "./recommendation-model";
 
 export const weekdayNames=["일","월","화","수","목","금","토"];
 export function addDate(date:string,n:number){const d=new Date(`${date}T12:00:00Z`);d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
@@ -61,11 +62,11 @@ export function scheduleContext(base:Schedule,p:Planner|undefined,date:string,c:
   const effectiveMinutes=Math.min(c.minutes,free,physical>=4||mental>=4?10:240);
   return {date,scheduledMinutes:Math.min(1440,occupied),mental:Math.round(mental*10)/10,physical:Math.round(physical*10)/10,effectiveMinutes,importedIds:rows.map(o=>`plan-${o.block.id}-${o.date}`)};
 }
-export function buildPlannedDay(a:Answers,c:Checkin,mode:"core"|"full",base:Schedule,history:Day[]=[],inbody?:Inbody,date=localDate(),refresh=true,p?:Planner):Day{
-  if(!p?.blocks.length)return buildDay(a,c,mode,base,history,inbody,date,refresh);
+export function buildPlannedDay(a:Answers,c:Checkin,mode:"core"|"full",base:Schedule,history:Day[]=[],inbody?:Inbody,date=localDate(),refresh=true,p?:Planner,personalization?:RecommendationOptions):Day{
+  if(!p?.blocks.length)return buildDay(a,c,mode,base,history,inbody,date,refresh,personalization);
   const context=scheduleContext(base,p,date,c),s=scheduleForDate(base,p,date);
   const adjusted={...c,minutes:Math.max(5,context.effectiveMinutes),busy:c.busy||context.scheduledMinutes>=480||context.effectiveMinutes<10,energy:context.physical>=4?Math.min(c.energy,2):c.energy,stress:context.mental>=4?Math.max(c.stress,4):c.stress};
-  let day=buildDay(a,adjusted,mode,s,history,inbody,date,refresh);
+  let day=buildDay(a,adjusted,mode,s,history,inbody,date,refresh,personalization?{...personalization,budget:context.effectiveMinutes}:undefined);
   // Do not discard a user's blocks or progress to force-fit a new recommendation.
   const prior=history.find(d=>d.date===date),protectedIds=new Set(prior?.routines.filter(r=>r.source==="custom"||r.source==="catalog"||prior.statuses[r.id]).map(r=>r.id));
   let remaining=context.effectiveMinutes;

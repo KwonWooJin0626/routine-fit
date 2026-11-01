@@ -1,18 +1,19 @@
 import { z } from "zod";
 import { localDate, stateSchema } from "./model";
 import { validatePlanner } from "./planner";
+import { recommendationIntentSchema,type RecommendationIntent } from "./recommendation-model";
 
 export type StateRow = { payload: string; revision: number };
 export type StateRepository = {
   get: (userId: string) => Promise<StateRow | null>;
-  save: (userId: string, payload: string, expectedRevision: number) => Promise<number | null>;
+  save: (userId: string, payload: string, expectedRevision: number,intent?:RecommendationIntent) => Promise<number | null>;
   remove: (userId: string) => Promise<void>;
 };
 const response = (body: unknown, status = 200) => Response.json(body, { status, headers: {
   "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
 } });
 const sameOrigin = (request: Request) => request.headers.get("origin") === new URL(request.url).origin;
-const inputSchema = z.object({ state: stateSchema, revision: z.number().int().min(0) });
+const inputSchema = z.object({ state: stateSchema, revision: z.number().int().min(0),intent:recommendationIntentSchema.optional() });
 
 // Production uses only verified Clerk identity and Postgres storage.
 // Dependency injection enables unit tests without a runtime auth bypass.
@@ -45,7 +46,7 @@ export function createStateHandlers(identity: () => Promise<string | null>, repo
         if (conflicts.length) return response({ error: conflicts.join("\n") }, 400);
       }
       try {
-        const revision = await repository.save(userId, JSON.stringify(input.state), input.revision);
+        const revision = await repository.save(userId, JSON.stringify(input.state), input.revision,input.intent);
         if (revision === null) return response({ error: "다른 창에서 데이터가 변경됐어요. 새로고침 후 다시 시도해주세요." }, 409);
         return response({ revision });
       } catch { return response({ error: "저장하지 못했습니다. 변경 내용을 유지한 채 다시 시도해주세요." }, 503); }

@@ -7,6 +7,7 @@ import { calculatePet,compactPet } from "./pet-engine";
 import { applyPetCommand,commandAlreadyApplied,projectPetRecords } from "./pet-actions";
 import { PetError,type PetDocument,type PetRequest,type PetResult } from "./pet-model";
 import type { SleepRecord } from "./sleep";
+import { syncStoredRecommendations } from "./recommendation-repository";
 
 type DB=ReturnType<typeof getDb>;
 export type PetTransaction=Parameters<Parameters<DB["transaction"]>[0]>[0];
@@ -35,6 +36,7 @@ export const petRepository={
       const values={userId,payload:JSON.stringify(result.document),revision,updatedAt:now.toISOString()};
       await tx.insert(petCompanions).values(values).onConflictDoUpdate({target:petCompanions.userId,set:values});
       await tx.update(userStates).set({payload:JSON.stringify(result.app),revision:appRevision,updatedAt:now.toISOString()}).where(eq(userStates.userId,userId));
+      await syncStoredRecommendations(tx,userId,app,result.app,undefined,now);
       return {document:result.document,view:calculatePet(result.document,now),revision,appRevision,app:result.app,reactionId:result.reactionId};
     });
   },
