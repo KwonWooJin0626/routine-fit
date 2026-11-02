@@ -10,7 +10,7 @@ const durationPresets=[5,10,20,30,60,90];
 
 export type ExecutionDraft={source:PetSource;title:string;type:EffectType;minutes:number;status?:"done"|"partial";existing?:PetExecution;start?:string;end?:string;fixedSleep?:boolean;detailed?:boolean;planned?:{start:string;end:string;breaks?:{start:string;end:string}[]}};
 export function ExecutionConfirmDialog({draft,document,busy,onSave,onLater,onClose}:{draft:ExecutionDraft;document:PetDocument;busy:boolean;onSave:(command:PetCommand)=>Promise<void>;onLater?:()=>Promise<void>;onClose:()=>void}){
-  const old=draft.existing,[initialEnd]=useState(()=>old?.end??draft.end??new Date().toISOString());
+  const old=draft.existing,[initialEnd]=useState(()=>old?.end??draft.planned?.end??draft.end??new Date().toISOString());
   const [title,setTitle]=useState(old?.title??draft.title),[type,setType]=useState<EffectType>(old?.type??draft.type),[minutes,setMinutes]=useState(String(old?Math.round(executionMinutes(old)):draft.minutes||10));
   const [initialStart]=useState(()=>old?.start??draft.start??new Date(Date.parse(initialEnd)-(draft.minutes||10)*60000).toISOString());
   const [end,setEnd]=useState(koreanInput(initialEnd)),[start,setStart]=useState(koreanInput(initialStart)),[useRange,setUseRange]=useState(!!draft.fixedSleep||!!old?.breaks?.length);
@@ -43,6 +43,7 @@ export function ExecutionConfirmDialog({draft,document,busy,onSave,onLater,onClo
         <label className="pet-toggle"><input type="checkbox" checked={useRange} onChange={e=>setUseRange(e.target.checked)}/>시작·종료 시각으로 계산하기</label>
         {useRange&&<Input label="활동을 시작한 시각 (한국 시간)" type="datetime-local" value={start} onChange={setStart}/>}
         <Input label="활동을 마친 시각 (한국 시간)" type="datetime-local" value={end} onChange={setEnd}/>
+        {!old&&draft.planned&&<small className="muted">계획표의 종료 시각을 기본으로 넣었어요. 실제로 마친 시각이 다르면 수정해주세요.{Date.parse(initialEnd)>Date.now()&&end===koreanInput(initialEnd)&&" 아직 예정 종료 전이라면 현재 이전의 실제 시각으로 수정해야 저장할 수 있어요."}</small>}
         <Select label="활동 강도" value={intensity} options={{light:"가볍게",moderate:"보통",high:"높게"}} onChange={v=>setIntensity(v as typeof intensity)}/>
       </>}
     </>}

@@ -19,6 +19,7 @@ import { recordOccurrence } from "@/lib/planner-progress";
 import { usePetCompanion } from "./use-pet-companion";
 import { PlannerCompletionDialog } from "./planner-completion-dialog";
 import { PetCelebration } from "./pet-celebration";
+import { PlannerActivityLog } from "./planner-activity-log";
 import { PetEffortPanel } from "./pet-effort-panel";
 import { petCompletionMessage } from "@/lib/pet-effort";
 import { executionMinutes } from "@/lib/pet-execution";
@@ -206,7 +207,8 @@ export default function RoutineFit({ user }: {user:{name:string;email:string}|nu
   function editExecution(record:PetExecution){const source=record.sources[0];setExecution({source,title:record.title,type:record.type,minutes:Math.round(executionMinutes(record)),existing:record,...(source.kind==="sleep"?{fixedSleep:true,start:record.start,end:record.end}:{})});}
   function routineExecution(routine:Routine,value:"done"|"partial"="done"){
     const source={kind:"routine" as const,id:routine.id,date:today},existing=executionFor(pet.result?.document,source);
-    setExecution({source,title:routine.title,type:routineEffect(routine,state!.answers),minutes:day?.activityFeedback?.[routine.id]?.actualMinutes??routine.activity?.goalMinutes??routine.minutes??10,status:value,existing});
+    const block=state?.planner?.blocks.find(b=>routine.activity?.linkedEvent===`plan-${b.id}-${today}`),planned=block?plannerExecutionTimes(block,today):undefined;
+    setExecution({source,title:routine.title,type:routineEffect(routine,state!.answers),minutes:day?.activityFeedback?.[routine.id]?.actualMinutes??routine.activity?.goalMinutes??routine.minutes??10,status:value,existing,...(planned?{planned,end:planned.end}:{})});
   }
   async function plannerExecution(block:PlannerBlock,date:string,value:PlannerMark){
     if(!state?.planner||date>today)throw Error("미래 일정은 실제 수행으로 기록할 수 없어요.");
@@ -217,8 +219,8 @@ export default function RoutineFit({ user }: {user:{name:string;email:string}|nu
       return;
     }
     if(existing){editExecution(existing);if(value!=="edit")setExecution(old=>old?{...old,status:value}:old);return;}
-    const planned=plannerExecutionTimes(block,date),pastEnd=Date.parse(planned.end)<=Date.now();
-    setExecution({source,title:block.title,type:blockEffect(block),minutes:Math.max(1,Math.round(executionMinutes(planned))),status:value==="partial"?"partial":"done",planned,detailed:value==="partial"||value==="edit",end:pastEnd?planned.end:date<today?new Date(`${date}T23:59:00+09:00`).toISOString():undefined});
+    const planned=plannerExecutionTimes(block,date);
+    setExecution({source,title:block.title,type:blockEffect(block),minutes:Math.max(1,Math.round(executionMinutes(planned))),status:value==="partial"||(value==="edit"&&state.planner.records?.some(r=>r.blockId===block.id&&r.date===date&&r.status==="partial"))?"partial":"done",planned,detailed:value==="partial"||value==="edit",end:planned.end});
   }
   function sleepExecution(bed:SleepRecord,wake:SleepRecord){const source={kind:"sleep" as const,id:bed.sessionDate,date:bed.sessionDate};setExecution({source,title:"실제 수면 기록",type:"sleep",minutes:Math.round((Date.parse(wake.actualAt!)-Date.parse(bed.actualAt!))/60000),start:bed.actualAt!,end:wake.actualAt!,fixedSleep:true,existing:executionFor(pet.result?.document,source)});}
   async function savePendingExecution(draft:ExecutionDraft){
@@ -286,6 +288,7 @@ export default function RoutineFit({ user }: {user:{name:string;email:string}|nu
         <Panel className="progress-panel"><div className="small-head"><h3>오늘의 실천</h3><span className="muted">DAILY PROGRESS</span></div><div className="progress-ring" style={{"--progress":`${progress}%`} as React.CSSProperties}><div><strong>{progress}<small>%</small></strong><span>{done===total&&total?"오늘도 잘했어요!":"나의 속도로 차근차근"}</span></div></div><div className="progress-bottom"><span><b>{String(done).padStart(2,"0")}</b> 완료</span><i/><span><b>{String(total-done).padStart(2,"0")}</b> 남은 루틴</span></div></Panel></div>
         <ActivityGoals state={state} busy={busy} onRefine={()=>open("refine")} onPlan={()=>go("planner")}/>
         {pet.result?.document&&<PetEffortPanel pet={pet.result}/>}{pet.result?.document&&<PetHistory pet={pet.result} busy={busy} onEdit={editExecution} onCommand={petCommand}/>}
+        <PlannerActivityLog planner={state.planner} pet={pet.result?.document} date={today} busy={busy} onPlan={()=>go("planner")} onEdit={editExecution} onConfirm={(block,date)=>void plannerExecution(block,date,"edit")}/>
         <div className="dashboard-grid"><div><SectionHead label="TODAY’S SMALL STEPS" title="오늘, 이것만 해볼까요?" action={<div className="routine-heading-actions"><Badge color="neutral">나의 핵심 루틴</Badge><button className="button secondary" onClick={()=>open("custom")} disabled={busy}><Plus size={15}/>직접 루틴 만들기</button></div>}/>
         {day?.planningContext&&<div className="sp-routine-context"><span><CalendarDays size={16}/> {day.planningContext.date} 하루 계획의 일정 {day.planningContext.importedIds.length}개 반영 · 정신적 부담 {day.planningContext.mental}/5 · 육체적 피로 {day.planningContext.physical}/5 · 추천 시간 {day.planningContext.effectiveMinutes}분 이내</span><button className="text-link" onClick={()=>go("planner")}>계획표 보기</button></div>}
         {day&&<><div className="routine-day-context"><span><Sparkles size={15}/>{conditionSummary(day.checkin)}</span><b>남은 실천 {day.routines.filter(r=>!r.held&&day.statuses[r.id]!=="done").reduce((n,r)=>n+r.minutes,0)}분 · {day.routines.length}개</b></div>{day.warnings.map(w=><div className="note routine-warning" key={w}>{w}</div>)}</>}

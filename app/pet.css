@@ -33,3 +33,21 @@
 .pet-celebration>span{font-size:11px;line-height:1.7;color:#a4786e}
 .pet-celebration b{font-size:13px;color:#71514a}
 @media(max-width:600px){.pet-effort-panel{padding:15px;gap:8px;align-items:flex-start}.pet-effort-avatar{width:65px;flex-basis:65px}.pet-effort-heading>span{width:100%;margin-left:0}.pet-effort-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 5px}.pet-effort-stats b{font-size:18px}.pet-celebration{right:12px;bottom:100px}.pet-celebration>div{width:82px}}
+
+.planner-activity-log{border:1px solid #e8ebef;border-radius:16px;background:#fff;padding:18px 22px;margin-bottom:22px}
+.planner-activity-log>header,.planner-activity-log>header>div{display:flex;align-items:center;gap:8px}
+.planner-activity-log>header{justify-content:space-between;gap:16px}
+.planner-activity-log h3{font-size:14px;margin:0;color:#344354}
+.planner-activity-log>header>div>span{font-size:11px;background:#f6f7f9;padding:4px 7px;border-radius:10px;color:#8893a0}
+.planner-activity-log .text-link{font-size:11px;white-space:nowrap}
+.planner-activity-row{display:flex;gap:12px;align-items:center;border-top:1px solid #f0f2f5;padding:12px 0}
+.planner-activity-log>div>.planner-activity-row:first-child{margin-top:12px}
+.planner-activity-row>div{flex:1;min-width:0}
+.planner-activity-row h4{font-size:13px;margin:0 0 5px;overflow-wrap:anywhere}
+.planner-activity-row p{font-size:11px;line-height:1.7;margin:0;color:#788592}
+.planner-activity-row small{font-size:10px;color:#939ca8}
+.planner-activity-state{display:flex;align-items:center;gap:4px;background:#edf6ef;color:#5e8c72;border-radius:7px;padding:5px 7px;font-size:11px;white-space:nowrap}
+.planner-activity-state.partial{background:#fff5e8;color:#ad8654}
+.planner-activity-log details>summary{font-size:12px;color:#7c8999;cursor:pointer;padding-top:8px}
+.planner-activity-empty{font-size:12px;color:#8d98a5;margin:13px 0 0;line-height:1.7}
+@media(max-width:600px){.planner-activity-log{padding:15px}.planner-activity-row{flex-wrap:wrap;gap:8px}.planner-activity-row>div{flex-basis:calc(100% - 85px)}.planner-activity-row>.text-link{margin-left:auto}.planner-activity-log>header{gap:8px}.planner-activity-log h3{font-size:13px}}

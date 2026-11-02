@@ -15,6 +15,9 @@ import { placeBlockRanges } from "../lib/planner-placement";
 import { ScheduleWorkspace } from "../components/schedule-workspace";
 import { PlannerCompletionDialog } from "../components/planner-completion-dialog";
 import { PetEffortPanel } from "../components/pet-effort-panel";
+import { PlannerActivityLog } from "../components/planner-activity-log";
+import { plannerActivitiesForDate } from "../lib/planner-activity";
+import { ExecutionConfirmDialog } from "../components/execution-confirm-dialog";
 import type { PetCommand,PetDocument,PetExecution } from "../lib/pet-model";
 
 const date="2026-11-01",now=new Date(`${date}T23:59:00+09:00`),seed=new Date("2026-10-01T00:00:00+09:00");
@@ -24,6 +27,41 @@ const pet=()=>newPetDocument("솜이",randomUUID(),seed);
 const apply=(doc:PetDocument,app:AppState,command:PetCommand)=>applyPetCommand(doc,app,{key:randomUUID(),revision:1,appRevision:1,command},now);
 function complete(doc:PetDocument,app:AppState,b:PlannerBlock){return apply(doc,app,{action:"record",record:{title:b.title,type:blockEffect(b),...plannerExecutionTimes(b,date),...(blockEffect(b)==="meal"?{start:plannerExecutionTimes(b,date).end,fullness:60 as const}:{}),intensity:"moderate",status:"done",source:{kind:"planner",id:b.id,date}}});}
 const near=(a:number,b:number)=>assert.ok(Math.abs(a-b)<.0001,`${a} != ${b}`);
+
+test("계획표와 연결된 활동의 종료 기본값은 예정 시각이며 저장한 실제 시각은 보존한다",context=>{
+  context.mock.timers.enable({apis:["Date"],now:new Date(`${date}T12:00:00+09:00`)});
+  const b=block({end:"18:00"}),planned=plannerExecutionTimes(b,date),source={kind:"planner" as const,id:b.id,date};
+  const render=(existing?:PetExecution,kind:"planner"|"routine"="planner")=>renderToStaticMarkup(<ExecutionConfirmDialog draft={{source:{...source,kind},title:b.title,type:"study",minutes:30,planned,existing}} document={pet()} busy={false} onSave={async()=>{}} onClose={()=>{}}/>);
+  assert.match(render(),/value="2026-11-01T18:00"/);assert.match(render(),/예정 종료 전/);
+  assert.match(render(undefined,"routine"),/value="2026-11-01T18:00"/);
+  const actual={id:"actual",title:b.title,type:"study",start:new Date(`${date}T09:00:00+09:00`).toISOString(),end:new Date(`${date}T10:00:00+09:00`).toISOString(),sources:[source],status:"done",intensity:"moderate",cancelled:false,feeling:"same",updatedAt:now.toISOString()} as PetExecution;
+  assert.match(render(actual),/value="2026-11-01T10:00"/);assert.doesNotMatch(render(actual),/value="2026-11-01T18:00"/);
+});
+
+test("오늘 일정 목록은 완료·일부 수행·체크만 저장을 구분하고 취소를 즉시 반영한다",()=>{
+  const b=block(),result=complete(pet(),state(b),b),pending=block({title:"체크만 한 일정",start:"10:00",end:"10:30"});
+  result.app.planner!.blocks.push(pending);
+  result.app.planner!.records!.push({blockId:pending.id,date,title:pending.title,start:pending.start,end:pending.end,status:"partial",recordedAt:now.toISOString()});
+  const rows=plannerActivitiesForDate(result.app.planner,result.document,date);
+  assert.equal(rows.length,2);assert.equal(rows.find(r=>r.blockId===b.id)?.execution?.id,result.document.records[0].id);assert.equal(rows.find(r=>r.blockId===pending.id)?.execution,undefined);
+  const html=renderToStaticMarkup(<PlannerActivityLog planner={result.app.planner} pet={result.document} date={date} busy={false} onPlan={()=>{}} onEdit={()=>{}} onConfirm={()=>{}}/>);
+  assert.match(html,/오늘 수행한 일정/);assert.match(html,/실제 30분/);assert.match(html,/실제 시간 미확인/);assert.match(html,/일부 수행/);
+  const cancelled=apply(result.document,result.app,{action:"cancel",id:result.document.records[0].id});
+  assert.equal(plannerActivitiesForDate(cancelled.app.planner,cancelled.document,date).length,1);
+  assert.equal(plannerActivitiesForDate(result.app.planner,null,date).length,2); // also works without a pet
+  assert.equal(plannerActivitiesForDate(result.app.planner,result.document,"2026-11-02").length,0);
+});
+
+test("밤샘·삭제된 일정·연결 루틴의 수행 기록은 실제 종료일에 한 번만 표시한다",()=>{
+  const b=block({start:"23:00",end:"01:00"}),times=plannerExecutionTimes(b,date),doc=pet();
+  doc.records=[{id:"night",title:"야간 공부",type:"study",...times,status:"done",intensity:"moderate",sources:[{kind:"planner",id:b.id,date},{kind:"routine",id:"linked",date}],cancelled:false,feeling:"same",updatedAt:times.end}];
+  const p=state(b).planner!;p.records=[{blockId:b.id,date,title:b.title,start:b.start,end:b.end,status:"done",recordedAt:times.end}];
+  assert.equal(plannerActivitiesForDate(p,doc,date).length,0);
+  const rows=plannerActivitiesForDate(p,doc,"2026-11-02");assert.equal(rows.length,1);assert.equal(rows[0].date,date);
+  p.blocks=[];p.records=[];
+  assert.equal(plannerActivitiesForDate(p,doc,"2026-11-02").length,1);assert.equal(plannerActivitiesForDate(p,doc,"2026-11-02")[0].title,"야간 공부");
+  doc.records[0].cancelled=true;assert.equal(plannerActivitiesForDate(p,doc,"2026-11-02").length,0);
+});
 
 test("모든 일정 카테고리와 생활 활동은 실제 확인 후 기쁨 반응과 수행 기록을 남긴다",()=>{
   for(const category of ["study","work","task","meal","growth","exercise","social","rest"] as const){
