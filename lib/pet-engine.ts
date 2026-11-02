@@ -1,5 +1,6 @@
 import { localDate } from "./model";
 import { initialPetStats,PET_FULLNESS_DECAY_PER_HOUR,type EffectType,type PetDocument,type PetEffect,type PetExecution,type PetStats,type PetView } from "./pet-model";
+import { executionSegments } from "./pet-execution";
 
 const MINUTE=60000,DAY=86400000;
 const rates:Record<EffectType,[number,number,number,number]>={study:[-3,3,10,0],work:[-4,3,0,0],exercise:[-8,2,0,5],growth:[-2,2,8,0],social:[2,-3,0,0],sleep:[8,-2,0,0],rest:[6,-4,0,0],leisure:[3,-3,0,0],none:[0,0,0,0],meal:[0,0,0,0]};
@@ -15,8 +16,9 @@ export function calculatePet(doc:PetDocument,now=new Date()):PetView&{lastEviden
   const at=Math.max(new Date(doc.seed.at).getTime(),now.getTime()),begin=new Date(doc.seed.at).getTime(),s=copy(doc.seed.stats);
   let lastEvidence=new Date(doc.seed.lastEvidenceAt).getTime();
   const records=doc.records.filter(r=>!r.cancelled&&new Date(r.end).getTime()>=begin&&new Date(r.start).getTime()<at+1).sort((a,b)=>a.end.localeCompare(b.end)||a.id.localeCompare(b.id));
+  const segments=new Map(records.map(r=>[r.id,executionSegments(r)]));
   const points=new Set<number>([begin,at]);
-  for(const r of records){points.add(clamp(new Date(r.start).getTime(),begin,at));points.add(clamp(new Date(r.end).getTime(),begin,at));}
+  for(const r of records){points.add(clamp(new Date(r.start).getTime(),begin,at));points.add(clamp(new Date(r.end).getTime(),begin,at));for(const pause of r.breaks??[]){points.add(clamp(Date.parse(pause.start),begin,at));points.add(clamp(Date.parse(pause.end),begin,at));}}
   let midnight=new Date(`${localDate(new Date(begin))}T00:00:00+09:00`).getTime()+DAY;
   while(midnight<at){points.add(midnight);midnight+=DAY;}
   const bounds=[...points].sort((a,b)=>a-b),fitnessByDate:Record<string,number>={},sleepByDate:Record<string,number>={},effects=new Map<string,PetEffect>();
@@ -29,7 +31,7 @@ export function calculatePet(doc:PetDocument,now=new Date()):PetView&{lastEviden
   instantaneous(begin);
   for(let i=1;i<bounds.length;i++){
     const from=bounds[i-1],until=bounds[i],minutes=(until-from)/MINUTE,date=localDate(new Date(from));
-    const active=records.find(r=>r.type!=="meal"&&new Date(r.start).getTime()<=from&&new Date(r.end).getTime()>=until);
+    const active=records.find(r=>r.type!=="meal"&&segments.get(r.id)!.some(s=>s.start<=from&&s.end>=until));
     if(active){
       const e=effect(active),rate=rates[active.type],factor={light:.75,moderate:1,high:1.25}[active.intensity];
       let effective=minutes;

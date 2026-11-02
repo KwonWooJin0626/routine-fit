@@ -4,7 +4,7 @@ import { plannerTemplateSchema,plannerSchema,plannerCategories,type Planner } fr
 import { scheduleContext,validatePlanner } from "./planner";
 
 // Content edits deliberately preserve each placement's date, time and recurrence.
-export const blockContentSchema=plannerTemplateSchema.pick({title:true,category:true,location:true,task:true,mental:true,physical:true,shade:true});
+export const blockContentSchema=plannerTemplateSchema.pick({title:true,category:true,petActivity:true,location:true,task:true,mental:true,physical:true,shade:true});
 export type BlockContent=z.infer<typeof blockContentSchema>;
 export type BlockEditRequest={groupId:string;blockIds:string[];templateIds:string[];content:BlockContent};
 export function applyBlockEdit(p:Planner,r:BlockEditRequest):Planner{

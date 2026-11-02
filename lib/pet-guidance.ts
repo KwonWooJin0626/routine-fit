@@ -7,7 +7,14 @@ export function routineEffect(r:Routine,_answers:Answers):EffectType{
   if(r.activity){const d=r.activity.domain;if(d==="exercise")return "exercise";if(d==="study")return "study";if(d==="reading")return "leisure";if(d==="rest")return "rest";if(d==="language"||d==="career")return "growth";}
   return r.category==="move"?"exercise":r.category==="sleep"?"rest":"none";
 }
-export function blockEffect(b:PlannerBlock):EffectType{return ({study:"study",work:"work",task:"study",meal:"meal",growth:"growth",exercise:"exercise",social:"social",rest:"rest"} as const)[b.category];}
+export function blockEffect(b:PlannerBlock):EffectType{return b.petActivity??({study:"study",work:"work",task:"study",meal:"meal",growth:"growth",exercise:"exercise",social:"social",rest:"rest"} as const)[b.category];}
+export function plannerExecutionTimes(b:PlannerBlock,date:string){
+  const start=new Date(`${date}T${b.start}:00+09:00`).toISOString();
+  const minute=(t:string)=>Number(t.slice(0,2))*60+Number(t.slice(3));
+  const offset=(t:string)=>(minute(t)-minute(b.start)+1440)%1440;
+  const at=(t:string)=>new Date(Date.parse(start)+offset(t)*60000).toISOString();
+  return {start,end:at(b.end),...(b.breakStart&&b.breakEnd?{breaks:[{start:at(b.breakStart),end:at(b.breakEnd)}]}:{})};
+}
 export const executionFor=(doc:PetDocument|null|undefined,s:PetSource)=>doc?.records.find(r=>!r.cancelled&&r.sources.some(v=>sourceKey(v)===sourceKey(s)));
 export const petTime=(iso:string)=>new Intl.DateTimeFormat("ko-KR",{timeZone:"Asia/Seoul",month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(iso));
 export function koreanInput(iso:string){return new Date(Date.parse(iso)+9*3600000).toISOString().slice(0,16);}

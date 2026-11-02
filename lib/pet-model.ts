@@ -11,10 +11,11 @@ export const sourceKey=(s:PetSource)=>`${s.kind}:${s.date}:${s.id}`;
 export const executionInputSchema=z.object({
   title:z.string().trim().min(1).max(150),type:z.enum(effectTypes),start:z.string().datetime(),end:z.string().datetime(),
   intensity:z.enum(["light","moderate","high"]).default("moderate"),fullness:z.union([z.literal(30),z.literal(60),z.literal(80)]).optional(),
+  breaks:z.array(z.object({start:z.string().datetime(),end:z.string().datetime()}).strict()).max(5).optional(),
   source:petSourceSchema,status:z.enum(["done","partial"]).default("done"),linkTo:z.string().max(100).optional(),
 }).strict();
 export type ExecutionInput=z.infer<typeof executionInputSchema>;
-export type PetExecution=Omit<ExecutionInput,"source"|"linkTo">&{id:string;sources:PetSource[];cancelled:boolean;feeling:"fresh"|"same"|"tired";updatedAt:string};
+export type PetExecution=Omit<ExecutionInput,"source"|"linkTo">&{id:string;sources:PetSource[];cancelled:boolean;cancelledStatus?:"skipped";feeling:"fresh"|"same"|"tired";updatedAt:string};
 export type PetStats={stamina:number;maxStamina:number;stress:number;fullness:number;fitnessXP:number;fitnessTotalXP:number;learningXP:number;learningTotalXP:number;learningLevel:number};
 export const initialPetStats=():PetStats=>({stamina:80,maxStamina:100,stress:30,fullness:60,fitnessXP:0,fitnessTotalXP:0,learningXP:0,learningTotalXP:0,learningLevel:1});
 export type PetSeed={at:string;lastEvidenceAt:string;stats:PetStats};
@@ -26,7 +27,7 @@ export const petCommandSchema=z.discriminatedUnion("action",[
   z.object({action:z.literal("adopt"),name:z.string().trim().min(1).max(20)}).strict(),
   z.object({action:z.literal("record"),record:executionInputSchema}).strict(),
   z.object({action:z.literal("edit"),id:z.string().min(1).max(100),record:executionInputSchema}).strict(),
-  z.object({action:z.literal("cancel"),id:z.string().min(1).max(100)}).strict(),
+  z.object({action:z.literal("cancel"),id:z.string().min(1).max(100),replacementStatus:z.literal("skipped").optional()}).strict(),
   z.object({action:z.literal("feeling"),id:z.string().min(1).max(100),feeling:z.enum(["fresh","same","tired"])}).strict(),
   z.object({action:z.literal("settings"),name:z.string().trim().min(1).max(20),visible:z.boolean(),reducedMotion:z.boolean()}).strict(),
   z.object({action:z.literal("reset"),confirm:z.literal("강아지 새로 시작")}).strict(),

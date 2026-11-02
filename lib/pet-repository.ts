@@ -7,6 +7,7 @@ import { calculatePet,compactPet } from "./pet-engine";
 import { applyPetCommand,commandAlreadyApplied,projectPetRecords } from "./pet-actions";
 import { PetError,type PetDocument,type PetRequest,type PetResult } from "./pet-model";
 import type { SleepRecord } from "./sleep";
+import { executionsOverlap } from "./pet-execution";
 import { syncStoredRecommendations } from "./recommendation-repository";
 
 type DB=ReturnType<typeof getDb>;
@@ -52,7 +53,7 @@ export async function syncPetSleep(tx:PetTransaction,userId:string,now=new Date(
     if(!start||!end){record.cancelled=true;record.updatedAt=now.toISOString();changed=true;continue;}
     if(record.start===start&&record.end===end)continue;
     if(start>=end||Date.parse(end)>now.getTime()||Date.parse(end)-Date.parse(start)>24*3600000)throw new PetError("취침·기상 구간을 다시 확인해주세요.");
-    if(doc.records.some(r=>!r.cancelled&&r.type!=="meal"&&r.id!==record.id&&r.start<end&&r.end>start))throw new PetError("수면 구간이 다른 실제 수행과 겹쳐요. 수행 시각을 먼저 확인해주세요.",409);
+    if(doc.records.some(r=>!r.cancelled&&r.type!=="meal"&&r.id!==record.id&&executionsOverlap(r,{start,end})))throw new PetError("수면 구간이 다른 실제 수행과 겹쳐요. 수행 시각을 먼저 확인해주세요.",409);
     record.start=start;record.end=end;record.updatedAt=now.toISOString();changed=true;
   }
   if(changed){calculatePet(doc,now);await tx.update(petCompanions).set({payload:JSON.stringify(doc),revision:row.revision+1,updatedAt:now.toISOString()}).where(eq(petCompanions.userId,userId));}

@@ -4,8 +4,8 @@ import { useEffect,useRef,useState } from "react";
 type Motion="idle"|"bark"|"happy"|"tired";
 const config={idle:{inset:100,ms:150,frames:[0,1,2,3,4,5]},bark:{inset:100,ms:180,frames:[0,1,2,3,4,5]},happy:{inset:90,ms:140,frames:[0,1,2,3,4,5]},tired:{inset:64,ms:380,frames:[0,1,2,3,4,5,4,3,2,1]}};
 const path="/pet/samoyed-puppy/aligned-v1";
-export function PetAnimator({baseState="idle",reactionId,reducedMotion=false,name="사모예드"}:{baseState?:"idle"|"tired";reactionId?:string;reducedMotion?:boolean;name?:string}){
-  const canvas=useRef<HTMLCanvasElement>(null),live=useRef({baseState,reactionId,reducedMotion}),lastReaction=useRef(reactionId),happyUntil=useRef(0);
+export function PetAnimator({baseState="idle",reactionId,reducedMotion=false,name="사모예드",celebrateOnMount=false}:{baseState?:"idle"|"tired";reactionId?:string;reducedMotion?:boolean;name?:string;celebrateOnMount?:boolean}){
+  const canvas=useRef<HTMLCanvasElement>(null),live=useRef({baseState,reactionId,reducedMotion}),lastReaction=useRef(celebrateOnMount?undefined:reactionId),happyUntil=useRef(0);
   const [ready,setReady]=useState(false);live.current={baseState,reactionId,reducedMotion};
   useEffect(()=>{if(reactionId&&lastReaction.current!==reactionId)happyUntil.current=performance.now()+2520;lastReaction.current=reactionId;},[reactionId]);
   useEffect(()=>{

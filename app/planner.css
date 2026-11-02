@@ -40,3 +40,15 @@
 @media(max-width:640px){.sp-placement-panel{margin:0 10px 12px;padding:14px}.sp-placement-manual-fields{grid-template-columns:1fr 1fr}.sp-placement-manual-fields>.field:first-child{grid-column:1/-1}.sp-placement-manual-fields>.button{grid-column:1/-1}.sp-placement-actions>span{width:100%;flex:auto}.sp-placement-actions>.button{flex:1}.sp-placement-range{grid-template-columns:1fr 1fr 40px;gap:9px}.sp-placement-range>b{grid-column:1}.sp-placement-range>.field:nth-child(2){grid-column:1/3;grid-row:2}.sp-placement-range>.field:nth-child(3){grid-column:1;grid-row:3}.sp-placement-range>.field:nth-child(4){grid-column:2;grid-row:3}.sp-placement-range>.icon-button{grid-column:3;grid-row:2}.sp-placement-range>small{grid-column:1/-1}.sp-template-place{min-height:44px}}
 
 .sp-drag-preview{position:fixed;left:-10000px;top:0;box-sizing:border-box;display:flex;align-items:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 5px;border:1px solid;border-left-width:2px;border-radius:0;font-family:inherit;font-weight:600;font-size:10px;line-height:1.2;pointer-events:none}
+
+/* Compact completion controls keep editing separate from activity confirmation. */
+.sp-event{padding:0;display:block}
+.sp-event-open{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;width:100%;height:100%;padding:4px 4px 4px 25px;overflow:hidden;border:0;border-radius:0;background:transparent;color:inherit}
+.sp-event-complete{position:absolute;top:2px;left:2px;width:20px;height:20px;padding:0;display:grid;place-items:center;border:1px solid currentColor;border-radius:5px;background:#ffffffc9;color:inherit;z-index:1}
+.sp-event-complete:disabled{opacity:.45;cursor:default}
+.sp-event.is-done{border-color:#6a9f83;background:#eaf4ed}
+.sp-event.is-done .sp-event-open strong{text-decoration:line-through;text-decoration-thickness:1px}
+.sp-event-complete[aria-pressed=true]{background:#51856a;color:white;border-color:#51856a}
+.sp-event-open:focus-visible,.sp-event-complete:focus-visible{outline:2px solid #e5484d;outline-offset:-2px}
+.sp-edit-execution{font-size:11px;white-space:nowrap}
+@media(max-width:600px){.sp-edit-execution{grid-column:2;padding:5px 0}.sp-event-complete{width:22px;height:22px;top:0;left:0}}

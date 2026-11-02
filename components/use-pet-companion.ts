@@ -2,6 +2,7 @@
 import { useCallback,useEffect,useRef,useState } from "react";
 import type { AppState } from "@/lib/model";
 import { applyPetCommand } from "@/lib/pet-actions";
+import { executionsOverlap } from "@/lib/pet-execution";
 import { calculatePet } from "@/lib/pet-engine";
 import type { PetCommand,PetResult } from "@/lib/pet-model";
 import type { SleepRecord } from "@/lib/sleep";
@@ -44,7 +45,7 @@ export function usePetCompanion(app:AppState|null,revision:number,demo:boolean,o
       const source=r.sources.find(s=>s.kind==="sleep");if(!source)continue;
       const start=records.find(s=>s.kind==="bed"&&s.sessionDate===source.date)?.actualAt,end=records.find(s=>s.kind==="wake"&&s.sessionDate===source.date)?.actualAt;
       if(!start||!end){r.cancelled=true;continue;}
-      if(start>=end||doc.records.some(other=>!other.cancelled&&other.id!==r.id&&other.type!=="meal"&&other.start<end&&other.end>start))throw Error("수면 실제 구간이 다른 활동과 겹쳐요. 시각을 다시 확인해주세요.");
+      if(start>=end||doc.records.some(other=>!other.cancelled&&other.id!==r.id&&other.type!=="meal"&&executionsOverlap(other,{start,end})))throw Error("수면 실제 구간이 다른 활동과 겹쳐요. 시각을 다시 확인해주세요.");
       r.start=start;r.end=end;
     }
     setResult({...old,document:doc,view:calculatePet(doc),revision:old.revision+1});
