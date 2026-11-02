@@ -8,9 +8,9 @@ import { buildDay } from "../lib/engine";
 
 const answers={...defaultAnswers,name:"합성 화면"};
 const state:AppState={version:1,consentAt:new Date().toISOString(),consentVersion:"2026-10-v1",answers,schedule:defaultSchedule,inbody:[],days:[]};
-test("성분을 먼저 보여주고 음식 미확인·실상품 미연동 범위를 숨기지 않는다",()=>{
+test("일정 가이드를 먼저 보여주고 음식 미확인·실상품 미연동 범위를 숨기지 않는다",()=>{
   const html=renderToStaticMarkup(<NutritionGuide state={state} busy={false} onSave={async()=>{}} onEdit={()=>{}}/>);
-  assert.ok(html.includes("먼저 살펴볼 성분"));assert.ok(html.includes("음식·섭취 프로필"));assert.ok(html.includes("가격·재고 API는 연결되지 않았어요"));
+  assert.ok(html.includes("일정에서 시작하는 영양 관리"));assert.ok(html.includes("음식·섭취 프로필"));assert.ok(html.includes("가격·재고 API는 연결되지 않았어요"));
   assert.ok(!html.includes('href="https://kr.iherb.com'));
 });
 test("영양정보 미동의는 후보·제품 탐색을 노출하지 않는다",()=>{

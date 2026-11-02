@@ -1,6 +1,6 @@
 "use client";
 import type { RecommendationMemory } from "@/lib/recommendation-model";
-import { useEffect,useRef,useState,type CSSProperties } from "react";
+import { useEffect,useRef,useState,type CSSProperties,type ReactNode } from "react";
 import { CalendarDays,ChevronLeft,ChevronRight,Plus,GripVertical,MapPin,Brain,Activity,ArrowRight,Repeat2,Clock3,Trash2,Check,Link2 } from "lucide-react";
 import { type AppState,type Schedule,localDate,toMinutes,toTime } from "@/lib/model";
 import { emptyPlanner,plannerBlockSchema,plannerSchema,plannerCategories,plannerColors,type Planner,type PlannerBlock,type PlannerTemplate } from "@/lib/planner-model";
@@ -28,7 +28,7 @@ type Seed={ranges?:PlacementRange[];date:string;start:string;end:string;category
 const swatch=(category:PlannerBlock["category"],shade=1)=>({"--block-hue":plannerColors[category],"--block-sat":`${35+shade*15}%`,"--block-light":`${98-shade*4}%`} as CSSProperties);
 const dateTitle=(date:string)=>new Intl.DateTimeFormat("ko-KR",{month:"long",day:"numeric",weekday:"long",timeZone:"UTC"}).format(new Date(`${date}T12:00Z`));
 
-export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRecord,recommendationMemory}:{state:AppState;recommendationMemory?:RecommendationMemory;busy:boolean;onRecord?:(b:PlannerBlock,date:string,status:PlannerMark)=>Promise<void>;onSave:(p:Planner,change?:PlannerChange)=>Promise<void>;onGenerate:()=>void;onSettings:()=>void}){
+export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRecord,recommendationMemory,nutritionGuide}:{state:AppState;nutritionGuide?:(date:string)=>ReactNode;recommendationMemory?:RecommendationMemory;busy:boolean;onRecord?:(b:PlannerBlock,date:string,status:PlannerMark)=>Promise<void>;onSave:(p:Planner,change?:PlannerChange)=>Promise<void>;onGenerate:()=>void;onSettings:()=>void}){
   const planner=state.planner??emptyPlanner(),today=localDate();
   const [compact,setCompact]=useState(false);
   const [selected,setSelected]=useState(today),[mode,setMode]=useState<"week"|"day">("week"),[filter,setFilter]=useState("all");
@@ -126,6 +126,7 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRec
       <PlannerRoutineAction selected={selected} today={today} busy={busy} onGoToday={()=>setSelected(today)} onGenerate={onGenerate} onPreview={()=>setPreviewDate(selected)}/>
       <button className="text-link" onClick={onSettings}>기상·식사·이동시간 및 기존 고정 일정 설정 <ChevronRight size={15}/></button>{state.schedule.events.length>0&&<p className="sp-legacy">기존 하루 설정의 고정 일정 {state.schedule.events.length}개도 루틴 배치 시 유지합니다. 주간 일정과 중복된다면 위 설정에서 정리해주세요.</p>}
     </section>
+    {nutritionGuide?.(selected)}
     {previewDate&&<RoutinePreviewDialog key={previewDate} recommendationMemory={recommendationMemory} state={state} date={previewDate} today={today} onClose={()=>setPreviewDate(null)}/>}
     {editing&&<BlockEditDialog planner={planner} target={editing} busy={busy} onClose={()=>setEditing(null)} onConfirm={async request=>{await commit(applyBlockEdit(planner,request),{edit:request});setUndo({planner,plans:state.days});setEditing(null);setNotice("");}}/>}
     {removal&&<BlockRemovalDialog planner={planner} target={removal} busy={busy} onClose={()=>setRemoval(null)} onConfirm={async request=>{await commit(applyBlockRemoval(planner,request),{remove:request});setUndo({planner,plans:state.days});setRemoval(null);setNotice("");}}/>}

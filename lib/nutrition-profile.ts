@@ -15,6 +15,17 @@ export const nutritionProfileSchema = z.object({
   format:z.enum(["unsure","single","multi","both"]).default("unsure"),
   budget:z.enum(["any","value","convenience"]).default("any"),
   interests:z.array(z.enum(ingredientIds)).max(19).default([]),
+  // Optional, contextual answers. They never mark allergy/safety review complete.
+  scheduleChecks:z.array(z.object({
+    date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    kind:z.enum(["protein","meal","hydration"]),
+    context:z.string().max(100),
+    answer:z.enum(["possible","difficult","unknown"]),
+  })).max(90).default([]),
+  exerciseModes:z.array(z.object({
+    blockId:z.string().min(1).max(80),title:z.string().max(60),
+    mode:z.enum(["strength","endurance","mixed","light"]),
+  })).max(180).default([]),
 }).superRefine((p,ctx)=>{
   if(p.reviewed && p.allergyStatus==="known" && !p.allergens.length)ctx.addIssue({code:"custom",path:["allergens"],message:"알레르기가 있는 원료를 선택해주세요. 모르면 ‘잘 모르겠어요’를 선택하세요."});
   if(p.reviewed && p.allergyStatus!=="known" && p.allergens.length)ctx.addIssue({code:"custom",path:["allergens"],message:"알레르기 원료와 확인 상태를 다시 확인해주세요."});
