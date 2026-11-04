@@ -1,7 +1,7 @@
 import { getSessionUser } from "@/lib/auth";
 import { z } from "zod";
 import { answersSchema, checkinSchema, daySchema, inbodySchema, scheduleSchema, localDate } from "@/lib/model";
-import { analyze, buildTimeline, supplementGuides, validateSchedule } from "@/lib/engine";
+import { analyze, supplementGuides, scheduleErrors } from "@/lib/engine";
 
 import { plannerSchema } from "@/lib/planner-model";
 import { buildPlannedDay,scheduleForDate } from "@/lib/planner";
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     // A new full-day allocation must resolve essential slots. A check-in must
     // still save recovery restrictions even if an older plan has conflicts.
     const schedule=scheduleForDate(input.schedule,input.planner,localDate());
-    const errors = input.mode === "full" && !input.refresh ? [...validateSchedule(schedule),...buildTimeline([],schedule).warnings] : [];
+    const errors = input.mode === "full" && !input.refresh ? scheduleErrors(schedule) : [];
     if (errors.length) return Response.json({ error: errors.join("\n") }, { status: 400 });
     const day=await recommendationRepository.plan(user.userId,options=>buildPlannedDay(input.answers,input.checkin,input.mode,input.schedule,input.history,input.inbody,localDate(),input.refresh,input.planner,options));
     return Response.json({day, analysis: analyze(input.answers), supplements: supplementGuides(input.answers) }, { headers: { "Cache-Control": "no-store" } });

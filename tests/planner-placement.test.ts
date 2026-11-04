@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { emptyPlanner, type PlannerBlock } from "../lib/planner-model";
 import { placeBlockRanges } from "../lib/planner-placement";
-import { blocksForDate } from "../lib/planner";
+import { blocksForDate,validatePlanner } from "../lib/planner";
 let serial=0;
 const id=()=>`placement-test-${++serial}`;
 const block:PlannerBlock={id:"draft",title:"집중 학습",category:"study",location:"도서관",task:"강의 복습",start:"09:00",end:"11:00",mental:3,physical:1,shade:2,kind:"fixed",date:"2026-10-26",weekdays:[1],excludedDates:[]};
@@ -24,11 +24,11 @@ test("날짜별 일정은 선택한 날짜만 배치하고 기존 템플릿·기
   assert.deepEqual(next.records,p.records);assert.deepEqual(next.templates,p.templates);
   assert.equal(blocksForDate(next,"2026-11-02").length,0);assert.equal(next.blocks.at(-1)?.end,"00:00");
 });
-test("선택 사이·기존 일정·다음 날 자정 겹침은 일부 저장 없이 거절한다",()=>{
+test("선택 사이·기존 일정·다음 날 자정 겹침은 모두 저장하고 경고한다",()=>{
   const p=emptyPlanner(),before=structuredClone(p);
-  assert.throws(()=>placeBlockRanges(p,block,[ranges[0],{...ranges[0],start:"10:00"}],"group",false,id),/겹쳐요/);
+  const overlap=placeBlockRanges(p,block,[ranges[0],{...ranges[0],start:"10:00"}],"group",false,id);assert.equal(overlap.blocks.length,2);assert.ok(validatePlanner(overlap).some(w=>w.includes("겹쳐요")));
   const existing=placeBlockRanges(p,{...block,kind:"once"},[{date:"2026-10-27",start:"23:00",end:"01:00"}],"old",false,id);
-  assert.throws(()=>placeBlockRanges(existing,{...block,kind:"once"},[{date:"2026-10-28",start:"00:30",end:"02:00"}],"group",false,id),/겹쳐요/);
+  const overnight=placeBlockRanges(existing,{...block,kind:"once"},[{date:"2026-10-28",start:"00:30",end:"02:00"}],"group",false,id);assert.equal(overnight.blocks.length,2);assert.ok(validatePlanner(overnight).some(w=>w.includes("겹쳐요")));
   assert.deepEqual(p,before);assert.equal(existing.blocks.length,1);
 });
 test("쉬는 시간은 각 시작 시각으로 이동하고 짧은 블록이나 종료일 오류를 검증한다",()=>{

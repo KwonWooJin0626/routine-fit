@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Upload, ShieldCheck } from "lucide-react";
 import { stateSchema, type AppState } from "@/lib/model";
-import { validatePlanner } from "@/lib/planner";
+import { validatePlannerErrors,validatePlanner } from "@/lib/planner";
 
 export function DataImport({ email }: { email: string }) {
   const [loading, setLoading] = useState(true);
@@ -40,7 +40,7 @@ export function DataImport({ email }: { email: string }) {
       if (raw.length > 500_000) throw new Error("저장 가능한 데이터 크기를 초과했어요.");
       const parsed = stateSchema.safeParse(JSON.parse(raw));
       if (!parsed.success) throw new Error("지원하는 ROUTINE FIT 내보내기 파일이 아니에요. 기존 사이트에서 다시 내려받아주세요.");
-      if (parsed.data.planner && validatePlanner(parsed.data.planner).length) throw new Error("일정이 겹치는 데이터예요. 기존 사이트에서 일정을 정리한 후 다시 내보내주세요.");
+      if (parsed.data.planner && validatePlannerErrors(parsed.data.planner).length) throw new Error(validatePlannerErrors(parsed.data.planner).join("\n"));
       setCandidate(parsed.data);
     } catch (e) { setError(e instanceof SyntaxError ? "JSON 파일 형식이 올바르지 않아요." : (e as Error).message); }
     finally { setSelecting(false); }
@@ -69,6 +69,7 @@ export function DataImport({ email }: { email: string }) {
         <label className="field"><span>ROUTINE FIT 내보내기 파일</span><input type="file" accept=".json,application/json" disabled={busy || selecting || !!error && !candidate && error.includes("저장 상태")} onChange={e => void choose(e.target.files?.[0])} /></label>
         {selecting && <p role="status">파일 형식을 확인하고 있어요.</p>}
         {candidate && <div className="import-preview"><h2>가져올 기록</h2><p>프로필 이름: {candidate.answers.name}</p><p>하루 기록 {candidate.days.length}건 · InBody 수치 {candidate.inbody.length}건 · 일정 블록 {candidate.planner?.blocks.length ?? 0}개</p>
+          {candidate.planner&&validatePlanner(candidate.planner).length>0&&<p className="sp-overlap-summary">시간이 겹치는 일정이 포함되어 있어요. 그대로 가져올 수 있고, 계획표의 빨간 테두리에서 확인·조정할 수 있어요.</p>}
           <label className="check-choice"><input type="checkbox" checked={confirmed} disabled={busy} onChange={e => setConfirmed(e.target.checked)} />이 파일은 내 기록이며, 건강정보를 현재 로그인 계정에 저장하는 데 동의합니다.</label>
           <button className="button primary" disabled={!confirmed || busy || selecting} onClick={() => void importData()}><Upload size={16} />{busy ? "기록을 가져오는 중…" : "확인한 기록 가져오기"}</button>
         </div>}

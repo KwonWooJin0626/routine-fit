@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, type ReactNode } from "react";
 import { Activity, ArrowDown, ArrowRight, ArrowUpRight, Bell, CalendarDays, ChartNoAxesCombined, Check, CheckCheck, ChevronLeft, ChevronRight, CircleHelp, Clock3, Coffee, Download, Dumbbell, ExternalLink, FileText, Heart, LayoutDashboard, Leaf, LoaderCircle, LogOut, Menu, Moon, Plus, RefreshCw, ScanLine, Settings, ShieldCheck, Sparkles, Sun, Target, Trash2, Upload, X } from "lucide-react";
 import { type Answers, type AppState, type Checkin, type Day, type Inbody, type Routine, type Schedule, type TimelineItem, defaultAnswers, defaultSchedule, initialCheckin, localDate, goalLabels, categoryLabels, inbodySchema, stateSchema } from "@/lib/model";
-import { analyze, buildDay, buildTimeline, holdUnsafeRoutines, reviseDayRoutines, validateSchedule } from "@/lib/engine";
+import { analyze, buildDay, buildTimeline, holdUnsafeRoutines, reviseDayRoutines, scheduleErrors, scheduleOverlapWarnings } from "@/lib/engine";
 import { conditionSummary, MAX_DAILY_ROUTINES, routineSourceLabel } from "@/lib/routine-catalog";
 import { CustomRoutineDialog, RoutineBuilder } from "./routine-builder";
 import { guidanceForRoutine } from "@/lib/routine-guidance";
@@ -39,6 +39,8 @@ import { PlanningStyleChoice } from "./planning-style";
 import { DailyCheckin } from "./daily-checkin";
 import { NutritionGuide } from "./nutrition-guide";
 import { ScheduleNutrition } from "./schedule-nutrition";
+import { PlannerTodos } from "./planner-todos";
+import { emptyPlanner } from "@/lib/planner-model";
 import type { NutritionProfile } from "@/lib/nutrition-profile";
 
 import { withGrowthProfile } from "@/lib/growth-migration";
@@ -291,6 +293,7 @@ export default function RoutineFit({ user }: {user:{name:string;email:string}|nu
         <ActivityGoals state={state} busy={busy} onRefine={()=>open("refine")} onPlan={()=>go("planner")}/>
         {pet.result?.document&&<PetEffortPanel pet={pet.result}/>}{pet.result?.document&&<PetHistory pet={pet.result} busy={busy} onEdit={editExecution} onCommand={petCommand}/>}
         <PlannerActivityLog planner={state.planner} pet={pet.result?.document} date={today} busy={busy} onPlan={()=>go("planner")} onEdit={editExecution} onConfirm={(block,date)=>void plannerExecution(block,date,"edit")}/>
+        <PlannerTodos compact planner={state.planner??emptyPlanner()} date={today} busy={busy} onSave={savePlanner} onPlan={()=>go("planner")}/>
         <ScheduleNutrition key={`today-${today}`} compact state={state} date={today} busy={busy} onSave={saveNutrition} onInspect={ingredient=>{setNutritionTarget({date:today,ingredient});go("supplements");}} onOpen={()=>{setNutritionTarget({date:today});go("supplements");}} onPlan={()=>go("planner")}/>
         <div className="dashboard-grid"><div><SectionHead label="TODAY’S SMALL STEPS" title="오늘, 이것만 해볼까요?" action={<div className="routine-heading-actions"><Badge color="neutral">나의 핵심 루틴</Badge><button className="button secondary" onClick={()=>open("custom")} disabled={busy}><Plus size={15}/>직접 루틴 만들기</button></div>}/>
         {day?.planningContext&&<div className="sp-routine-context"><span><CalendarDays size={16}/> {day.planningContext.date} 하루 계획의 일정 {day.planningContext.importedIds.length}개 반영 · 정신적 부담 {day.planningContext.mental}/5 · 육체적 피로 {day.planningContext.physical}/5 · 추천 시간 {day.planningContext.effectiveMinutes}분 이내</span><button className="text-link" onClick={()=>go("planner")}>계획표 보기</button></div>}
@@ -340,9 +343,10 @@ function ScheduleForm({initial,busy,error,onSubmit,onClose}:{initial:Schedule;bu
   const[s,set]=useState<Schedule>(initial),[localError,setLocalError]=useState("");
   const [event,setEvent]=useState({title:"",start:"09:00",end:"18:00",breakStart:"",breakEnd:""});
   const time=(key:"wake"|"bed"|"breakfast"|"lunch"|"dinner",label:string)=><Input key={key} type="time" label={label} value={s[key]} required onChange={v=>set({...s,[key]:v})}/>;
-  const submit=()=>{const issues=[...validateSchedule(s),...buildTimeline([],s).warnings];if(issues.length){setLocalError(issues.join("\n"));return;}setLocalError("");onSubmit(s);};
+  const submit=()=>{const issues=scheduleErrors(s);if(issues.length){setLocalError(issues.join("\n"));return;}setLocalError("");onSubmit(s);};
   return <Dialog title="내 하루의 빈칸에 건강 더하기" subtitle="일정이 겹치면 알려드려요. 고정 일정을 먼저 입력해주세요." onClose={onClose} wide><form onSubmit={e=>{e.preventDefault();submit();}}><div className="form-grid">{time("wake","기상시간")}{time("bed","취침시간")}{time("breakfast","아침식사 희망시간")}{time("lunch","점심식사 희망시간")}{time("dinner","저녁식사 희망시간")}<Input type="number" label="편도 이동시간 (분)" value={s.commute} min={0} max={180} onChange={v=>set({...s,commute:Number(v)})}/><Input type="number" label="아침 준비시간 (분)" value={s.preparation} min={0} max={120} onChange={v=>set({...s,preparation:Number(v)})}/><Select label="추천 활동 선호" value={s.exercise} options={{walk:"가벼운 걷기",stretch:"가벼운 스트레칭"}} onChange={v=>set({...s,exercise:v as Schedule["exercise"]})}/><Select label="집중이 잘되는 시간" value={s.peak} options={{morning:"오전",afternoon:"오후",evening:"저녁"}} onChange={v=>set({...s,peak:v as Schedule["peak"]})}/><Input type="number" label="일정 사이 여유시간 (분)" hint="추가 루틴을 넣을 때 이 간격을 확보해요." value={s.buffer} min={5} max={30} onChange={v=>set({...s,buffer:Number(v)})}/><div className="form-span"><Toggle label="집에서 간단한 식사 준비가 가능해요" checked={s.cooking} onChange={cooking=>set({...s,cooking})}/></div></div>
   <div className="fixed-events"><h3>변경할 수 없는 고정 일정</h3><p className="muted">출근·수업·회의·가족 돌봄 등을 입력하세요. 최대 20개까지 등록할 수 있어요. 종료가 시작보다 이르면 다음 날 종료로 처리해요. 업무 중 식사가 가능하면 쉬는 시간도 입력하세요.</p>{s.events.map(e=><div className="fixed-event" key={e.id}><Clock3 size={16}/><b>{e.start}–{e.end}{e.end<=e.start?" (다음 날)":""}</b><span>{e.title}{e.breakStart?` · 휴식 ${e.breakStart}–${e.breakEnd}`:""}</span><button type="button" className="icon-button" aria-label={`${e.title} 삭제`} onClick={()=>set({...s,events:s.events.filter(x=>x.id!==e.id)})}><X size={16}/></button></div>)}<div className="event-inputs"><Input label="일정 이름" value={event.title} placeholder="예: 출근 · 업무" onChange={v=>setEvent({...event,title:v.slice(0,60)})}/><Input label="시작" type="time" value={event.start} onChange={v=>setEvent({...event,start:v})}/><Input label="종료" type="time" value={event.end} onChange={v=>setEvent({...event,end:v})}/><Input label="일정 중 쉬는 시간 시작 (선택)" type="time" value={event.breakStart} onChange={v=>setEvent({...event,breakStart:v})}/><Input label="쉬는 시간 종료 (선택)" type="time" value={event.breakEnd} onChange={v=>setEvent({...event,breakEnd:v})}/><button className="button secondary" type="button" disabled={!event.title.trim()||s.events.length>=20} onClick={()=>{if(!event.start||!event.end)return;set({...s,events:[...s.events,{...event,breakStart:event.breakStart||undefined,breakEnd:event.breakEnd||undefined,id:crypto.randomUUID()}]});setEvent({...event,title:""});}}><Plus size={16}/>추가</button></div></div>
+  {scheduleOverlapWarnings(s).length>0&&<div className="sp-overlap-summary"><b>시간이 겹쳐도 저장할 수 있어요.</b>{scheduleOverlapWarnings(s).map((w,i)=><p key={i}>{w}</p>)}</div>}
   {(localError||error)&&<p className="form-error" role="alert">{localError||error}</p>}<div className="dialog-actions"><button className="button secondary" type="button" disabled={busy} onClick={onClose}>취소</button><button className="button primary" disabled={busy}>{busy?"일정을 배치하고 있어요…":"하루 전체 계획 생성"}<CalendarDays size={16}/></button></div></form></Dialog>;
 }
 

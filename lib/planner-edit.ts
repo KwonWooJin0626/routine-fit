@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { type Day,type Schedule } from "./model";
 import { plannerTemplateSchema,plannerSchema,plannerCategories,type Planner } from "./planner-model";
-import { scheduleContext,validatePlanner } from "./planner";
+import { scheduleContext,validatePlannerErrors } from "./planner";
 
 // Content edits deliberately preserve each placement's date, time and recurrence.
 export const blockContentSchema=plannerTemplateSchema.pick({title:true,category:true,petActivity:true,location:true,task:true,mental:true,physical:true,shade:true});
@@ -13,7 +13,7 @@ export function applyBlockEdit(p:Planner,r:BlockEditRequest):Planner{
   const next=plannerSchema.parse({...p,
     blocks:p.blocks.map(b=>r.blockIds.includes(b.id)?{...b,...content,groupId:r.groupId}:b),
     templates:p.templates.map(t=>r.templateIds.includes(t.id)?{...t,...content,groupId:r.groupId}:t)});
-  const conflicts=validatePlanner(next);if(conflicts.length)throw new Error(conflicts.join("\n"));
+  const conflicts=validatePlannerErrors(next);if(conflicts.length)throw new Error(conflicts.join("\n"));
   return next;
 }
 function savedBlock(id:string,ids:string[]){

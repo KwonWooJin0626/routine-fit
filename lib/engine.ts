@@ -14,7 +14,7 @@ export function buildRoutines(a: Answers, c: Checkin, history: Day[] = [], inbod
   return recommendCore(a, c, history, inbody, generation);
 }
 
-export function validateSchedule(s: Schedule): string[] {
+export function scheduleErrors(s: Schedule): string[] {
   const warnings: string[] = [];
   const wake = toMinutes(s.wake), end = toMinutes(s.bed) <= wake ? toMinutes(s.bed) + 1440 : toMinutes(s.bed);
   if (end - wake > 20 * 60 || end - wake < 6 * 60) warnings.push("기상·취침시간 사이를 확인해주세요. 계획은 깨어 있는 6~20시간 범위에서 만들 수 있어요.");
@@ -25,10 +25,15 @@ export function validateSchedule(s: Schedule): string[] {
     if (e.from < wake || e.until > end) warnings.push(`${e.title}: 기상부터 취침까지의 시간 안에 넣어주세요.`);
     if (!!e.breakStart !== !!e.breakEnd || (e.breakStart && e.breakEnd && (e.pauseFrom! <= e.from || e.pauseUntil! >= e.until || e.pauseUntil! <= e.pauseFrom!))) warnings.push(`${e.title}: 휴식 시작·종료를 일정 안에 정확히 입력해주세요.`);
   }
-  const intervals=events.flatMap(e=>e.pauseFrom!==undefined&&e.pauseUntil!==undefined?[{title:e.title,from:e.from,until:e.pauseFrom},{title:e.title,from:e.pauseUntil,until:e.until}]:[{title:e.title,from:e.from,until:e.until}]).sort((a,b)=>a.from-b.from);
-  for(let i=1;i<intervals.length;i++)if(intervals[i-1].until>intervals[i].from)warnings.push(`${intervals[i-1].title}과 ${intervals[i].title} 일정이 겹쳐요.`);
   return warnings;
 }
+export function scheduleOverlapWarnings(s:Schedule):string[]{
+  const warnings:string[]=[],events=s.events.map(e=>({...e,...eventRange(e,s)}));
+  const intervals=events.flatMap(e=>e.pauseFrom!==undefined&&e.pauseUntil!==undefined?[{title:e.title,from:e.from,until:e.pauseFrom},{title:e.title,from:e.pauseUntil,until:e.until}]:[{title:e.title,from:e.from,until:e.until}]).sort((a,b)=>a.from-b.from);
+  for(let i=0;i<intervals.length;i++)for(let j=i+1;j<intervals.length&&intervals[j].from<intervals[i].until;j++)if(intervals[i].from<intervals[j].until)warnings.push(`${intervals[i].title}과 ${intervals[j].title} 일정이 겹쳐요.`);
+  return [...new Set(warnings)];
+}
+export function validateSchedule(s:Schedule){return [...scheduleErrors(s),...scheduleOverlapWarnings(s)];}
 
 function eventRange(e: Schedule["events"][number], s: Schedule) {
   const wake=toMinutes(s.wake);
@@ -47,12 +52,12 @@ export function holdUnsafeRoutines(routines:Routine[], checkin:Checkin, movement
 }
 
 export function buildTimeline(routines: Routine[], s: Schedule): { timeline: TimelineItem[]; warnings: string[] } {
-  const errors = validateSchedule(s);
+  const errors = scheduleErrors(s);
   if (errors.length) return { timeline: [], warnings: errors };
   const wake = toMinutes(s.wake), rawBed = toMinutes(s.bed), bed = rawBed <= wake ? rawBed + 1440 : rawBed;
   const occupied: { start: number; end: number }[] = [];
   const timeline: TimelineItem[] = [];
-  const warnings: string[] = [];
+  const warnings: string[] = scheduleOverlapWarnings(s);
   const add = (id: string, title: string, start: number, duration: number, kind: TimelineItem["kind"], detail: string, routineId?: string) => {
     occupied.push({ start, end: start + duration });
     timeline.push({ id, title, start: toTime(start), end: toTime(start + duration), kind, detail, routineId });

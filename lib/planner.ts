@@ -19,25 +19,42 @@ export function occurrencesInWindow(p:Planner|undefined,date:string,from=0,until
   for(const offset of [-1,0,1])for(const block of blocksForDate(p,addDate(date,offset))){const start=offset*1440+toMinutes(block.start),end=start+durationOf(block);if(start<until&&end>from)rows.push({block,date:addDate(date,offset),from:Math.max(from,start),until:Math.min(until,end)});}
   return rows.sort((a,b)=>a.from-b.from);
 }
-export function plannerConflicts(p:Planner,date:string):string[]{
-  const rows=occurrencesInWindow(p,date),errors:string[]=[];
-  for(let i=0;i<rows.length;i++)for(let j=i+1;j<rows.length;j++)if(rows[i].from<rows[j].until&&rows[j].from<rows[i].until){
-    const a=rows[i],b=rows[j];
-    // A block explicitly allows its own break to be used by a meal/appointment.
-    const insideBreak=(outer:Occurrence,inner:Occurrence)=>{const x=outer.block;if(!x.breakStart||!x.breakEnd)return false;const shift=Math.round((new Date(`${outer.date}T12:00Z`).getTime()-new Date(`${date}T12:00Z`).getTime())/86400000)*1440;const start=shift+toMinutes(x.start),pause=start+(toMinutes(x.breakStart)-toMinutes(x.start)+1440)%1440,end=start+(toMinutes(x.breakEnd)-toMinutes(x.start)+1440)%1440;return inner.from>=pause&&inner.until<=end;};
-    if(!insideBreak(a,b)&&!insideBreak(b,a))errors.push(`${date}: “${a.block.title}”와 “${b.block.title}”의 시간이 겹쳐요.`);
+export function activeOccurrenceSpans(o:Occurrence,viewDate:string){
+  const b=o.block;if(!b.breakStart||!b.breakEnd)return [{from:o.from,until:o.until}];
+  const shift=(Date.parse(`${o.date}T12:00Z`)-Date.parse(`${viewDate}T12:00Z`))/86400000*1440;
+  const start=shift+toMinutes(b.start),pause=start+(toMinutes(b.breakStart)-toMinutes(b.start)+1440)%1440,end=start+(toMinutes(b.breakEnd)-toMinutes(b.start)+1440)%1440;
+  return [{from:o.from,until:Math.min(o.until,pause)},{from:Math.max(o.from,end),until:o.until}].filter(x=>x.until>x.from);
+}
+export function plannerConflicts(p:Planner,date:string,affected?:Set<string>):string[]{
+  const rows=occurrencesInWindow(p,date),warnings:string[]=[];
+  for(let i=0;i<rows.length;i++)for(let j=i+1;j<rows.length;j++){
+    const a=rows[i],b=rows[j];if(affected&&!affected.has(a.block.id)&&!affected.has(b.block.id))continue;
+    if(activeOccurrenceSpans(a,date).some(x=>activeOccurrenceSpans(b,date).some(y=>x.from<y.until&&x.until>y.from)))warnings.push(`${date}: “${a.block.title}”와 “${b.block.title}”의 시간이 겹쳐요.`);
   }
-  if(rows.length>30)errors.push(`${date}: 하루 블록은 최대 30개까지 배치해주세요.`);
-  return [...new Set(errors)];
+  return [...new Set(warnings)];
 }
-export function validatePlanner(p:Planner){
+function plannerCheckDates(p:Planner){
   const dates=new Set<string>();
-  // All recurrence boundaries plus one whole week cover weekday intersections;
-  // every one-off date and overnight tail is checked separately.
   for(const b of p.blocks){for(let n=-1;n<=7;n++)dates.add(addDate(b.date,n));if(b.until){dates.add(b.until);dates.add(addDate(b.until,1));}}
-  for(const a of p.blocks)for(const b of p.blocks)if(a.kind==="fixed"&&b.kind==="fixed"){const start=a.date>b.date?a.date:b.date;for(let n=0;n<7;n++)dates.add(addDate(start,n));}
-  return [...dates].sort().flatMap(d=>plannerConflicts(p,d)).slice(0,8);
+  const fixed=p.blocks.filter(b=>b.kind==="fixed");
+  for(let i=0;i<fixed.length;i++)for(let j=i+1;j<fixed.length;j++){
+    const a=fixed[i],b=fixed[j],start=a.date>b.date?a.date:b.date;
+    for(let n=0;n<7;n++){
+      let d=addDate(start,n);
+      if(!a.weekdays.includes(weekday(d))&&!b.weekdays.includes(weekday(d)))continue;
+      for(let tries=0;tries<=a.excludedDates.length+b.excludedDates.length+1;tries++,d=addDate(d,7)){
+        if(a.until&&d>a.until&&b.until&&d>b.until)break;
+        if(occursOn(a,d)||occursOn(b,d)){dates.add(d);dates.add(addDate(d,1));}
+        if((!a.weekdays.includes(weekday(d))||occursOn(a,d))&&(!b.weekdays.includes(weekday(d))||occursOn(b,d)))break;
+      }
+    }
+  }
+  return [...dates].sort();
 }
+/** Advisory overlap messages. These must never block storing a valid plan. */
+export function validatePlanner(p:Planner,affected?:Set<string>){return plannerCheckDates(p).flatMap(d=>plannerConflicts(p,d,affected)).slice(0,8);}
+/** Structural/resource limits remain errors, independently of overlap warnings. */
+export function validatePlannerErrors(p:Planner){return plannerCheckDates(p).filter(d=>occurrencesInWindow(p,d).length>30).slice(0,8).map(d=>`${d}: 하루 블록은 최대 30개까지 배치해주세요.`);}
 export function scheduleForDate(base:Schedule,p:Planner|undefined,date:string):Schedule{
   if(!p?.blocks.length)return base;
   const wake=toMinutes(base.wake),bed=toMinutes(base.bed)+(toMinutes(base.bed)<=wake?1440:0);
@@ -52,10 +69,15 @@ export function scheduleForDate(base:Schedule,p:Planner|undefined,date:string):S
 }
 export function scheduleContext(base:Schedule,p:Planner|undefined,date:string,c:Checkin){
   const wake=toMinutes(base.wake),bed=toMinutes(base.bed)+(toMinutes(base.bed)<=wake?1440:0),rows=occurrencesInWindow(p,date,wake,bed);
-  const weight=(o:Occurrence)=>{const b=o.block;if(!b.breakStart||!b.breakEnd)return o.until-o.from;const offset=Math.round((new Date(`${o.date}T12:00Z`).getTime()-new Date(`${date}T12:00Z`).getTime())/86400000)*1440,start=offset+toMinutes(b.start);const pause=start+(toMinutes(b.breakStart)-toMinutes(b.start)+1440)%1440,end=start+(toMinutes(b.breakEnd)-toMinutes(b.start)+1440)%1440;return o.until-o.from-Math.max(0,Math.min(o.until,end)-Math.max(o.from,pause));};
-  const minutes=rows.reduce((n,o)=>n+weight(o),0);
-  const mental=minutes?rows.reduce((n,o)=>n+weight(o)*o.block.mental,0)/minutes:1;
-  const physical=minutes?rows.reduce((n,o)=>n+weight(o)*o.block.physical,0)/minutes:1;
+  const spans=rows.flatMap(o=>activeOccurrenceSpans(o,date).map(x=>({...x,block:o.block})));
+  const points=[...new Set(spans.flatMap(x=>[x.from,x.until]))].sort((a,b)=>a-b);
+  let minutes=0,mentalSum=0,physicalSum=0;
+  for(let i=0;i<points.length-1;i++){
+    const from=points[i],until=points[i+1],active=spans.filter(x=>x.from<until&&x.until>from);if(!active.length)continue;
+    const length=until-from;minutes+=length;
+    mentalSum+=length*Math.max(...active.map(x=>x.block.mental));physicalSum+=length*Math.max(...active.map(x=>x.block.physical));
+  }
+  const mental=minutes?mentalSum/minutes:1,physical=minutes?physicalSum/minutes:1;
   const s=scheduleForDate(base,p,date),intervals=s.events.flatMap(e=>{const start=toMinutes(e.start)+(toMinutes(e.start)<wake?1440:0),end=start+(toMinutes(e.end)-toMinutes(e.start)+1440)%1440;return e.breakStart&&e.breakEnd?[{from:start,until:start+(toMinutes(e.breakStart)-toMinutes(e.start)+1440)%1440},{from:start+(toMinutes(e.breakEnd)-toMinutes(e.start)+1440)%1440,until:end}]:[{from:start,until:end}];}).sort((a,b)=>a.from-b.from);
   let occupied=0,last=wake;for(const x of intervals){const from=Math.max(wake,x.from,last),until=Math.min(bed,x.until);if(until>from)occupied+=until-from;last=Math.max(last,until);}
   const free=Math.max(0,bed-wake-occupied-base.preparation-(s.events.length?base.commute*2:0)-60);
