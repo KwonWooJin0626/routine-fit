@@ -13,6 +13,7 @@ import { PlannerTodos } from "../components/planner-todos";
 import { PlannerCalendarBlocks } from "../components/planner-calendar-blocks";
 import { calendarRows } from "../lib/planner-grid";
 import { createStateHandlers } from "../lib/state-api";
+import { plannerHue } from "../lib/planner-colors";
 
 const date="2026-11-04",now=new Date(`${date}T12:00:00+09:00`);
 const todo=()=>plannerTodoSchema.parse({id:"task",title:"발표자료 만들기",todayDate:date});
@@ -94,9 +95,30 @@ test("계정 API는 중첩 계획·할 일·연결·완료를 왕복 보존하�
   let row:{payload:string;revision:number}|null=null;
   const handlers=createStateHandlers(async()=>"todo-test",{get:async()=>row,save:async(_id,payload)=>{row={payload,revision:(row?.revision??0)+1};return row.revision;},remove:async()=>{row=null;}});
   let p=upsertTodo(emptyPlanner(),todo());p.blocks=[block({todoId:"task"}),block({id:"second",start:"10:00",end:"12:00"})];p=toggleTodo(p,"task",now);
+  p.categoryColors={study:270,task:0};
   const s=app(p),put=(state:AppState)=>handlers.PUT(new Request("https://test.example/api/state",{method:"PUT",headers:{origin:"https://test.example"},body:JSON.stringify({state,revision:0})}));
   assert.equal((await put(s)).status,200);const restored=(await (await handlers.GET()).json()).state as AppState;
   assert.equal(restored.planner!.todos![0].status,"done");assert.equal(restored.planner!.blocks[0].todoId,"task");assert.ok(validatePlanner(restored.planner!).length);
+  assert.deepEqual(restored.planner!.categoryColors,{study:270,task:0});
   restored.planner!.blocks[0].todoId="missing";assert.equal((await put(restored)).status,400);
   assert.ok(stateSchema.safeParse(app()).success);
+});
+
+test("이전 계정은 카테고리 기본색을 사용하고 색 설정은 검증된 색상값만 보존한다",()=>{
+  const old=plannerSchema.parse(emptyPlanner());assert.equal(plannerHue("study",old.categoryColors),215);
+  const changed=plannerSchema.parse({...old,categoryColors:{study:0,exercise:270}});
+  assert.equal(plannerHue("study",changed.categoryColors),0);assert.equal(plannerHue("exercise",changed.categoryColors),270);assert.equal(plannerHue("work",changed.categoryColors),4);
+  for(const categoryColors of [{study:-1},{study:360},{study:2.5},{study:"blue"},{unknown:215}])assert.equal(plannerSchema.safeParse({...old,categoryColors}).success,false);
+  assert.equal(plannerHue("study",{}),215);
+});
+
+test("완료·미완료·주간·하루 일정은 같은 카테고리 설정을 공유하며 기록과 일정은 바뀌지 않는다",()=>{
+  const p={...emptyPlanner(),blocks:[block()],records:[{blockId:"first",date,status:"done" as const,title:"수업",start:"09:00",end:"11:00",recordedAt:now.toISOString()}],categoryColors:{study:270}};
+  const before=JSON.stringify(p);
+  for(const compact of [false,true]){
+    const html=renderToStaticMarkup(<PlannerCalendarBlocks planner={p} date={date} today={date} rows={calendarRows(p,date,compact)} busy={false} selecting={false} onEdit={()=>{}} onMark={()=>{}} onCompleteTodo={()=>{}}/>);
+    assert.match(html,/is-done/);assert.match(html,/--block-hue:270/);assert.match(html,/완료 취소/);
+  }
+  const html=renderToStaticMarkup(<PlannerCalendarBlocks planner={{...p,records:[]}} date={date} today={date} rows={calendarRows(p,date,false)} busy={false} selecting={false} onEdit={()=>{}} onMark={()=>{}} onCompleteTodo={()=>{}}/>);
+  assert.match(html,/--block-hue:270/);assert.ok(!html.includes("is-done"));assert.equal(JSON.stringify(p),before);
 });

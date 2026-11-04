@@ -1,8 +1,9 @@
 "use client";
-import { useState,type CSSProperties } from "react";
+import { useState } from "react";
 import { Check,Repeat2,TriangleAlert } from "lucide-react";
 import { calendarSegments,type CalendarSegment } from "@/lib/planner-overlap";
-import { plannerCategories,plannerColors,type Planner,type PlannerBlock } from "@/lib/planner-model";
+import { plannerCategories,type Planner,type PlannerBlock } from "@/lib/planner-model";
+import { plannerSwatch } from "@/lib/planner-colors";
 import type { CalendarRow } from "@/lib/planner-grid";
 import { toTime } from "@/lib/model";
 import { Dialog } from "./forms";
@@ -25,7 +26,7 @@ export function PlannerCalendarBlocks({planner,date,today,rows,busy,selecting,on
         <strong>{b.title} 외 {s.occurrences.length-1}개</strong>{rect.height>=40&&<small>{toTime(s.from)}–{s.until===1440?"24:00":toTime(s.until)} · 시간 겹침</small>}<span className="sp-overlap-corner" aria-hidden="true">{s.occurrences.length}</span>
       </button><div className="sp-overlap-preview" role="tooltip"><b>겹친 일정 {s.occurrences.length}개</b>{s.occurrences.map(x=><span key={`${x.block.id}:${x.date}`}>{x.block.title} · {x.block.start}–{x.block.end}</span>)}<small>눌러서 완료·수정하기</small></div>
     </div>;
-    const style={"--block-hue":plannerColors[b.category],"--block-sat":`${35+b.shade*15}%`,"--block-light":`${98-b.shade*4}%`,...rect,left:0,right:0} as CSSProperties;
+    const style={...plannerSwatch(b.category,b.shade,planner.categoryColors),...rect,left:0,right:0};
     return <div key={`${s.from}-${s.until}`} className={`sp-event ${b.kind} ${done?"is-done":""}`} style={style} onPointerDown={e=>{if(!selecting)e.stopPropagation();}}>
       <button type="button" className="sp-event-complete" disabled={busy||selecting||o.date>today} aria-pressed={done} aria-label={`${b.title} ${o.date} ${done?"완료 취소":"일정 완료"}`} onClick={()=>onMark(b,o.date,done?"clear":"done")}>{done?<Check size={13}/>:<span/>}</button>
       <button type="button" className="sp-event-open" disabled={selecting} onClick={()=>onEdit(b,o.date)} aria-label={`${b.title} ${b.start}–${b.end} ${b.location} 수정`}><strong>{b.kind==="fixed"&&<Repeat2 size={10}/>} {b.title}</strong>{rect.height>=32&&<small>{b.start}–{b.end}{o.date!==date?" · 전날 시작":""}</small>}{s.until-s.from>=60&&<span>{b.location||plannerCategories[b.category]}</span>}{s.until-s.from>=90&&<em>정신 {b.mental} · 육체 {b.physical}</em>}</button>
@@ -37,7 +38,7 @@ export function OverlapDialog({segment,date,today,planner,busy,onClose,onEdit,on
     <p className="sp-overlap-note"><TriangleAlert size={17}/>같은 시간에 등록된 일정이에요. 각 일정을 확인하거나 이대로 유지할 수 있어요.</p>
     <div className="sp-overlap-items">{segment.occurrences.map(o=>{
       const b=o.block,record=planner.records?.find(r=>r.blockId===b.id&&r.date===o.date),todo=planner.todos?.find(t=>t.id===b.todoId);
-      return <article key={`${b.id}:${o.date}`}><div><button type="button" className="routine-check" disabled={busy||o.date>today} aria-label={`${b.title} 일정 ${record?.status==="done"?"완료 취소":"완료"}`} aria-pressed={record?.status==="done"} onClick={()=>onMark(b,o.date,record?.status==="done"?"clear":"done")}>{record?.status==="done"?<Check size={16}/>:<span/>}</button><div><b>{b.title}</b><p>{b.start}–{b.end} · {plannerCategories[b.category]}{o.date!==date?" · 전날 시작":""}</p></div></div><button type="button" className="button secondary" disabled={busy} onClick={()=>onEdit(b,o.date)}>세부 설정</button>{todo&&record?.status==="done"&&todo.status!=="done"&&<button type="button" className="text-link" disabled={busy} onClick={()=>onCompleteTodo(todo.id)}>할 일도 완료하기</button>}</article>;
+      return <article key={`${b.id}:${o.date}`} style={plannerSwatch(b.category,b.shade,planner.categoryColors)}><div><button type="button" className="routine-check" disabled={busy||o.date>today} aria-label={`${b.title} 일정 ${record?.status==="done"?"완료 취소":"완료"}`} aria-pressed={record?.status==="done"} onClick={()=>onMark(b,o.date,record?.status==="done"?"clear":"done")}>{record?.status==="done"?<Check size={16}/>:<span/>}</button><div><b>{b.title}</b><p>{b.start}–{b.end} · {plannerCategories[b.category]}{o.date!==date?" · 전날 시작":""}</p></div></div><button type="button" className="button secondary" disabled={busy} onClick={()=>onEdit(b,o.date)}>세부 설정</button>{todo&&record?.status==="done"&&todo.status!=="done"&&<button type="button" className="text-link" disabled={busy} onClick={()=>onCompleteTodo(todo.id)}>할 일도 완료하기</button>}</article>;
     })}</div><div className="dialog-actions"><button type="button" className="button secondary" onClick={onClose}>이대로 유지 · 닫기</button></div>
   </Dialog>;
 }
