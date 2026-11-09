@@ -4,6 +4,7 @@ import "./globals.css";
 import "./pet.css";
 import "./media.css";
 import "./spaces.css";
+import "./lifestyle-charts.css";
 
 export const metadata: Metadata = {
   title: "ROUTINE FIT — 오늘의 작은 실천, 나다운 성장",
