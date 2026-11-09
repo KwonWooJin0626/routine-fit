@@ -13,7 +13,7 @@ export const basicProfileSchema = z.object({
   exerciseRange:z.enum(["none","under60","60-120","120-240","over240","unknown"]),
   sittingRange:z.enum(["under4","4-6","6-8","over8","unknown"]),
   supplementStatus:z.enum(["yes","none","unknown"]),
-  supplements:z.array(z.enum([...ingredientIds,"multi"])).max(20),
+  supplements:z.array(z.enum([...ingredientIds,"multi"])).max(22),
   growthGoal:z.enum(["balance","study","reading","organize","recovery"]).default("balance"),
   focusTime:z.enum(["unknown","morning","afternoon","evening"]).default("unknown"),
   nutritionAgeKnown:z.boolean().optional(),

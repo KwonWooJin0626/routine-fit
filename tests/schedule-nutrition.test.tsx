@@ -24,14 +24,14 @@ test("신규 사용자는 닉네임 다음 계획표로 시작하고 추가 기�
 
 test("설문 없이 운동 계획에서 단백질 기능 안내를 만들고 결핍·복용량을 만들지 않는다",()=>{
   const s=state([block()]),g=guide(s,"protein")!;
-  assert.ok(g);assert.equal(g.answer,undefined);assert.deepEqual(g.ingredientIds,["protein"]);
+  assert.ok(g);assert.equal(g.answer,undefined);assert.deepEqual(g.ingredientIds,["protein","eaa"]);
   assert.match(g.reason,/예정/);assert.ok(!JSON.stringify(g).includes("mg"));
   assert.equal(s.nutrition,undefined);assert.equal(s.days.length,0);
 });
-test("다른 카테고리의 운동 단어와 예상 피로도는 영양제로 연결하지 않는다",()=>{
+test("학업의 운동 단어는 운동 영양제로 연결하지 않고 긴 집중에는 눈 관리 정보를 제공한다",()=>{
   const s=state([block({category:"study",title:"근력 운동 이론",start:"09:00",end:"15:00",mental:5,physical:5})]);
   const result=scheduleNutrition(s,date);
-  assert.ok(!guide(s,"protein"));assert.ok(result.guides.every(g=>!g.ingredientIds.length));
+  assert.ok(!guide(s,"protein"));assert.deepEqual(guide(s,"screen")!.ingredientIds,["lutein"]);assert.ok(!guide(s,"vitamins"));
   assert.ok(!guide(state([block({category:"study",title:"수업"})]),"screen"));
 });
 test("식사 블록 부재는 결식으로 간주하지 않고 바쁜 점심 시간에만 확인한다",()=>{
@@ -65,9 +65,9 @@ test("모호한 헬스는 종류를 확인하고, 같은 원본의 반복 배치
 });
 test("가벼운 운동을 포함한 횟수만으로 크레아틴을 보여주지 않는다",()=>{
   const s=state([block(),block({id:"yoga",date:"2026-11-01",title:"요가"})]);
-  assert.deepEqual(guide(s,"protein")!.ingredientIds,["protein"]);
+  assert.deepEqual(guide(s,"protein")!.ingredientIds,["protein","eaa"]);
   s.planner!.blocks.push(block({id:"prior-strength",date:"2026-10-31"}));
-  assert.deepEqual(guide(s,"protein")!.ingredientIds,["protein","creatine"]);
+  assert.deepEqual(guide(s,"protein")!.ingredientIds,["protein","creatine","eaa"]);
   const cardio=state([block({title:"달리기"}),block({id:"prior-run",date:"2026-11-01",title:"달리기"})]);
   assert.ok(!guide(cardio,"protein")!.ingredientIds.includes("creatine"));
   const night=state([block({date:"2026-11-01",start:"23:30",end:"00:30"})]);
@@ -104,8 +104,8 @@ test("첫 화면은 일정 안내를 먼저 렌더링하고 질문·자료·음�
   const s=state([block()]);
   const html=renderToStaticMarkup(<NutritionGuide state={s} initialDate={date} busy={false} onSave={async()=>{}} onEdit={()=>{}}/>);
   assert.ok(html.indexOf("PLAN → NUTRITION")<html.indexOf("음식·섭취 프로필"));
-  assert.match(html,/추천 구체화 · 질문 1개/);assert.match(html,/hidden=""/);
-  assert.ok(!html.includes('href="https://kr.iherb.com'));
+  assert.ok(!html.includes("추천 구체화 · 질문 1개"));
+  assert.match(html,/href="https:\/\/kr.iherb.com\/search/);assert.match(html,/추가 질문 없이/);
   const compact=renderToStaticMarkup(<ScheduleNutrition compact state={s} date={date} busy={false} onSave={async()=>{}}/>);
   assert.match(compact,/schedule-nutrition-compact/);assert.ok(!compact.includes('<details class="panel schedule-nutrition schedule-nutrition-compact" open'));
 });

@@ -9,8 +9,9 @@ import { Input } from "./forms";
 import { NutritionSurvey } from "./nutrition-survey";
 import { useChapterScroll } from "./use-chapter-scroll";
 import { ScheduleNutrition } from "./schedule-nutrition";
+import { supplementIngredientQuery,supplementSearch } from "@/lib/supplement-journal";
 
-export function NutritionGuide({state,busy,onSave,onEdit,onPlan,initialDate,initialIngredient}:{state:AppState;busy:boolean;onSave:(p:NutritionProfile)=>Promise<void>;onEdit:()=>void;onPlan?:()=>void;initialDate?:string;initialIngredient?:string}){
+export function NutritionGuide({state,busy,onSave,onEdit,onPlan,initialDate,initialIngredient,onRegister,hideSchedule=false}:{state:AppState;busy:boolean;onSave:(p:NutritionProfile)=>Promise<void>;onEdit:()=>void;onPlan?:()=>void;initialDate?:string;initialIngredient?:string;onRegister?:(id:string)=>void;hideSchedule?:boolean}){
   const [profile,setProfile]=useState<NutritionProfile>(()=>state.nutrition??emptyNutritionProfile());
   const [showSurvey,setShowSurvey]=useState(false);
   const [selected,setSelected]=useState<string|null>(initialIngredient??null),[error,setError]=useState("");
@@ -28,9 +29,9 @@ export function NutritionGuide({state,busy,onSave,onEdit,onPlan,initialDate,init
     try{setError("");await onSave(parsed.data);setProfile(parsed.data);}catch(e){setError((e as Error).message);}
   };
   return <section className="nutrition-workspace" ref={root}>
-    <div className="nutrition-intro"><span className="eyebrow">YOUR SCHEDULE · YOUR NUTRITION</span><h2 data-chapter-heading tabIndex={-1}>내 일정에서 시작하는 영양 관리.</h2><p>일정을 담으면 먼저 안내해요. 매일 영양 설문을 할 필요 없이, 원할 때 필요한 질문만 확인해요.</p><button className="text-link" disabled={busy} onClick={onEdit}>제품 비교 전 안전정보 확인</button></div>
+    <div className="nutrition-intro"><span className="eyebrow">YOUR SCHEDULE · YOUR NUTRITION</span><h2 data-chapter-heading tabIndex={-1}>내 일정에서 시작하는 영양 관리.</h2><p>일정을 담으면 먼저 안내해요. 매일 영양 설문을 할 필요 없이, 추가 질문 없이 저장된 정보를 활용해요.</p><button className="text-link" disabled={busy} onClick={onEdit}>제품 비교 전 안전정보 확인</button></div>
     {!state.answers.supplementOptIn?<div className="panel"><h3>영양정보 제공을 선택하지 않으셨어요</h3><p>영양정보 없이도 일정·루틴을 이용할 수 있어요.</p><button className="button secondary" onClick={onEdit}>문진에서 선택 변경</button></div>:<>
-    {!active&&<><div className="schedule-nutrition-date"><Input label="영양 가이드를 볼 날짜" type="date" value={date} onChange={v=>{if(/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(`${v}T12:00Z`)))setDate(v);}}/></div><ScheduleNutrition key={date} state={state} date={date} busy={busy} onSave={async next=>{await onSave(next);setProfile(next);}} onInspect={setSelected} onPlan={onPlan}/></>}
+    {!active&&!hideSchedule&&<><div className="schedule-nutrition-date"><Input label="영양 가이드를 볼 날짜" type="date" value={date} onChange={v=>{if(/^\d{4}-\d{2}-\d{2}$/.test(v)&&!Number.isNaN(Date.parse(`${v}T12:00Z`)))setDate(v);}}/></div><ScheduleNutrition key={date} state={state} date={date} busy={busy} onSave={async next=>{await onSave(next);setProfile(next);}} onInspect={setSelected} onPlan={onPlan} onRegister={onRegister}/></>}
     <details className="panel nutrition-profile"><summary>나의 음식·섭취 프로필 · 선택 확인</summary><p>{profile.reviewed?"저장된 음식 정보를 재사용해요. 달라진 내용만 수정해주세요.":"일정 가이드는 설문 없이 볼 수 있어요. 식품 예시·제품 비교를 더 구체화할 때 확인해주세요."}</p><button className="button secondary" disabled={busy} onClick={()=>setShowSurvey(true)}>음식·섭취 정보 확인</button></details>
     {showSurvey&&<NutritionSurvey initial={profile} busy={busy} onSave={async next=>{await onSave(next);setProfile(next);}} onClose={()=>setShowSurvey(false)}/>}
     {state.answers.basic&&<section className="panel current-supplements"><span className="eyebrow">CURRENT · 현재 선택한 성분</span><h3>먹고 있는 영양제부터 이해해요</h3><p>계획표 작성 여부와 관계없이 기본 정보·주의사항은 확인할 수 있어요. 성분 선택만으로 새 제품의 필요성이나 함께 복용할 안전성을 확정하지 않아요.</p>{state.answers.basic.supplements.length?state.answers.basic.supplements.map(id=>{const i=ingredients.find(row=>row.id===id);return i?<details key={id}><summary>{i.name}</summary><p>{i.role}</p><p>{i.benefit}</p><p><b>섭취 시기</b> 제품 형태·함량과 약물에 따라 달라요. 라벨의 식전·식후·섭취 간격을 확인하고 성분명만으로 시간을 확정하지 않아요.</p><p><b>함께 챙길 때</b> {i.pairing}</p><p>{i.limit} {i.caution}</p><a className="text-link" href={i.source} target="_blank" rel="noopener noreferrer">{i.sourceTitle}</a></details>:<details key={id}><summary>종합비타민</summary><p>제품마다 성분·함량이 달라요. 다른 제품과의 중복과 전체 라벨을 확인하고, 함께 먹을 새 제품을 자동으로 추가하지 않아요.</p><a className="text-link" href="https://ods.od.nih.gov/factsheets/MVMS-Consumer/" target="_blank" rel="noopener noreferrer">NIH · Multivitamin/mineral Supplements</a></details>;}):<p>{state.answers.basic.supplementStatus==="none"?"현재 먹는 영양제가 없다고 답하셨어요. 추가 복용은 필수가 아니에요.":"현재 제품은 아직 확인 전이에요. 아래 성분 자료를 자유롭게 살펴볼 수 있어요."}</p>}</section>}
@@ -41,6 +42,7 @@ export function NutritionGuide({state,busy,onSave,onEdit,onPlan,initialDate,init
       <details className="panel ingredient-library"><summary>다른 영양소·보충 성분 둘러보기 · {ingredients.length}종</summary><p>정보 탐색 목록이지 모두에게 권하는 복용 목록은 아니에요. 제한적 근거·전문가 확인 항목도 포함돼요.</p><div className="choice-buttons">{ingredients.map(i=><button type="button" key={i.id} onClick={()=>setSelected(i.id)}>{i.name}</button>)}</div></details>
     </>}
     <div className="note"><ShieldCheck size={18}/><div>1일 섭취방법을 지켜도 부작용이 없다고 보장하지 않아요. 식사·강화식품·현재 제품을 함께 확인해야 해요. 현재는 검토된 성분·유형 안내와 iHerb 검색 연결이며, 실제 상품 라벨·가격·재고 API는 연결되지 않았어요.</div></div>
+    {active&&<div className="panel ingredient-direct-actions"><a className="button secondary" href={supplementSearch(supplementIngredientQuery(active.id,active.query,state))} target="_blank" rel="noopener noreferrer">{active.name} · iHerb에서 보기<ArrowUpRight size={14}/></a>{onRegister&&<button className="button primary" disabled={busy} onClick={()=>onRegister(active.id)}>복용 계획에 등록</button>}<p className="muted">일반 성분 검색이에요. 특정 상품의 적합성·가격·재고를 확인한 연결은 아니에요.</p></div>}
     {error&&<p className="form-error" role="alert">{error}</p>}
     </>}
   </section>;

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const allergenLabels = { milk:"우유", egg:"달걀", soy:"대두", fish:"생선", shellfish:"갑각류·조개류", nuts:"견과류", peanut:"땅콩", wheat:"밀", sesame:"참깨", other:"기타" } as const;
-export const ingredientIds = ["protein","b12","bcomplex","c","d","a","e","k","b5","biotin","omega","zinc","magnesium","calcium","iron","creatine","eaa","bcaa","milkthistle"] as const;
+export const ingredientIds = ["protein","b12","bcomplex","c","d","a","e","k","b5","biotin","omega","zinc","magnesium","calcium","iron","creatine","eaa","bcaa","milkthistle","lutein","zeaxanthin"] as const;
 export const nutritionProfileSchema = z.object({
   reviewed:z.boolean().default(false),
   allergyStatus:z.enum(["unknown","none","known"]).default("unknown"),
@@ -14,7 +14,7 @@ export const nutritionProfileSchema = z.object({
   proteinIntake:z.enum(["unknown","adequate","difficult"]).default("unknown"),
   format:z.enum(["unsure","single","multi","both"]).default("unsure"),
   budget:z.enum(["any","value","convenience"]).default("any"),
-  interests:z.array(z.enum(ingredientIds)).max(19).default([]),
+  interests:z.array(z.enum(ingredientIds)).max(21).default([]),
   // Optional, contextual answers. They never mark allergy/safety review complete.
   scheduleChecks:z.array(z.object({
     date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

@@ -144,7 +144,7 @@ test("노력 요약은 일부 수행·취소·연결 출처를 구분하고 피�
 test("주간 칸의 완료와 수정은 별도 버튼이며 빠른 실제 확인과 노력 요약을 표시한다",context=>{
   context.mock.timers.enable({apis:["Date"],now});const b=block(),app=state(b),doc=pet(),times=plannerExecutionTimes(b,date);
   const grid=renderToStaticMarkup(<ScheduleWorkspace state={app} busy={false} onSave={async()=>{}} onGenerate={()=>{}} onSettings={()=>{}} onRecord={async()=>{}}/>);
-  assert.match(grid,/sp-event-complete/);assert.match(grid,/sp-event-open/);assert.match(grid,/일정 완료/);
+  assert.match(grid,/sp-day-item/);assert.match(grid,/routine-check/);assert.match(grid,/일정 완료/);assert.match(grid,/전체 시간표 편집/);assert.ok(!grid.includes('class="sp-grid week'));
   let depth=0;for(const tag of grid.match(/<\/?button\b[^>]*>/g)??[]){depth+=tag.startsWith("</")?-1:1;assert.ok(depth>=0&&depth<=1,"nested button");}assert.equal(depth,0);
   const quick=renderToStaticMarkup(<PlannerCompletionDialog draft={{source:{kind:"planner",id:b.id,date},title:b.title,type:"study",minutes:30,planned:times}} document={doc} busy={false} onSave={async()=>{}} onLater={async()=>{}} onDetailed={()=>{}} onClose={()=>{}}/>);
   assert.match(quick,/예정대로 했어요/);assert.match(quick,/일부 했어요/);assert.match(quick,/체크만 저장/);

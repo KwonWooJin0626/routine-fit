@@ -7,6 +7,8 @@ export const userStates = pgTable("user_states", {
   updatedAt: text("updated_at").notNull(),
 });
 
+export const supplementJournals=pgTable("supplement_journals",{userId:text("user_id").primaryKey().references(()=>userStates.userId,{onDelete:"cascade"}),payload:text("payload").notNull(),revision:integer("revision").notNull().default(1),updatedAt:text("updated_at").notNull()});
+
 export const recommendationProfiles=pgTable("recommendation_profiles",{userId:text("user_id").primaryKey().references(()=>userStates.userId,{onDelete:"cascade"}),payload:text("payload").notNull(),revision:integer("revision").notNull().default(1),updatedAt:text("updated_at").notNull()});
 
 // Server-owned execution ledger, rules and snapshots share one locked aggregate.
