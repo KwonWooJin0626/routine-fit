@@ -2,11 +2,11 @@
 import { useState } from "react";
 import type { Answers, Checkin, Day } from "@/lib/model";
 import { checkinSchema } from "@/lib/model";
-import { Input } from "./forms";
+import { Dialog,Input } from "./forms";
 import { ChoiceButtons } from "./choice-buttons";
 import { QuestionFrame } from "./question-frame";
 
-export function DailyCheckin({initial,style,hasActivities=false,onPlan,busy,error,onSubmit,onClose,preview}:{initial:Checkin;hasActivities?:boolean;onPlan?:()=>void;style:Answers["planningStyle"];busy:boolean;error:string;onSubmit:(c:Checkin)=>void;onClose:()=>void;preview:(c:Checkin)=>Day}){
+function DetailedCheckin({initial,style,hasActivities=false,onPlan,busy,error,onSubmit,onClose,preview}:{initial:Checkin;hasActivities?:boolean;onPlan?:()=>void;style:Answers["planningStyle"];busy:boolean;error:string;onSubmit:(c:Checkin)=>void;onClose:()=>void;preview:(c:Checkin)=>Day}){
   const [c,set]=useState<Checkin>(initial),[step,setStep]=useState(0),[notice,setNotice]=useState("");
   const update=<K extends keyof Checkin>(key:K,value:Checkin[K])=>set(s=>({...s,[key]:value}));
   const planned=style==="planned",total=hasActivities?4:planned?5:8;
@@ -32,4 +32,20 @@ export function DailyCheckin({initial,style,hasActivities=false,onPlan,busy,erro
     {step===total-1&&<details className="question-help"><summary>루틴 미리보기</summary><ul>{preview(c).routines.map(r=><li key={r.id}>{r.title} · {r.minutes}분</li>)}</ul><p>완료·직접 추가한 루틴은 유지해요. 저장 후 오늘의 루틴으로 이동해요.</p></details>}
     </>}
   </QuestionFrame>;
+}
+
+export function paceCheckin(initial:Checkin,pace:"light"|"usual"|"more"):Checkin{
+  return {...initial,pace,minutes:pace==="light"?Math.max(5,Math.min(initial.minutes,10)):pace==="more"?Math.min(240,Math.max(30,initial.minutes)):initial.minutes,activityMode:pace==="light"?"light":"same"};
+}
+export function DailyCheckin(props:Parameters<typeof DetailedCheckin>[0]){
+  const [detailed,setDetailed]=useState(false),[pace,setPace]=useState<"light"|"usual"|"more">(props.initial.pace??"usual");
+  if(detailed)return <DetailedCheckin {...props}/>;
+  const draft=paceCheckin(props.initial,pace),result=props.preview(draft);
+  return <Dialog title="오늘은 어느 정도로 해볼까요?" subtitle="설문 없이도 추천을 볼 수 있어요. 바꾸고 싶은 날에만 조절하세요." onClose={props.onClose}>
+    <ChoiceButtons label="오늘 원하는 활동 페이스" value={pace} options={{light:"가볍게",usual:"평소대로",more:"조금 더"}} onChange={v=>setPace(v as typeof pace)}/>
+    <p className="question-small">원하는 분량이에요. 수면·에너지·스트레스 측정값으로 저장하지 않아요.</p>
+    <div className="pace-preview"><b>추천 미리보기 · 총 {draft.minutes}분 이내</b><ul>{result.routines.map(r=><li key={r.id}>{r.title}<span>{r.minutes}분</span></li>)}</ul><small>완료한 활동과 직접 담은 루틴은 유지해요.</small></div>
+    {props.error&&<p className="form-error" role="alert">{props.error}</p>}
+    <div className="dialog-actions"><button type="button" className="text-link" onClick={()=>setDetailed(true)}>컨디션도 자세히 알려주기 (선택)</button><button className="button primary" disabled={props.busy} onClick={()=>props.onSubmit(draft)}>이 분량으로 추천받기</button></div>
+  </Dialog>;
 }

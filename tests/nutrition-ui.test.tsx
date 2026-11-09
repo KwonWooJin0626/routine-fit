@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NutritionGuide } from "../components/nutrition-guide";
 import { DailyCheckin } from "../components/daily-checkin";
-import { defaultAnswers, defaultSchedule, initialCheckin, type AppState } from "../lib/model";
+import { defaultAnswers, defaultSchedule, initialCheckin, type AppState,type Checkin } from "../lib/model";
 import { buildDay } from "../lib/engine";
 
 const answers={...defaultAnswers,name:"합성 화면"};
@@ -17,9 +17,9 @@ test("영양정보 미동의는 후보·제품 탐색을 노출하지 않는다"
   const html=renderToStaticMarkup(<NutritionGuide state={{...state,answers:{...answers,supplementOptIn:false}}} busy={false} onSave={async()=>{}} onEdit={()=>{}}/>);
   assert.ok(!html.includes("다른 영양소·보충 성분 둘러보기"));
 });
-test("즉흥형과 계획형 체크인은 다른 진입 설명과 단계를 사용한다",()=>{
-  const c=initialCheckin(answers),props={initial:c,busy:false,error:"",onSubmit(){},onClose(){},preview:()=>buildDay(answers,c,"core",defaultSchedule)};
-  const quick=renderToStaticMarkup(<DailyCheckin {...props} style="spontaneous"/>);
+test("즉흥형과 계획형 모두 한 문항 페이스로 시작하고 상세 컨디션은 선택한다",()=>{
+  const props={initial:initialCheckin(defaultAnswers),busy:false,error:"",onSubmit:()=>{},onClose:()=>{},preview:(c:Checkin)=>buildDay(defaultAnswers,c,"core",defaultSchedule)};
+  const html=renderToStaticMarkup(<DailyCheckin {...props} style="spontaneous"/>);
   const planned=renderToStaticMarkup(<DailyCheckin {...props} style="planned"/>);
-  assert.ok(quick.includes("CHECK-IN 1 / 8"));assert.ok(planned.includes("CHECK-IN 1 / 5"));assert.ok(planned.includes("등록된 일정은 다시 묻지 않아요"));
+  for(const view of [html,planned]){assert.match(view,/원하는 활동 페이스/);assert.match(view,/자세히 알려주기/);assert.doesNotMatch(view,/CHECK-IN 1 \/ 8/);}
 });

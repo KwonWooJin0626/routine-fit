@@ -1,4 +1,7 @@
 "use client";
+import type { NutritionProfile } from "@/lib/nutrition-profile";
+import { allergenLabels } from "@/lib/nutrition-profile";
+import { Dialog } from "./forms";
 import { useState } from "react";
 import type { Answers } from "@/lib/model";
 import { emptyBasicProfile, growthGoals } from "@/lib/basic-profile";
@@ -20,13 +23,11 @@ export function RefinementSurvey({initial,busy,error,onComplete,onClose}:{initia
 const safetyItems=[
   ["conditions","현재 관리 중인 질환이 있나요?"],["medicines","현재 복용 중인 약이 있나요?"],["pregnancy","임신·수유 중이거나 임신을 준비 중인가요?"],["surgery","수술을 앞두고 있나요?"],["allergy","음식·약·영양제 알레르기가 있나요?"],
 ] as const;
-export function SafetySurvey({initial,busy,error,onComplete,onClose}:{initial:Answers;busy:boolean;error:string;onComplete:(a:Answers)=>void;onClose:()=>void}){
-  const [step,setStep]=useState(0),[values,set]=useState<Record<string,string>>({}),[confirmed,setConfirmed]=useState(false);
-  return <QuestionFrame step={step} total={7} title={step<5?safetyItems[step][1]:step===5?"연령대를 확인할까요?":"확인한 정보로 영양 안내를 이어갈까요?"} hint={step<5?"제품을 비교하기 전에 필요한 확인이에요. 모르면 ‘잘 모르겠어요’를 선택하세요.":"이 확인만으로 모든 약물 상호작용이나 실제 상품의 안전성을 검사한 것은 아니에요."} onClose={onClose} onBack={step?()=>setStep(s=>s-1):undefined} busy={busy} error={error} disabled={step<5?!values[safetyItems[step][0]]:step===5?!values.age:!confirmed} nextLabel={step===6?"확인 정보 저장":"다음"} onNext={()=>{
-    if(step<6){setStep(s=>s+1);return;}
+export function SafetySurvey({initial,nutrition,busy,error,onComplete,onClose}:{nutrition?:NutritionProfile;initial:Answers;busy:boolean;error:string;onComplete:(a:Answers)=>void;onClose:()=>void}){
+  const [values,set]=useState<Record<string,string>>(()=>({...initial.safetyResponses??Object.fromEntries([...safetyItems.map(([k])=>[k,initial.safetyReviewed?(initial[k]?"yes":initial.uncertainSafety?"unknown":"no"):"unknown"]),["age",initial.basic?.nutritionAgeKnown?initial.age:"unknown"]]),...(nutrition?.allergyStatus==="known"?{allergy:"yes"}:{})})),[confirmed,setConfirmed]=useState(false);
+  const save=()=>{
     const patch=Object.fromEntries(safetyItems.map(([k])=>[k,values[k]==="yes"]));
-    onComplete({...initial,...patch,...(values.age!=="unknown"?{age:values.age as Answers["age"]}:{}),...(initial.basic?{basic:{...initial.basic,nutritionAgeKnown:values.age!=="unknown"}}:{}),uncertainSafety:Object.values(values).includes("unknown"),safetyReviewed:true,supplementOptIn:true});
-  }}>
-    {step<5?<ChoiceButtons label="현재 상태" value={values[safetyItems[step][0]]??""} options={{no:"없어요",yes:"있어요",unknown:"잘 모르겠어요"}} onChange={v=>set(p=>({...p,[safetyItems[step][0]]:v}))}/>:step===5?<ChoiceButtons label="현재 연령대" value={values.age??""} options={{"18-29":"18~29세","30-39":"30~39세","40-49":"40~49세","50-64":"50~64세","65+":"65세 이상",unknown:"답하지 않을게요"}} onChange={age=>set(p=>({...p,age}))}/>:<><label className="check-choice"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>직접 답변을 확인했고, 일반적인 영양 정보 제공을 원해요.</label><p className="question-small">우려되는 조건이나 미확인 항목이 있으면 제품 연결을 보류해요. 음식 알레르기와 현재 제품의 함량도 별도로 확인해야 해요.</p></>}
-  </QuestionFrame>;
+    onComplete({...initial,...patch,safetyResponses:values,...(values.age!=="unknown"?{age:values.age as Answers["age"]}:{}),...(initial.basic?{basic:{...initial.basic,nutritionAgeKnown:values.age!=="unknown"}}:{}),uncertainSafety:Object.values(values).includes("unknown"),safetyReviewed:true,supplementOptIn:true});
+  };
+  return <Dialog title="저장된 안전 정보 확인" subtitle="기존 답변을 불러왔어요. 바뀐 내용만 수정하세요. 일반 성분 정보와 검색 링크는 별도로 이용할 수 있어요." onClose={onClose} wide>{nutrition?.allergyStatus==="known"&&<p className="note">저장한 식품 알레르기: {nutrition.allergens.map(k=>allergenLabels[k]).join(" · ")}. 식품·제품 비교에 같은 정보를 재사용해요.</p>}<div className="shared-safety-grid">{safetyItems.map(([key,label])=><ChoiceButtons key={key} label={label} value={values[key]??"unknown"} options={{no:"없어요",yes:"있어요",unknown:"미확인"}} onChange={v=>set(old=>({...old,[key]:v}))}/>)}</div><details className="optional-questions"><summary>연령 정보 확인</summary><ChoiceButtons label="현재 연령대" value={values.age??"unknown"} options={{"18-29":"18~29세","30-39":"30~39세","40-49":"40~49세","50-64":"50~64세","65+":"65세 이상",unknown:"미확인"}} onChange={age=>set(p=>({...p,age}))}/></details><p className="question-small">모르는 항목은 그대로 남겨요. 실제 상품의 원료·함량·약물 상호작용을 모두 검사하는 기능은 아니에요.</p><label className="check-choice"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>위 정보가 현재 상태와 맞는지 직접 확인했어요.</label>{error&&<p role="alert" className="form-error">{error}</p>}<div className="dialog-actions"><button type="button" className="button primary" disabled={busy||!confirmed} onClick={save}>변경 내용 저장</button></div></Dialog>;
 }

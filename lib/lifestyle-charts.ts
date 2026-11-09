@@ -1,3 +1,4 @@
+import { humanDocument } from "./activity-journal";
 import type { AppState } from "./model";
 import { addDate,mondayOf,occurrencesInWindow,activeOccurrenceSpans } from "./planner";
 import { plannerCategories,type PlannerBlock } from "./planner-model";
@@ -21,11 +22,11 @@ export function timeCategoryColor(key:TimeCategory,state:AppState){
   return {sleep:"#7B74B4",leisure:"#7C9F70",other:"#8392A5",overlap:"#B9404A",unregistered:"#E5EAF0"}[key as keyof typeof extraLabels];
 }
 export function plannedTimeSpans(state:AppState,date:string):TimeSpan[]{
-  return occurrencesInWindow(state.planner,date).flatMap(o=>activeOccurrenceSpans(o,date).map(span=>({...span,id:`${o.block.id}:${o.date}`,title:o.block.title,category:o.block.category,mental:o.block.mental,physical:o.block.physical})));
+  return occurrencesInWindow(state.planner,date).flatMap(o=>activeOccurrenceSpans(o,date).map(span=>({...span,id:`${o.block.id}:${o.date}`,title:o.block.title,category:o.block.category,mental:["user","template"].includes(o.block.mentalSource??"")&&["user","template"].includes(o.block.physicalSource??"")?o.block.mental:undefined,physical:["user","template"].includes(o.block.mentalSource??"")&&["user","template"].includes(o.block.physicalSource??"")?o.block.physical:undefined})));
 }
 export function actualTimeSpans(state:AppState,date:string,pet?:PetDocument|null):TimeSpan[]{
   const start=Date.parse(`${date}T00:00:00+09:00`),end=start+86400000,seen=new Set<string>();
-  return (pet?.records??[]).flatMap(record=>{
+  return humanDocument(state,pet).records.flatMap(record=>{
     if(record.cancelled||seen.has(record.id))return [];seen.add(record.id);
     const linked=[...new Set(record.sources.filter(s=>s.kind==="planner").flatMap(s=>{const b=state.planner?.blocks.find(b=>b.id===s.id);return b?[b.category]:[];}))];
     const category=linked.length===1?linked[0]:typeCategory[record.type];
@@ -50,7 +51,7 @@ export function partitionTime(spans:TimeSpan[],date:string){
   return {totals,activities,occupied,overlap};
 }
 export function plannedLoad(spans:TimeSpan[],from=0,until=1440){
-  const clipped=spans.filter(s=>s.from<until&&s.until>from),points=[...new Set([from,until,...clipped.flatMap(s=>[Math.max(from,s.from),Math.min(until,s.until)])])].sort((a,b)=>a-b);
+  const clipped=spans.filter(s=>s.from<until&&s.until>from&&s.mental!==undefined&&s.physical!==undefined),points=[...new Set([from,until,...clipped.flatMap(s=>[Math.max(from,s.from),Math.min(until,s.until)])])].sort((a,b)=>a-b);
   let occupied=0,mentalSum=0,physicalSum=0,highMinutes=0;
   for(let i=0;i<points.length-1;i++){
     const length=points[i+1]-points[i],active=clipped.filter(s=>s.from<points[i+1]&&s.until>points[i]);if(!active.length)continue;

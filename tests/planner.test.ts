@@ -14,9 +14,9 @@ import { applyBlockEdit,editSavedBlockPlans,blockContentSchema,type BlockEditReq
 import { calendarRows,calendarEventRect,SLOT_HEIGHT,GAP_HEIGHT } from "../lib/planner-grid";
 
 const a={...defaultAnswers,name:"계획 테스트"},c=initialCheckin(a),date="2026-10-15";
-const block=(overrides:Partial<PlannerBlock>={}):PlannerBlock=>({id:"class-1",title:"수업",category:"study",location:"강의실",task:"팀 프로젝트",start:"09:00",end:"11:00",mental:3,physical:2,shade:1,kind:"fixed",date:"2026-10-12",weekdays:[1,4],excludedDates:[],...overrides});
+const block=(overrides:Partial<PlannerBlock>={}):PlannerBlock=>({id:"class-1",title:"수업",mentalSource:"user",physicalSource:"user",category:"study",location:"강의실",task:"팀 프로젝트",start:"09:00",end:"11:00",mental:3,physical:2,shade:1,kind:"fixed",date:"2026-10-12",weekdays:[1,4],excludedDates:[],...overrides});
 
-const editRequest=(overrides:Partial<BlockEditRequest>={}):BlockEditRequest=>({groupId:"family",blockIds:["class-1","override"],templateIds:["template"],content:{title:"프로젝트 실습",category:"work",location:"새 강의실",task:"발표 준비",mental:5,physical:4,shade:3},...overrides});
+const editRequest=(overrides:Partial<BlockEditRequest>={}):BlockEditRequest=>({groupId:"family",blockIds:["class-1","override"],templateIds:["template"],content:{title:"프로젝트 실습",mentalSource:"user",physicalSource:"user",category:"work",location:"새 강의실",task:"발표 준비",mental:5,physical:4,shade:3},...overrides});
 const previewState=():AppState=>({version:1,consentAt:"2026-10-15T00:00:00.000Z",consentVersion:"2026-10-v1",answers:a,schedule:defaultSchedule,inbody:[],days:[buildPlannedDay(a,c,"core",defaultSchedule,[],undefined,date)]});
 test("미리보기는 선택 날짜의 반복·추가 일정과 부담을 반영하고 오늘 기록을 변경하지 않는다",()=>{
   const state=previewState();state.planner={...emptyPlanner(),blocks:[block(),block({id:"future",kind:"once",date:"2026-10-16",start:"09:00",end:"18:00",mental:5,physical:5,breakStart:"12:00",breakEnd:"13:00"})]};

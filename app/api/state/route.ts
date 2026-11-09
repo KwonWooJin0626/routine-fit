@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth";
 import { getDb } from "@/db";
 import { userStates,petCompanions } from "@/db/schema";
 import { stateSchema } from "@/lib/model";
+import { humanDocument } from "@/lib/activity-journal";
 import { protectsPetRecords } from "@/lib/pet-actions";
 import { readPetDocument } from "@/lib/pet-repository";
 import { createStateHandlers, type StateRepository } from "@/lib/state-api";
@@ -15,6 +16,8 @@ const repository: StateRepository = {
   },
   async save(userId, payload, expectedRevision,intent) {
     const db = getDb();
+    const requested=stateSchema.parse(JSON.parse(payload));
+    if(expectedRevision===0&&requested.activityJournal)return null;
     const updatedAt = new Date().toISOString();
     if (expectedRevision === 0) {
       return db.transaction(async tx=>{const rows = await tx.insert(userStates).values({ userId, payload, updatedAt, revision: 1 }).onConflictDoNothing().returning({ revision: userStates.revision });if(rows[0])await syncStoredRecommendations(tx,userId,null,stateSchema.parse(JSON.parse(payload)),intent);return rows[0]?.revision??null;});
@@ -23,7 +26,9 @@ const repository: StateRepository = {
       const [old]=await tx.select().from(userStates).where(eq(userStates.userId,userId)).for("update");
       if(!old||old.revision!==expectedRevision)return null;
       const [pet]=await tx.select().from(petCompanions).where(eq(petCompanions.userId,userId));
-      if(!protectsPetRecords(stateSchema.parse(JSON.parse(old.payload)),stateSchema.parse(JSON.parse(payload)),pet?readPetDocument(pet.payload):null))return null;
+      const before=stateSchema.parse(JSON.parse(old.payload)),after=stateSchema.parse(JSON.parse(payload));
+      if(JSON.stringify(before.activityJournal)!==JSON.stringify(after.activityJournal))return null;
+      if(!protectsPetRecords(before,after,humanDocument(before,pet?readPetDocument(pet.payload):null)))return null;
       const rows=await tx.update(userStates).set({payload,updatedAt,revision:expectedRevision+1}).where(and(eq(userStates.userId,userId),eq(userStates.revision,expectedRevision))).returning({revision:userStates.revision});
       if(rows[0])await syncStoredRecommendations(tx,userId,stateSchema.parse(JSON.parse(old.payload)),stateSchema.parse(JSON.parse(payload)),intent);
       return rows[0]?.revision??null;

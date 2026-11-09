@@ -9,7 +9,7 @@ import { executionMinutes } from "@/lib/pet-execution";
 const durationPresets=[5,10,20,30,60,90];
 
 export type ExecutionDraft={source:PetSource;title:string;type:EffectType;minutes:number;status?:"done"|"partial";existing?:PetExecution;start?:string;end?:string;fixedSleep?:boolean;detailed?:boolean;planned?:{start:string;end:string;breaks?:{start:string;end:string}[]}};
-export function ExecutionConfirmDialog({draft,document,busy,onSave,onLater,onClose}:{draft:ExecutionDraft;document:PetDocument;busy:boolean;onSave:(command:PetCommand)=>Promise<void>;onLater?:()=>Promise<void>;onClose:()=>void}){
+export function ExecutionConfirmDialog({draft,document,companion=true,currentFullness,busy,onSave,onLater,onClose}:{draft:ExecutionDraft;document:PetDocument;companion?:boolean;currentFullness?:number;busy:boolean;onSave:(command:PetCommand)=>Promise<void>;onLater?:()=>Promise<void>;onClose:()=>void}){
   const old=draft.existing,[initialEnd]=useState(()=>old?.end??draft.planned?.end??draft.end??new Date().toISOString());
   const [title,setTitle]=useState(old?.title??draft.title),[type,setType]=useState<EffectType>(old?.type??draft.type),[minutes,setMinutes]=useState(String(old?Math.round(executionMinutes(old)):draft.minutes||10));
   const [initialStart]=useState(()=>old?.start??draft.start??new Date(Date.parse(initialEnd)-(draft.minutes||10)*60000).toISOString());
@@ -54,7 +54,7 @@ export function ExecutionConfirmDialog({draft,document,busy,onSave,onLater,onClo
     {!old&&choices.length>0&&<details><summary>이미 기록한 같은 활동과 연결하기</summary><p>루틴과 계획표가 같은 실제 활동이라면 한 기록으로 연결해요. 시간·성장을 중복 반영하지 않아요.</p><Select label="연결할 실제 수행" value={linkTo} options={{"":"새로운 수행 기록",...Object.fromEntries(choices.map(r=>[r.id,`${r.title} · ${petTime(r.end)}`]))}} onChange={setLinkTo}/></details>}
     {error&&<p className="form-error" role="alert">{error}</p>}
     <div className="pet-form-actions"><button className="button primary" disabled={busy} onClick={()=>void submit()}>{busy?"저장 중…":linkTo?"같은 활동으로 연결":draft.status==="partial"?"일부 수행으로 반영":"실제 수행으로 반영"}</button>{!old&&onLater&&<button className="button secondary" disabled={busy} onClick={async()=>{try{await onLater();onClose();}catch(e){setError((e as Error).message);}}}>시간은 나중에 · 체크만 저장</button>}{old&&<button className="button danger" disabled={busy} onClick={async()=>{try{await onSave({action:"cancel",id:old.id});onClose();}catch(e){setError((e as Error).message);}}}>이 수행 기록 취소</button>}</div>
-    {type==="meal"&&fullness&&<p className="note">현재 포만감 {calculatePet(document).stats.fullness.toFixed(1)} → 식사 시각에 {fullness}로 설정. 이후 경과 시간만큼 다시 줄어요.</p>}
-    <small className="muted">함께 시작한 {petTime(document.adoptedAt)} 이후 구간만 성장에 반영해요. 휴식이 섞였다면 수행한 구간만 나누어 기록해주세요. 수정·취소하면 이후 성장과 상태도 다시 계산해요.</small></div>
+    {companion&&type==="meal"&&fullness&&<p className="note">현재 포만감 {currentFullness?.toFixed(1)??"—"} → 식사 시각에 {fullness}로 설정. 이후 경과 시간만큼 다시 줄어요.</p>}
+    <small className="muted">{companion?"강아지와 함께 시작한 이후 구간만 성장에 반영해요.":"강아지 없이도 실제 활동 기록과 분석을 사용할 수 있어요."} 휴식이 섞였다면 수행한 구간만 나누어 기록해주세요. 수정·취소하면 이후 성장과 상태도 다시 계산해요.</small></div>
   </Dialog>;
 }

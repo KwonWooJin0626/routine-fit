@@ -69,7 +69,7 @@ test("분야 하나만 먼저 저장하고 다른 분야의 미확정 답변 없
   assert.equal(first.profiles.length,1);assert.deepEqual(first.pendingDomains,["reading"]);
   const s={...state([]),answers:{...answers([]),activities:first}},parsed=stateSchema.parse(JSON.parse(JSON.stringify(s)));
   const html=renderToStaticMarkup(<ActivityWizard onMediaSave={async()=>{}} state={parsed} busy={false} error="" onComplete={async()=>buildDay(s.answers,initialCheckin(s.answers),"core",defaultSchedule)} onClose={()=>{}} onPlan={()=>{}}/>);
-  assert.match(html,/독서에서 원하는 변화/);assert.doesNotMatch(html,/어떤 방식으로 시작/);
+  assert.match(html,/먼저, 마음에 드는 활동/);assert.match(html,/추천 활동 후보/);assert.doesNotMatch(html,/어떤 방식으로 시작/);
   const second=checkpointActivity(parsed.answers.activities,profile("reading"),["exercise","reading"],"routine");
   assert.equal(second.profiles.length,2);assert.deepEqual(second.pendingDomains,[]);assert.deepEqual(second.profiles.find(p=>p.domain==="exercise"),first.profiles[0]);
   const invalid={...first,pendingDomains:["study"]};assert.ok(!activityPreferencesSchema.safeParse(invalid).success);
@@ -124,7 +124,7 @@ test("기존 계정은 추가 질문 없이 열리고 첫 화면은 두 시작 �
   const legacy=state([]);delete legacy.answers.activities;
   assert.ok(stateSchema.safeParse(legacy).success);
   const html=renderToStaticMarkup(<ActivityWizard onMediaSave={async()=>{}} state={legacy} busy={false} error="" onComplete={async()=>buildDay(legacy.answers,initialCheckin(legacy.answers),"core",defaultSchedule)} onClose={()=>{}} onPlan={()=>{}}/>);
-  assert.match(html,/먼저 루틴 추천받기/);assert.match(html,/일정에 맞춰 추천받기/);assert.doesNotMatch(html,/BMI/);
+  assert.match(html,/어떤 분야부터 챙기고 싶나요/);assert.match(html,/후보가 바로 나와요/);assert.doesNotMatch(html,/BMI/);
   const s=state([profile("reading")]);s.days=[buildDay(s.answers,initialCheckin(s.answers),"core",defaultSchedule,[],undefined,date)];s.days[0].statuses[s.days[0].routines[0].id]="done";
   const goals=renderToStaticMarkup(<ActivityGoals state={s} busy={false} onRefine={()=>{}} onPlan={()=>{}}/>);assert.match(goals,/직접 기록한 실제 시간/);assert.doesNotMatch(goals,/<strong>30분/);
 });

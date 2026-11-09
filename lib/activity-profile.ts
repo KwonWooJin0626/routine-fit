@@ -20,7 +20,7 @@ export const activityFeedbackSchema=z.object({
 });
 export type ActivityFeedback=z.infer<typeof activityFeedbackSchema>;
 export const activityProfileSchema=z.object({
-  domain:z.enum(domainIds),enabled:z.boolean(),goal:z.string().max(30),
+  questionFlow:z.literal("quick-v1").optional(),domain:z.enum(domainIds),enabled:z.boolean(),goal:z.string().max(30),
   current:z.enum(["none","sometimes","regular","unknown","profile"]),
   daily:z.number().int().min(5).max(120),weekly:z.number().int().min(5).max(840).nullable(),
   dailySource:z.enum(["self","proposal"]),weeklySource:z.enum(["self","planner","proposal","none"]),
@@ -32,7 +32,7 @@ export const activityProfileSchema=z.object({
   if(new Set(v.days).size!==v.days.length)c.addIssue({code:"custom",message:"요일이 중복됐어요."});
   if(v.weekly!==null&&(v.weekly>v.daily*v.days.length||v.weekly<5*v.days.length))c.addIssue({code:"custom",message:"주간 목표를 선택한 요일에 나눌 수 없어요. 하루 시간·주간 목표·요일을 조정해주세요."});
   const compatibility=activityCompatibility(v);if(compatibility)c.addIssue({code:"custom",message:compatibility});
-  for(const q of [...baseActivityQuestions[v.domain],...(activityDefinition(v)?.questions??[])]){
+  for(const q of [...(v.questionFlow==="quick-v1"?[]:baseActivityQuestions[v.domain]),...(activityDefinition(v)?.questions??[])]){
     if(q.options){const values=q.multiple?selectedEquipment(v.fields[q.key]):[v.fields[q.key]];if(!values.length||new Set(values).size!==values.length||values.some(value=>!Object.hasOwn(q.options!,value))||(q.multiple&&values.includes("none")&&values.length>1))c.addIssue({code:"custom",message:`‘${q.title}’의 답변을 확인해주세요.`});}
     if(q.type==="date"&&v.fields[q.key]&&(!/^\d{4}-\d{2}-\d{2}$/.test(v.fields[q.key])||Number.isNaN(new Date(`${v.fields[q.key]}T12:00Z`).getTime())||new Date(`${v.fields[q.key]}T12:00Z`).toISOString().slice(0,10)!==v.fields[q.key]))c.addIssue({code:"custom",message:"마감 날짜를 확인해주세요."});
   }

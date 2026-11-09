@@ -4,7 +4,7 @@ import { and,eq,lt,desc } from "drizzle-orm";
 import { getDb } from "@/db";
 import { sleepProfiles,sleepRecords,sleepDeliveries,userStates } from "@/db/schema";
 import { syncPetSleep } from "./pet-repository";
-import { sleepSettingsSchema,koreanDate,shiftDate,type SleepRecord } from "./sleep";
+import { defaultSleepSettings,sleepSettingsSchema,koreanDate,shiftDate,type SleepRecord } from "./sleep";
 import { readSleepToken } from "./sleep-token";
 import type { SleepRepository } from "./sleep-api";
 
@@ -26,6 +26,7 @@ export const sleepRepository:SleepRepository={
   async checkin(userId,value){
     return getDb().transaction(async tx=>{
     await tx.select().from(userStates).where(eq(userStates.userId,userId)).for("update");
+    await tx.insert(sleepProfiles).values({userId,settings:JSON.stringify({...defaultSleepSettings(),goalEnabled:false}),email:"",revision:1,updatedAt:value.checkedAt}).onConflictDoNothing();
     const rows=await tx.insert(sleepRecords).values({...value,id:recordId(userId,value.sessionDate,value.kind),userId}).onConflictDoNothing().returning();
     if(rows[0])return record(rows[0]);
     const old=await tx.select().from(sleepRecords).where(and(eq(sleepRecords.id,recordId(userId,value.sessionDate,value.kind)),eq(sleepRecords.userId,userId))).limit(1);

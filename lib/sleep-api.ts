@@ -1,4 +1,4 @@
-import { sleepSettingsSchema,sleepCheckinSchema,sleepCorrectionSchema,plannedSleepTime,sleepSessionDate,validateActualAt,type SleepSettings,type SleepRecord } from "./sleep";
+import { defaultSleepSettings,sleepSettingsSchema,sleepCheckinSchema,sleepCorrectionSchema,plannedSleepTime,sleepSessionDate,validateActualAt,type SleepSettings,type SleepRecord } from "./sleep";
 import { PetError } from "./pet-model";
 
 export type SleepProfile={settings:SleepSettings;revision:number;email:string};
@@ -32,9 +32,9 @@ export function createSleepHandlers(identity:()=>Promise<SleepIdentity|null>,rep
       try{const raw=await request.text();if(raw.length>4000)return response({error:"입력이 너무 길어요."},413);input=sleepCheckinSchema.parse(JSON.parse(raw));}catch{return response({error:"체크인 내용을 확인해주세요."},400);}
       try{
         const now=clock();if(input.token){const record=await repo.emailCheckin(user.userId,input.token,now);return record?response({record}):response({error:"만료·사용되었거나 현재 계정과 다른 확인 링크예요. 웹 체크인을 이용해주세요."},400);}
-        const {profile}=await repo.get(user.userId);if(!profile)return response({error:"취침·기상 목표를 먼저 저장해주세요."},400);
+        const {profile}=await repo.get(user.userId),settings=profile?.settings??defaultSleepSettings(),hasTarget=!!profile&&settings.goalEnabled!==false;
         if(input.actualAt&&!validateActualAt(input.actualAt,now.toISOString(),now))return response({error:"실제 시각은 미래이거나 확인 시각과 너무 멀 수 없어요."},400);
-        const date=sleepSessionDate(input.kind,now,profile.settings),record:SleepRecord={id:`${date}-${input.kind}`,sessionDate:date,kind:input.kind,plannedAt:plannedSleepTime(date,input.kind,profile.settings),checkedAt:now.toISOString(),actualAt:input.actualAt??null,method:input.kind==="bed"&&profile.settings.bedReference==="alarm-setting"?"alarm-setting":"web",updatedAt:now.toISOString()};
+        const date=sleepSessionDate(input.kind,now,settings),record:SleepRecord={id:`${date}-${input.kind}`,sessionDate:date,kind:input.kind,plannedAt:hasTarget?plannedSleepTime(date,input.kind,settings):now.toISOString(),checkedAt:now.toISOString(),actualAt:input.actualAt??null,method:!hasTarget?"web-no-target":input.kind==="bed"&&settings.bedReference==="alarm-setting"?"alarm-setting":"web",updatedAt:now.toISOString()};
         return response({record:await repo.checkin(user.userId,record)});
       }catch{return response({error:"체크인을 저장하지 못했어요. 다시 시도해주세요."},503);}
     },

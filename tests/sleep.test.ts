@@ -32,9 +32,9 @@ test("메일 예약은 선택한 기상 요일·10분 유효 구간만 사용하
   assert.equal(dueSleepEvents({...s,emailEnabled:false},now).length,0);
   assert.equal(dueSleepEvents({...s,weekdays:[1]},now).length,0);
 });
-test("GET과 목표 저장만으로 체크인이 생성되지 않고 설정 없는 직접 체크인은 거절한다",async()=>{
+test("GET과 목표 저장은 체크인을 만들지 않고 목표 없는 직접 체크인은 허용한다",async()=>{
   const s=setup();assert.equal((await s.handlers.GET()).status,200);assert.equal(s.records.size,0);
-  assert.equal((await s.handlers.POST(request("POST",{kind:"wake"}))).status,400);
+  const direct=await (await s.handlers.POST(request("POST",{kind:"wake"}))).json();assert.equal(direct.record.method,"web-no-target");assert.equal(direct.record.actualAt,null);s.records.clear();
   assert.equal((await s.handlers.PUT(request("PUT",{settings:defaultSleepSettings(),revision:0}))).status,200);assert.equal(s.records.size,0);
   assert.equal((await s.handlers.PUT(request("PUT",{settings:defaultSleepSettings(),revision:0}))).status,409);
 });

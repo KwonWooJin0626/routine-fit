@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { activityJournalSchema } from "./activity-journal-model";
 import { mediaProfileSchema } from "./media";
 import { plannerSchema, plannerDateSchema } from "./planner-model";
 import { nutritionProfileSchema } from "./nutrition-profile";
@@ -9,6 +10,7 @@ import { recommendationMetaSchema } from "./recommendation-model";
 export const answersSchema = z.object({
   basic: basicProfileSchema.optional(),
   activities: activityPreferencesSchema.optional(),
+  safetyResponses:z.record(z.enum(["conditions","medicines","pregnancy","surgery","allergy","age"]),z.string().max(20)).optional(),
   name: z.string().trim().min(1).max(24),
   planningStyle: z.enum(["spontaneous","planned"]).optional(),
   age: z.enum(["18-29", "30-39", "40-49", "50-64", "65+"]),
@@ -70,6 +72,7 @@ export const defaultAnswers: Answers = {
   safetyDetails: "", currentSupplements: "", confirmedDeficiency: "",
 };
 export const checkinSchema = z.object({
+  pace:z.enum(["light","usual","more"]).optional(),
   reported:z.boolean().optional(),
   sleepKnown:z.boolean().optional(),
   stressKnown:z.boolean().optional(),
@@ -130,10 +133,11 @@ export const daySchema = z.object({
   statuses: z.record(z.enum(["done", "partial", "skipped"])), notes: z.record(z.string().max(150)).default({}),
   activityFeedback:z.record(z.string().max(100),activityFeedbackSchema).refine(v=>Object.keys(v).length<=20,"활동 기록이 너무 많아요.").optional(),
   checkin: checkinSchema, generation: z.number().int().min(0).max(1000000).optional(), mode: z.enum(["core", "full"]), timeline: z.array(timelineSchema).max(150), warnings: z.array(z.string().max(300)).max(100),
-  planningContext:z.object({date:plannerDateSchema,scheduledMinutes:z.number().min(0).max(1440),mental:z.number().min(1).max(5),physical:z.number().min(1).max(5),effectiveMinutes:z.number().min(0).max(240),importedIds:z.array(z.string().max(80)).max(40)}).optional(),
+  planningContext:z.object({burdenKnown:z.boolean().optional(),date:plannerDateSchema,scheduledMinutes:z.number().min(0).max(1440),mental:z.number().min(1).max(5),physical:z.number().min(1).max(5),effectiveMinutes:z.number().min(0).max(240),importedIds:z.array(z.string().max(80)).max(40)}).optional(),
 });
 export type Day = z.infer<typeof daySchema>;
 export const stateSchema = z.object({
+  activityJournal:activityJournalSchema.optional(),
   media:mediaProfileSchema.optional(),
   version: z.literal(1), consentAt: z.string().datetime(), consentVersion: z.enum(["2026-10-v1","2026-10-growth-v1"]),
   answers: answersSchema, schedule: scheduleSchema, inbody: z.array(inbodySchema).max(30), days: z.array(daySchema).max(90), planner:plannerSchema.optional(),

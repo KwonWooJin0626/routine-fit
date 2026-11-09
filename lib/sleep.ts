@@ -2,11 +2,12 @@ import { z } from "zod";
 
 const time=z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 export const sleepSettingsSchema=z.object({
+  goalEnabled:z.boolean().optional(),
   bed:time,wake:time,weekdays:z.array(z.number().int().min(0).max(6)).min(1).max(7).refine(v=>new Set(v).size===v.length),
   timezone:z.literal("Asia/Seoul"),emailEnabled:z.boolean(),bedReference:z.enum(["checkin","alarm-setting"]),
 }).refine(v=>v.bed!==v.wake,{message:"취침·기상 목표를 서로 다르게 선택해주세요."});
 export type SleepSettings=z.infer<typeof sleepSettingsSchema>;
-export type SleepRecord={id:string;sessionDate:string;kind:"bed"|"wake";plannedAt:string;checkedAt:string;actualAt:string|null;method:"web"|"email"|"alarm-setting";updatedAt:string};
+export type SleepRecord={id:string;sessionDate:string;kind:"bed"|"wake";plannedAt:string;checkedAt:string;actualAt:string|null;method:"web"|"email"|"alarm-setting"|"web-no-target";updatedAt:string};
 export const sleepCheckinSchema=z.object({kind:z.enum(["bed","wake"]),token:z.string().min(40).max(500).optional(),actualAt:z.string().datetime().optional()});
 export const sleepCorrectionSchema=z.object({id:z.string().min(1).max(100),actualAt:z.string().datetime().nullable()});
 export const defaultSleepSettings=(bed="23:00",wake="07:00"):SleepSettings=>({bed,wake,weekdays:[0,1,2,3,4,5,6],timezone:"Asia/Seoul",emailEnabled:false,bedReference:"checkin"});

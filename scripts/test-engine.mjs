@@ -2,8 +2,8 @@ import { build } from "esbuild";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs/promises";
 
-const files = ["engine", "planner", "state-api", "onboarding", "chapter-scroll", "nutrition", "nutrition-ui", "schedule-nutrition", "planner-progress", "planner-placement", "planner-todos", "growth", "activities", "sleep", "pet", "pet-planner", "recommendations", "media", "routine-ml", "supplement-journal"];
+const files = ["engine", "planner", "state-api", "onboarding", "chapter-scroll", "nutrition", "nutrition-ui", "schedule-nutrition", "planner-progress", "planner-placement", "planner-todos", "growth", "activities", "sleep", "pet", "pet-planner", "recommendations", "media", "routine-ml", "supplement-journal", "ux-refresh"];
 await fs.mkdir("outputs/tests", { recursive: true });
-await build({ entryPoints: files.map(name => `tests/${name}.test.${["onboarding","nutrition-ui","schedule-nutrition","planner-todos","growth","activities","pet","pet-planner","media","supplement-journal"].includes(name) ? "tsx" : "ts"}`), bundle: true, jsx: "automatic", external: ["react", "react-dom", "react-dom/server", "lucide-react"], platform: "node", format: "esm", outdir: "outputs/tests", outExtension: { ".js": ".mjs" } });
+await build({ entryPoints: files.map(name => `tests/${name}.test.${["onboarding","nutrition-ui","schedule-nutrition","planner-todos","growth","activities","pet","pet-planner","media","supplement-journal","ux-refresh"].includes(name) ? "tsx" : "ts"}`), bundle: true, jsx: "automatic", external: ["react", "react-dom", "react-dom/server", "lucide-react"], platform: "node", format: "esm", outdir: "outputs/tests", outExtension: { ".js": ".mjs" } });
 const result = spawnSync(process.execPath, ["--test", ...files.map(name => `outputs/tests/${name}.test.mjs`)], { stdio: "inherit" });
 process.exitCode = result.status ?? 1;

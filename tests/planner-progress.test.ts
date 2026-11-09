@@ -5,7 +5,7 @@ import { recordOccurrence } from "../lib/planner-progress";
 import { applyBlockRemoval } from "../lib/planner-removal";
 import { applyBlockEdit } from "../lib/planner-edit";
 
-const block=plannerBlockSchema.parse({id:"repeat",title:"수업",category:"study",location:"강의실",task:"학습",start:"23:00",end:"01:00",mental:3,physical:2,shade:1,kind:"fixed",date:"2026-10-01",weekdays:[4]});
+const block=plannerBlockSchema.parse({id:"repeat",title:"수업",category:"study",location:"강의실",task:"학습",start:"23:00",end:"01:00",mentalSource:"user",physicalSource:"user",mental:3,physical:2,shade:1,kind:"fixed",date:"2026-10-01",weekdays:[4]});
 const planner={...emptyPlanner(),blocks:[block]};
 test("일정 완료는 발생 날짜 단위이며 다른 주에 전파되지 않는다",()=>{
   const next=recordOccurrence(planner,block,"2026-10-15","done","2026-10-22");

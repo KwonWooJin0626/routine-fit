@@ -1,4 +1,5 @@
 "use client";
+import { createPortal } from "react-dom";
 import { useLayoutEffect, useId, useRef, type ReactNode } from "react";
 import { X, ArrowLeft, ArrowRight, Check, ShieldCheck } from "lucide-react";
 import { type Answers, defaultAnswers, answersSchema, goalLabels } from "@/lib/model";
@@ -24,11 +25,24 @@ export function Scale({ label, value, onChange, min = 1, max = 5, unit = "", hin
 export function Toggle({ label, checked, onChange, hint, question }: { label: string; checked: boolean; onChange: (value: boolean) => void; hint?: string; question?:string }) {
   return <div className="toggle-field"><label className="toggle-row"><span>{label}{hint && <small>{hint}</small>}</span><input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} /><span className="switch" aria-hidden="true" /></label>{question&&<QuestionSources question={question}/>}</div>;
 }
+const openDialogs=new Set<HTMLDialogElement>();
+let originalOverflow="";
+
 export function Dialog({ title, subtitle, children, onClose, wide = false, resetKey }: { title: string; subtitle?: string; children: ReactNode; onClose: () => void; wide?: boolean; resetKey?: string | number }) {
   const ref = useRef<HTMLDialogElement>(null); const id = useId();
-  useLayoutEffect(() => { const d = ref.current; if (!d) return; const trigger=document.activeElement instanceof HTMLElement?document.activeElement:null; d.showModal(); const previous = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { d.close(); document.body.style.overflow = previous; trigger?.focus({preventScroll:true}); }; }, []);
+  useLayoutEffect(()=>{
+    const d=ref.current;if(!d)return;
+    const trigger=document.activeElement instanceof HTMLElement?document.activeElement:null;
+    const parent=[...document.querySelectorAll<HTMLDialogElement>("dialog[open]")].at(-1);
+    // A nested editor replaces the visible dialog; its parent resumes on return.
+    if(parent)parent.close();
+    if(!openDialogs.size)originalOverflow=document.body.style.overflow;
+    openDialogs.add(d);document.body.style.overflow="hidden";d.showModal();
+    return()=>{d.close();openDialogs.delete(d);if(parent?.isConnected&&openDialogs.has(parent)&&!parent.open)parent.showModal();if(!openDialogs.size)document.body.style.overflow=originalOverflow;trigger?.focus({preventScroll:true});};
+  },[]);
   useChapterScroll(ref, `${title}:${resetKey ?? ""}`);
-  return <dialog ref={ref} className={`dialog ${wide ? "wide" : ""}`} aria-labelledby={id} onCancel={e=>{e.preventDefault();onClose();}}><header className="dialog-head"><div><h2 id={id} tabIndex={-1} data-chapter-heading>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" aria-label="닫기" onClick={onClose}><X size={20} /></button></header><div className="dialog-content">{children}</div></dialog>;
+  const content=<dialog ref={ref} className={`dialog ${wide ? "wide" : ""}`} aria-labelledby={id} onClick={e=>{if(e.target===e.currentTarget){const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)onClose();}}} onCancel={e=>{e.preventDefault();onClose();}}><header className="dialog-head"><div><h2 id={id} tabIndex={-1} data-chapter-heading>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" aria-label="닫기" onClick={onClose}><X size={20} /></button></header><div className="dialog-content">{children}</div></dialog>;
+  return typeof document==="undefined"?content:createPortal(content,document.body);
 }
 
 const steps = ["기본 정보", "수면·회복", "식사·영양", "움직임·일상", "안전 확인", "분석 준비"];

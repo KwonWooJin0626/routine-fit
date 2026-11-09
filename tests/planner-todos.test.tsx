@@ -17,7 +17,7 @@ import { plannerHue } from "../lib/planner-colors";
 
 const date="2026-11-04",now=new Date(`${date}T12:00:00+09:00`);
 const todo=()=>plannerTodoSchema.parse({id:"task",title:"발표자료 만들기",todayDate:date});
-const block=(patch:Partial<PlannerBlock>={})=>plannerBlockSchema.parse({id:"first",title:"수업",category:"study",start:"09:00",end:"11:00",mental:3,physical:1,shade:1,location:"",task:"",kind:"once",date,weekdays:[],...patch});
+const block=(patch:Partial<PlannerBlock>={})=>plannerBlockSchema.parse({id:"first",title:"수업",category:"study",start:"09:00",end:"11:00",mentalSource:"user",physicalSource:"user",mental:3,physical:1,shade:1,location:"",task:"",kind:"once",date,weekdays:[],...patch});
 const app=(planner=emptyPlanner()):AppState=>({version:1,consentAt:now.toISOString(),consentVersion:"2026-10-growth-v1",answers:{...defaultAnswers,name:"할 일 검증"},schedule:defaultSchedule,days:[],inbody:[],planner});
 
 test("제목만으로 할 일을 저장하고 기본 목록은 완료·제목·세부 설정만 표시한다",()=>{

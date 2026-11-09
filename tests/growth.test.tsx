@@ -68,7 +68,7 @@ test("계획 등록 여부와 실행 기록을 구분하고 일부 작성한 주
   const s=state();assert.equal(growthAnalysis(s,date).unlocked,false);
   s.planner={setupComplete:true,templates:[],blocks:[{id:"one",title:"수업",category:"study",location:"",task:"",start:"09:00",end:"10:00",mental:3,physical:1,shade:1,kind:"once",date,weekdays:[],excludedDates:[]}]};
   const result=growthAnalysis(s,date);assert.equal(result.coveredDays,1);assert.equal(result.plannedMinutes,60);assert.equal(result.done,0);assert.equal(result.routineDays.length,0);
-  const html=renderToStaticMarkup(<GrowthAnalysis state={s} onPlan={()=>{}} onRefine={()=>{}}/>);assert.ok(html.includes("예정 일정 기준"));assert.ok(html.includes("실행 기록 기준"));
+  const html=renderToStaticMarkup(<GrowthAnalysis date="2026-11-09" onDate={()=>{}} state={s} onPlan={()=>{}} onRefine={()=>{}}/>);assert.ok(html.includes("선택한 주의 요약"));assert.match(html,/aria-haspopup="dialog"/);
 });
 test("자체 작성 글귀는 같은 날짜·시점에 안정적이고 기존 계정 형식도 읽을 수 있다",()=>{
   assert.equal(wordForDate(date,"morning"),wordForDate(date,"morning"));assert.notEqual(wordForDate(date,"morning"),wordForDate(date,"evening"));
@@ -82,7 +82,7 @@ test("기존 상세 숫자·사용자 루틴을 보존한 채 자기개발 요�
   const catalog=growthCatalog();assert.ok(catalog.length>=20);assert.ok(catalog.some(r=>r.guidance?.kind==="music"));assert.ok(catalog.some(r=>r.guidance?.kind==="reading"));assert.ok(stateSchema.safeParse(next).success);
 });
 
-const chartBlock=(patch:Partial<PlannerBlock>={})=>plannerBlockSchema.parse({id:"study",title:"강의",category:"study",start:"09:00",end:"11:00",mental:3,physical:1,shade:1,location:"",task:"",kind:"once",date,weekdays:[],...patch});
+const chartBlock=(patch:Partial<PlannerBlock>={})=>plannerBlockSchema.parse({id:"study",title:"강의",mentalSource:"user",physicalSource:"user",category:"study",start:"09:00",end:"11:00",mental:3,physical:1,shade:1,location:"",task:"",kind:"once",date,weekdays:[],...patch});
 const chartState=(blocks:PlannerBlock[]):AppState&{planner:NonNullable<AppState["planner"]>}=>({...state(),planner:{setupComplete:true,templates:[],blocks}});
 test("하루 24시간과 주간 168시간은 미등록 날짜까지 포함하고 카테고리 설정 색을 공유한다",()=>{
   const s={...chartState([chartBlock()]),planner:{...chartState([chartBlock()]).planner,categoryColors:{study:145}}};
@@ -124,5 +124,5 @@ test("실제 시간은 확인한 수행 기록만 사용하고 체크·다중 �
 });
 test("차트에서 카테고리와 실제 활동을 키보드로 선택할 수 있고 부족한 데이터와 계산 기준을 명시한다",()=>{
   const html=renderToStaticMarkup(<LifestyleCharts state={chartState([chartBlock()])} date={date} onDate={()=>{}} onPlan={()=>{}}/>);
-  assert.match(html,/분석 기간/);assert.match(html,/계획표 기준/);assert.match(html,/실제 수행 기준/);assert.match(html,/파이차트/);assert.match(html,/tabindex="0"/);assert.match(html,/hsl\(215 60% 54%\)/);assert.match(html,/강의/);assert.match(html,/스트레스·체력 부담 흐름/);assert.match(html,/소모 칼로리/);assert.ok(!html.includes("NaN"));
+  assert.match(html,/분석 기간/);assert.match(html,/계획표 기준/);assert.match(html,/실제 수행 기준/);assert.match(html,/파이차트/);assert.match(html,/tabindex="0"/);assert.match(html,/hsl\(215 60% 54%\)/);assert.match(html,/강의/);assert.match(html,/스트레스·체력 부담 흐름/);assert.match(html,/기본값·출처 미확인/);assert.ok(!html.includes("NaN"));
 });
