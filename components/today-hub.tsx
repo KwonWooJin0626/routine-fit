@@ -38,7 +38,7 @@ export function TodayChecks({app,date,day,filter,onFilter,store,pet,busy,onPlan,
   return <div className="today-hub">
     <button type="button" className="home-companion panel" onClick={onPet}>
       {pet?.document?.visible!==false&&<PetAnimator baseState={pet?.view?.baseState??"idle"} reducedMotion={pet?.document?.reducedMotion??false} reactionId={checkReaction??pet?.reactionId} name={pet?.document?.name??"새 친구"}/>}
-      <span><small>작은 실천으로 함께 성장</small><strong>{checkReaction?"한 가지 해냈어요. 함께 기뻐해요!":`${pet?.document?.name??"나의 사모예드"}와 한 걸음`}</strong><small>선택한 날 · 일정 {events.filter(o=>recorded(o.block,o.date)).length}/{events.length} · 루틴 {done}/{day?.routines.length??0} 완료</small></span><ArrowRight size={18}/>
+      <span><small>작은 실천으로 함께 성장</small><strong>{checkReaction?"한 가지 해냈어요. 함께 기뻐해요!":`${pet?.document?.name??"나의 사모예드"} · 오늘도 한 걸음`}</strong><small>선택한 날 · 일정 {events.filter(o=>recorded(o.block,o.date)).length}/{events.length} · 루틴 {done}/{day?.routines.length??0} 완료</small></span><ArrowRight size={18}/>
     </button>
     <div className="check-filters" role="group" aria-label="실천 체크 종류">
       {([["all","전체"],["agenda","일정·할 일"],["routines","루틴"],["care","건강관리"]] as const).map(([id,label])=><button key={id} aria-pressed={filter===id} onClick={()=>onFilter(id)}>{label}</button>)}
