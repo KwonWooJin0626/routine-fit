@@ -15,10 +15,46 @@ import { paceCheckin } from "../components/daily-checkin";
 import { ActivityWizard } from "../components/activity-wizard";
 import { activityProfileSchema,newActivityProfile } from "../lib/activity-profile";
 import { FeaturePanel } from "../components/feature-panel";
+import { changeRoutineCheck,activityTemplate } from "../lib/check-workspace";
+import { buildDay } from "../lib/engine";
+import { recordOccurrence } from "../lib/planner-progress";
+import { occurrencesInWindow } from "../lib/planner";
 
 const now=new Date("2026-11-10T12:00:00Z"),date="2026-11-10";
 const state=():AppState=>({version:1,consentAt:now.toISOString(),consentVersion:"2026-10-growth-v1",answers:{...defaultAnswers,name:"검증"},schedule:defaultSchedule,inbody:[],days:[]});
 const input=():PetRequest=>({key:randomUUID(),revision:0,appRevision:1,command:{action:"record",record:{title:"독서",type:"growth",start:"2026-11-10T09:00:00Z",end:"2026-11-10T09:30:00Z",source:{kind:"manual",id:"reading",date},intensity:"light",status:"done"}}});
+
+test("지난 루틴 체크는 선택한 날짜만 바꾸며 오늘·실제 기록·다른 답변을 보존한다",()=>{
+  const app=state(),base=buildDay(app.answers,initialCheckin(app.answers),"core",app.schedule,[]);
+  app.days=[{...structuredClone(base),date:"2026-11-09"},{...structuredClone(base),date}];
+  const id=base.routines[0].id,before=structuredClone(app);
+  const next=changeRoutineCheck(app,"2026-11-09",id,"done",date);
+  assert.equal(next.days[0].statuses[id],"done");assert.deepEqual(next.days[1],before.days[1]);
+  assert.deepEqual(app,before);assert.deepEqual(next.activityJournal,before.activityJournal);
+  assert.deepEqual(changeRoutineCheck(next,"2026-11-09",id,"done",date).days[0].statuses,{});
+  assert.throws(()=>changeRoutineCheck(app,"2026-11-11",id,"done",date),/미래/);
+  assert.throws(()=>changeRoutineCheck(app,"2026-11-08",id,"done",date),/찾을 수/);
+});
+
+test("계획과 체크는 같은 반복 일정 ID를 재사용하고 날짜별 상태·중복·취소를 분리한다",()=>{
+  const block=plannerBlockSchema.parse({id:"shared",title:"반복 독서",category:"growth",kind:"fixed",date:"2026-11-01",weekdays:[1,2],start:"09:00",end:"09:30",mental:3,physical:2,shade:1,task:"",location:""});
+  let planner={setupComplete:true,templates:[],blocks:[block]};
+  assert.equal(occurrencesInWindow(planner,"2026-11-09")[0].block.id,"shared");
+  const checked=recordOccurrence(planner,block,"2026-11-09","done",date);
+  assert.equal(checked.records?.length,1);assert.equal(checked.records?.[0].date,"2026-11-09");
+  assert.equal(checked.blocks.length,1);assert.equal(checked.blocks[0].id,"shared");
+  assert.equal(recordOccurrence(checked,block,"2026-11-09","done",date).records?.length,0);
+  assert.throws(()=>recordOccurrence(checked,block,"2026-11-16","done",date),/미래/);
+});
+
+test("즉흥 활동을 보관함으로 재사용해도 실제 기록·성장·예상 부담을 복제하지 않는다",()=>{
+  const result=applyJournalCommand(null,state(),input(),now),actual=humanDocument(result.app).records[0],before=structuredClone(actual);
+  const template=activityTemplate(actual,"reusable");
+  assert.equal(template.title,"독서");assert.equal(template.category,"growth");
+  assert.equal(template.start,"09:00");assert.equal(template.end,"09:30");
+  assert.equal(template.mentalSource,"unknown");assert.equal(template.physicalSource,"unknown");
+  assert.deepEqual(actual,before);assert.equal(result.app.activityJournal?.records.length,1);
+});
 test("미입양 사용자도 실제 기록·차트를 사용할 수 있고 기록 ID와 재시도 영수증을 유지한다",()=>{
   const req=input(),result=applyJournalCommand(null,state(),req,now);
   assert.equal(result.document,null);assert.equal(result.reactionId,undefined);

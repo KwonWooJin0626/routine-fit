@@ -135,3 +135,43 @@
 .rf-v2 .today-check-panel .routine-copy{flex:1 1 0%;width:auto;min-width:0}.routine-copy>.feature-panel{display:block;width:100%}
 .feature-body>.routine-picker{margin-top:0;padding-top:0;border-top:0}
 @media(min-width:1000px){.rf-v2 .sp-workspace{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.rf-v2 .sp-workspace>:not(.feature-panel){grid-column:1/-1}}
+
+/* Action-based workspaces: checking and planning share data, with distinct primary actions. */
+.today-hub [hidden]{display:none!important}
+.check-filters{display:flex;gap:6px;flex-wrap:wrap}
+.check-filters button{border:1px solid #e5e9ef;border-radius:24px;background:#fff;color:#79879a;min-height:40px;padding:9px 18px;font-size:13px;cursor:pointer;white-space:nowrap}
+.check-filters button[aria-pressed=true]{color:#c83c42;background:#fff0ef;border-color:#efb8ba;font-weight:700}
+.check-filters button:focus-visible{outline:3px solid #e5484d;outline-offset:3px}
+.check-date-picker{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#fff;padding:10px 14px;border:1px solid #e7ebf2;border-radius:12px}
+.check-date-picker label{font-size:12px;color:#8490a1;white-space:nowrap}
+.check-date-picker input{min-width:0;border:0;background:transparent;font:inherit;font-size:14px;color:#344158;max-width:160px}
+.check-date-notice{padding:12px 16px;border-radius:12px;background:#f0f4fb;color:#5d7190;font-size:13px;line-height:1.7;margin:0}
+.workspace-purpose{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;color:#8290a2;font-size:13px;line-height:1.6}
+.home-agenda-row{border-left:3px solid hsl(var(--block-hue,215),55%,52%)}
+.home-agenda-row>.feature-panel{flex:1;min-width:0}
+.home-agenda-row .feature-action{padding:2px 0;border:0;border-radius:0;background:transparent;min-height:44px;gap:8px}
+.home-agenda-row .feature-copy strong{font-size:14px}
+.home-agenda-row .feature-copy small{font-size:11px;color:#7b8ba0}
+.home-agenda-row .feature-action>svg{width:14px}
+.check-manual{justify-self:start}
+.completed-routine-row{display:flex;align-items:center;gap:12px;padding:14px 0;border-bottom:1px solid #edf0f5;flex-wrap:wrap;font-size:13px}
+.completed-routine-row>span{flex:1;min-width:120px;word-break:keep-all;overflow-wrap:anywhere}
+.completed-routine-row>svg{color:#529179;flex:none}
+.check-sleep{margin-top:16px;border-top:1px solid #eef0f4;padding-top:16px}
+.check-sleep .panel{border:0;box-shadow:none;padding:0;margin:0}
+.check-sleep .sleep-grid{gap:12px}
+.check-sleep h2{font-size:15px}
+.check-sleep p{font-size:12px;line-height:1.6}
+.check-sleep .sleep-grid>.sleep-records,.check-sleep .sleep-grid>.pet-sleep-link{padding-top:10px;border-top:1px solid #eef0f4}
+@media(min-width:701px){.rf-v2 .home-agenda-row:nth-of-type(n){display:flex}}
+@media(max-width:700px){
+ .check-filters{gap:5px}.check-filters button{font-size:12px;padding:8px 12px;min-height:38px}
+ .rf-v2 .page-heading{gap:12px;align-items:center;flex-wrap:wrap}.check-date-picker{padding:8px 10px;gap:6px}.check-date-picker label{display:none}
+ .rf-v2 .home-agenda-row:nth-of-type(n){display:flex}
+ .home-agenda-row .feature-copy strong{font-size:13px}
+ .workspace-purpose{font-size:12px}.workspace-purpose>span{display:none}
+ .check-sleep .button{font-size:12px;padding:10px 12px;min-height:40px}
+ .check-sleep .choice-buttons{display:flex;gap:8px;flex-wrap:wrap}
+ .check-manual{width:100%}.check-date-notice{font-size:12px}
+ .rf-v2 .sidebar .nav-item{gap:10px;font-size:14px}
+}

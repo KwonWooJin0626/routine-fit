@@ -45,7 +45,7 @@ test("오늘 일정 목록은 완료·일부 수행·체크만 저장을 구분�
   const rows=plannerActivitiesForDate(result.app.planner,result.document,date);
   assert.equal(rows.length,2);assert.equal(rows.find(r=>r.blockId===b.id)?.execution?.id,result.document.records[0].id);assert.equal(rows.find(r=>r.blockId===pending.id)?.execution,undefined);
   const html=renderToStaticMarkup(<PlannerActivityLog planner={result.app.planner} pet={result.document} date={date} busy={false} onPlan={()=>{}} onEdit={()=>{}} onConfirm={()=>{}}/>);
-  assert.match(html,/오늘 수행한 일정/);assert.match(html,/실제 30분/);assert.match(html,/실제 시간 미확인/);assert.match(html,/일부 수행/);
+  assert.match(html,/선택한 날 수행한 일정/);assert.match(html,/실제 30분/);assert.match(html,/실제 시간 미확인/);assert.match(html,/일부 수행/);
   const cancelled=apply(result.document,result.app,{action:"cancel",id:result.document.records[0].id});
   assert.equal(plannerActivitiesForDate(cancelled.app.planner,cancelled.document,date).length,1);
   assert.equal(plannerActivitiesForDate(result.app.planner,null,date).length,2); // also works without a pet
