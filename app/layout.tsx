@@ -4,6 +4,7 @@ import "./globals.css";
 import "./pet.css";
 import "./media.css";
 import "./spaces.css";
+import "./planner-month.css";
 import "./lifestyle-charts.css";
 import "./ux-refresh.css";
 

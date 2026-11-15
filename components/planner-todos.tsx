@@ -1,6 +1,7 @@
 "use client";
 import { useEffect,useRef,useState } from "react";
-import { Check,Plus,Trash2 } from "lucide-react";
+import { CalendarDays,Check,ClipboardList,ListChecks,Palette,Plus,Settings2,Star,Trash2 } from "lucide-react";
+import { plannerSwatch } from "@/lib/planner-colors";
 import { plannerCategories,plannerTodoSchema,type Planner,type PlannerTodo,type PlannerBlock } from "@/lib/planner-model";
 import { upsertTodo,toggleTodo,removeTodo,todosForDate } from "@/lib/planner-todos";
 import { createPlannerDragPreview } from "@/lib/planner-drag-preview";
@@ -26,14 +27,35 @@ export function PlannerTodos({planner,date,busy,compact=false,onSave,onPlace,onD
     <button className="text-link todo-show-done" type="button" onClick={()=>setShowDone(!showDone)}>{showDone?"완료한 할 일 접기":"완료한 할 일 보기"}</button>
     {onPlan&&<button className="text-link" type="button" onClick={onPlan}>계획표에서 할 일·시간 관리하기{visible.length>5?` · 나머지 ${visible.length-5}개`:""}</button>}
     {error&&<p className="form-error" role="alert">{error}</p>}
-    {editing&&<TodoDetails key={editing.id} todo={editing} planner={planner} date={date} busy={busy} onClose={()=>{if(!busy)setEditing(null);}} onSave={async(todo,linked)=>{
-      let next=upsertTodo(planner,todo);
-      next={...next,blocks:next.blocks.map(b=>linked.includes(b.id)?{...b,todoId:todo.id}:b.todoId===todo.id?{...b,todoId:undefined}:b)};
-      await onSave(next);setTitle("");setEditing(null);
-    }} onDelete={async removeSchedules=>{const ids=planner.blocks.filter(b=>b.todoId===editing.id).map(b=>b.id);await onSave(removeTodo(planner,editing.id,removeSchedules),removeSchedules?{remove:{scope:"all",date,blockIds:ids,templateIds:[],removeLibrary:false}}:undefined);setEditing(null);}}
-      onPlace={onPlace?async(todo,ids)=>{const next=upsertTodo(planner,todo);await onSave({...next,blocks:next.blocks.map(b=>ids.includes(b.id)?{...b,todoId:todo.id}:b.todoId===todo.id?{...b,todoId:undefined}:b)});setTitle("");setEditing(null);onPlace(todo);}:undefined}
+    {editing&&<PlannerTodoEditor key={editing.id} todo={editing} planner={planner} date={date} busy={busy}
+      onClose={()=>{if(!busy)setEditing(null);}} onSaved={()=>{setTitle("");setEditing(null);}}
+      onSave={onSave} onPlace={onPlace}
       onOpenSchedule={onOpenSchedule?b=>{setEditing(null);onOpenSchedule(b);}:undefined} onPlan={onPlan}/>}
   </section>;
+}
+
+type EditorProps=Pick<Props,"planner"|"date"|"busy"|"onSave"|"onPlace"|"onOpenSchedule"|"onPlan">&{
+  todo:PlannerTodo;onClose:()=>void;onSaved:()=>void;quick?:boolean;
+};
+
+export function PlannerTodoEditor({todo,planner,date,busy,onClose,onSaved,onSave,onPlace,onOpenSchedule,onPlan,quick}:EditorProps){
+  const save=async(value:PlannerTodo,linked:string[])=>{
+    const next=upsertTodo(planner,value);
+    const blocks=next.blocks.map(block=>{
+      if(linked.includes(block.id)&&(!block.todoId||block.todoId===value.id))return {...block,todoId:value.id};
+      return block.todoId===value.id?{...block,todoId:undefined}:block;
+    });
+    await onSave({...next,blocks});
+    onSaved();
+  };
+  const remove=async(removeSchedules:boolean)=>{
+    const ids=planner.blocks.filter(block=>block.todoId===todo.id).map(block=>block.id);
+    await onSave(removeTodo(planner,todo.id,removeSchedules),removeSchedules?{remove:{scope:"all",date,blockIds:ids,templateIds:[],removeLibrary:false}}:undefined);
+    onSaved();
+  };
+  return <TodoDetails todo={todo} planner={planner} date={date} busy={busy} quick={quick} onClose={onClose} onSave={save} onDelete={remove}
+    onPlace={onPlace?async(value,linked)=>{await save(value,linked);onPlace(value);}:undefined}
+    onOpenSchedule={onOpenSchedule} onPlan={onPlan}/>;
 }
 
 function TodoRow({todo:t,busy,onToggle,onDetails,onDrag,onPointerStart}:{todo:PlannerTodo;busy:boolean;onToggle:()=>void;onDetails:()=>void;onDrag?: (id:string|null,x?:number,y?:number)=>void;onPointerStart?:(id:string,x:number,y:number)=>void}){
@@ -44,27 +66,50 @@ function TodoRow({todo:t,busy,onToggle,onDetails,onDrag,onPointerStart}:{todo:Pl
   </article>;
 }
 
-function TodoDetails({todo,planner,date,busy,onClose,onSave,onDelete,onPlace,onOpenSchedule,onPlan}:{todo:PlannerTodo;planner:Planner;date:string;busy:boolean;onClose:()=>void;onSave:(t:PlannerTodo,ids:string[])=>Promise<void>;onDelete:(removeSchedules:boolean)=>Promise<void>;onPlace?:(t:PlannerTodo,ids:string[])=>Promise<void>;onOpenSchedule?:(b:PlannerBlock)=>void;onPlan?:()=>void}){
+function TodoDetails({todo,planner,date,busy,quick,onClose,onSave,onDelete,onPlace,onOpenSchedule,onPlan}:{todo:PlannerTodo;planner:Planner;date:string;busy:boolean;quick?:boolean;onClose:()=>void;onSave:(t:PlannerTodo,ids:string[])=>Promise<void>;onDelete:(removeSchedules:boolean)=>Promise<void>;onPlace?:(t:PlannerTodo,ids:string[])=>Promise<void>;onOpenSchedule?:(b:PlannerBlock)=>void;onPlan?:()=>void}){
   const [v,set]=useState(todo),[linked,setLinked]=useState(planner.blocks.filter(b=>b.todoId===todo.id).map(b=>b.id)),[line,setLine]=useState(""),[error,setError]=useState(""),[deleting,setDeleting]=useState(false);
   const existing=planner.todos?.some(t=>t.id===todo.id),update=(patch:Partial<PlannerTodo>)=>set(old=>({...old,...patch}));
   const perform=async(action:(t:PlannerTodo)=>Promise<void>)=>{const parsed=plannerTodoSchema.safeParse(v);if(!parsed.success){setError(parsed.error.issues[0].message);return;}try{setError("");await action(parsed.data);}catch(e){setError((e as Error).message);}};
   const addLine=()=>{if(line.trim()&&v.checklist.length<30){update({checklist:[...v.checklist,{id:crypto.randomUUID(),text:line.trim(),done:false}]});setLine("");}};
-  return <Dialog title="할 일 세부 설정" subtitle="마감일은 완료 기한, 일정 배치는 실제로 할 시간을 정하는 설정이에요." onClose={onClose}><form onSubmit={e=>{e.preventDefault();void perform(t=>onSave(t,linked));}}>
-    <div className="form-grid"><div className="form-span"><Input label="할 일 제목" required value={v.title} onChange={title=>update({title:title.slice(0,60)})}/></div>
-      <Select label="할 일 카테고리" value={v.category??""} options={{"":"선택하지 않음",...plannerCategories}} onChange={category=>update({category:(category||undefined) as PlannerTodo["category"]})}/>
+  const [panel,setPanel]=useState<"dates"|"category"|"notes"|"checklist"|"settings"|null>(null);
+  const show=(id:typeof panel)=>!quick||panel===id;
+  const choose=(id:NonNullable<typeof panel>)=>setPanel(active=>active===id?null:id);
+  const dateLabel=v.period?`${v.period.start.slice(5)} ~ ${v.period.end.slice(5)}`:v.todayDate?.slice(5)??"날짜 미정";
+  return <Dialog title={quick?"할 일 추가":"할 일 세부 설정"} onClose={onClose} className="todo-editor-dialog"><form className="todo-editor" onSubmit={e=>{e.preventDefault();void perform(t=>onSave(t,linked));}}>
+    <Input label="할 일 제목" placeholder="할 일을 입력하세요" required value={v.title} onChange={title=>update({title:title.slice(0,60)})}/>
+    {quick&&<div className="todo-editor-tools" role="group" aria-label="할 일 선택 설정">
+      <button type="button" aria-expanded={panel==="dates"} onClick={()=>choose("dates")}><CalendarDays size={15}/>{dateLabel}</button>
+      <button type="button" aria-expanded={panel==="category"} onClick={()=>choose("category")}><Palette size={15}/>{v.category?plannerCategories[v.category]:"카테고리"}</button>
+      <button type="button" aria-expanded={panel==="notes"} onClick={()=>choose("notes")}><ClipboardList size={15}/>메모</button>
+      <button type="button" aria-expanded={panel==="checklist"} onClick={()=>choose("checklist")}><ListChecks size={15}/>체크리스트</button>
+      <button type="button" aria-expanded={panel==="settings"} onClick={()=>choose("settings")}><Settings2 size={15}/>세부 설정</button>
+    </div>}
+    {show("dates")&&<div className="form-grid todo-editor-fields">
+      <Select label="날짜 방식" value={v.period?"period":v.todayDate?"day":"none"} options={{day:"하루",period:"기간",none:"날짜 미정"}} onChange={kind=>{
+        const start=v.period?.start??v.todayDate??date;
+        update({todayDate:kind==="day"?start:undefined,period:kind==="period"?{start,end:v.period?.end??start}:undefined});
+      }}/>
+      {v.period?<><Input label="시작일" type="date" value={v.period.start} onChange={start=>update({period:{start,end:v.period!.end}})}/><Input label="마지막 날" type="date" value={v.period.end} onChange={end=>update({period:{start:v.period!.start,end}})}/></>:v.todayDate!==undefined&&<Input label="할 일 날짜" type="date" value={v.todayDate} onChange={todayDate=>update({todayDate})}/>}
+    </div>}
+    {show("category")&&<div className="todo-editor-fields">
+      <span className="todo-field-title">카테고리</span>
+      <div className="todo-category-options" role="group" aria-label="할 일 카테고리">
+        {Object.entries(plannerCategories).map(([id,label])=>{const category=id as keyof typeof plannerCategories;return <button key={id} type="button" style={plannerSwatch(category,1,planner.categoryColors)} aria-pressed={v.category===category} onClick={()=>update({category:v.category===category?undefined:category})}><i/>{label}</button>;})}
+      </div>
+      <label className="todo-important"><input type="checkbox" checked={v.important??false} onChange={e=>update({important:e.target.checked})}/><Star size={15}/>중요한 할 일</label>
+    </div>}
+    {show("settings")&&<div className="form-grid todo-editor-fields">
       <Input label="마감일 (선택)" type="date" value={v.dueDate??""} onChange={dueDate=>update({dueDate:dueDate||undefined})}/>
-      <Input label="할 일 목록에 담을 날짜 (선택)" type="date" value={v.todayDate??""} onChange={todayDate=>update({todayDate:todayDate||undefined})}/>
       <Input label="예상 소요 시간 (분, 선택)" type="number" min={5} max={720} value={v.estimate??""} hint="실제 수행 시간과 별도로 보관해요." onChange={n=>update({estimate:n?Number(n):undefined})}/>
       <div className="form-span"><Input label="장소 (선택)" value={v.location} onChange={location=>update({location:location.slice(0,100)})}/></div>
-      <div className="form-span field"><label htmlFor="todo-notes">메모 (선택)</label><textarea id="todo-notes" rows={3} maxLength={1000} value={v.notes} onChange={e=>update({notes:e.target.value})}/></div>
-    </div>
-    <section className="todo-detail-section"><h3>체크리스트</h3>{v.checklist.map(item=><div className="todo-checklist-row" key={item.id}><label><input type="checkbox" checked={item.done} onChange={e=>update({checklist:v.checklist.map(x=>x.id===item.id?{...x,done:e.target.checked}:x)})}/>{item.text}</label><button type="button" className="icon-button" aria-label={`${item.text} 세부 할 일 삭제`} onClick={()=>update({checklist:v.checklist.filter(x=>x.id!==item.id)})}><Trash2 size={14}/></button></div>)}<div className="todo-checklist-add" onKeyDown={e=>{if(e.key==="Enter"&&!e.nativeEvent.isComposing&&e.target instanceof HTMLInputElement){e.preventDefault();addLine();}}}><Input label="세부 할 일" value={line} onChange={x=>setLine(x.slice(0,100))}/><button type="button" className="button secondary" disabled={!line.trim()||v.checklist.length>=30} onClick={addLine}>추가</button></div></section>
-    <section className="todo-detail-section"><h3>일정에 배치하기</h3><p>여러 시간대로 나눠서 배치할 수 있어요. 일정 한 번을 마쳐도 전체 할 일은 자동 완료하지 않아요.</p>{onPlace?<button type="button" className="button secondary" disabled={busy} onClick={()=>void perform(t=>onPlace(t,linked))}>저장하고 시간 정하기</button>:onPlan?<button type="button" className="button secondary" onClick={()=>{onClose();onPlan();}}>계획표에서 시간 정하기</button>:null}
+    </div>}
+    {show("notes")&&<div className="field todo-editor-fields"><label>메모 (선택)<textarea rows={3} maxLength={1000} value={v.notes} onChange={e=>update({notes:e.target.value})}/></label></div>}
+    {show("checklist")&&<section className="todo-detail-section"><h3>체크리스트</h3>{v.checklist.map(item=><div className="todo-checklist-row" key={item.id}><label><input type="checkbox" checked={item.done} onChange={e=>update({checklist:v.checklist.map(x=>x.id===item.id?{...x,done:e.target.checked}:x)})}/>{item.text}</label><button type="button" className="icon-button" aria-label={`${item.text} 세부 할 일 삭제`} onClick={()=>update({checklist:v.checklist.filter(x=>x.id!==item.id)})}><Trash2 size={14}/></button></div>)}<div className="todo-checklist-add" onKeyDown={e=>{if(e.key==="Enter"&&!e.nativeEvent.isComposing&&e.target instanceof HTMLInputElement){e.preventDefault();addLine();}}}><Input label="세부 할 일" value={line} onChange={x=>setLine(x.slice(0,100))}/><button type="button" className="button secondary" disabled={!line.trim()||v.checklist.length>=30} onClick={addLine}>추가</button></div></section>}
+    {show("settings")&&<section className="todo-detail-section"><h3>일정에 배치하기</h3><p>한 할 일을 여러 시간대로 나눠서 배치할 수 있어요.</p>{onPlace?<button type="button" className="button secondary" disabled={busy||!v.title.trim()} onClick={()=>void perform(t=>onPlace(t,linked))}>저장하고 시간 정하기</button>:onPlan?<button type="button" className="button secondary" onClick={()=>{onClose();onPlan();}}>계획표에서 시간 정하기</button>:null}
       {planner.blocks.filter(b=>b.todoId===todo.id).map(b=><div className="todo-linked-row" key={b.id}><span>{b.title} · {b.start}–{b.end} · {b.kind==="fixed"?"매주 반복":b.date}</span>{onOpenSchedule&&<button type="button" className="text-link" disabled={busy} onClick={()=>onOpenSchedule(b)}>일정 열기</button>}</div>)}
       <details><summary>기존 일정 연결·해제</summary>{planner.blocks.length?planner.blocks.map(b=><label className="check-choice todo-link-choice" key={b.id}><input type="checkbox" checked={linked.includes(b.id)} disabled={!!b.todoId&&b.todoId!==todo.id} onChange={e=>setLinked(old=>e.target.checked?[...old,b.id]:old.filter(id=>id!==b.id))}/>{b.title} · {b.start}–{b.end}{b.todoId&&b.todoId!==todo.id?" · 다른 할 일에 연결됨":""}</label>):<p>등록된 일정이 없어요.</p>}</details>
-    </section>
-    <p className="muted">할 일 체크는 완료 상태만 저장해요. 강아지 성장에는 연결 일정에서 확인한 실제 수행 기록을 한 번만 반영해요.</p>
+    </section>}
     {deleting&&<div className="todo-delete-options"><p>연결된 일정도 함께 제거할까요? 실제 수행 기록은 보존해요.</p><button type="button" className="button secondary" disabled={busy} onClick={()=>void onDelete(false).catch(e=>setError((e as Error).message))}>할 일만 삭제</button><button type="button" className="button danger" disabled={busy} onClick={()=>void onDelete(true).catch(e=>setError((e as Error).message))}>연결 일정도 삭제</button></div>}
-    {error&&<p className="form-error" role="alert">{error}</p>}<div className="dialog-actions">{existing&&<button type="button" className="button danger" disabled={busy} onClick={()=>setDeleting(!deleting)}>삭제</button>}<button type="button" className="button secondary" disabled={busy} onClick={onClose}>닫기</button><button className="button primary" disabled={busy}>할 일 저장</button></div>
+    {error&&<p className="form-error" role="alert">{error}</p>}<div className="dialog-actions">{existing&&<button type="button" className="button danger" disabled={busy} onClick={()=>setDeleting(!deleting)}>삭제</button>}<button type="button" className="button secondary" disabled={busy} onClick={onClose}>닫기</button><button className="button primary" disabled={busy||!v.title.trim()}>{quick?"추가":"할 일 저장"}</button></div>
   </form></Dialog>;
 }

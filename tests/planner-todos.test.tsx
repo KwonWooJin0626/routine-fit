@@ -14,11 +14,42 @@ import { PlannerCalendarBlocks } from "../components/planner-calendar-blocks";
 import { calendarRows } from "../lib/planner-grid";
 import { createStateHandlers } from "../lib/state-api";
 import { plannerHue } from "../lib/planner-colors";
+import { monthItems,monthWeeks,moveMonth,monthlyTodosForDate,weekItems } from "../lib/planner-month";
 
 const date="2026-11-04",now=new Date(`${date}T12:00:00+09:00`);
 const todo=()=>plannerTodoSchema.parse({id:"task",title:"발표자료 만들기",todayDate:date});
 const block=(patch:Partial<PlannerBlock>={})=>plannerBlockSchema.parse({id:"first",title:"수업",category:"study",start:"09:00",end:"11:00",mentalSource:"user",physicalSource:"user",mental:3,physical:1,shade:1,location:"",task:"",kind:"once",date,weekdays:[],...patch});
 const app=(planner=emptyPlanner()):AppState=>({version:1,consentAt:now.toISOString(),consentVersion:"2026-10-growth-v1",answers:{...defaultAnswers,name:"할 일 검증"},schedule:defaultSchedule,days:[],inbody:[],planner});
+
+test("월간 기간 막대는 주·월 경계에서 나뉘고 마감은 해당 날짜에만 표시한다",()=>{
+  const period={start:"2026-11-28",end:"2026-12-02"};
+  const planner=upsertTodo(emptyPlanner(),{...todo(),todayDate:undefined,period,dueDate:"2026-12-02",important:true});
+  const restored=stateSchema.parse(JSON.parse(JSON.stringify(app(planner)))).planner!;
+  assert.deepEqual(restored.todos?.[0].period,period);
+  assert.equal(restored.todos?.[0].important,true);
+  assert.equal(moveMonth("2026-01-31",1),"2026-02-28");
+  assert.equal(plannerTodoSchema.safeParse({...todo(),period:{start:period.end,end:period.start}}).success,false);
+  const weeks=monthWeeks("2026-12-02");
+  const items=monthItems(restored,weeks);
+  assert.deepEqual(weekItems(items,weeks[0]).visible.map(row=>[row.item.kind,row.start,row.end]),[["todo",0,2],["due",2,2]]);
+  const november=monthWeeks("2026-11-28");
+  assert.deepEqual(weekItems(monthItems(restored,november),november.at(-2)!).visible.map(row=>[row.start,row.end]),[[5,6]]);
+  assert.equal(monthlyTodosForDate(restored,"2026-12-03").length,0);
+  assert.equal(todosForDate(restored,"2026-12-03").length,1);
+  assert.equal(scheduleContext(defaultSchedule,restored,"2026-12-01",initialCheckin(defaultAnswers)).scheduledMinutes,0);
+});
+
+test("월간 칸에서 밀린 시간 블록은 날짜별로 집계하고 반복 제외일도 지킨다",()=>{
+  const planned={...emptyPlanner(),blocks:[block(),block({id:"second"}),block({id:"third"}),block({
+    id:"repeat",kind:"fixed",weekdays:[3],excludedDates:[date],
+  })]};
+  const weeks=monthWeeks(date);
+  const items=monthItems(planned,weeks);
+  const result=weekItems(items,weeks.find(week=>week.includes(date))!);
+  assert.equal(result.visible.length,2);
+  assert.equal(result.overflow[2],1);
+  assert.equal(items.some(item=>item.kind==="schedule"&&item.start===date&&item.occurrence.block.id==="repeat"),false);
+});
 
 test("제목만으로 할 일을 저장하고 기본 목록은 완료·제목·세부 설정만 표시한다",()=>{
   const p=upsertTodo(emptyPlanner(),todo());assert.equal(p.blocks.length,0);assert.equal(p.todos![0].dueDate,undefined);assert.equal(p.todos![0].estimate,undefined);

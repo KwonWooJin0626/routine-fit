@@ -25,7 +25,8 @@ import { BlockPlacementPanel, PlacementRanges } from "./block-placement-panel";
 import { PlannerLibraryBlock } from "./planner-library-block";
 import { changePlannerBlock, type PlacementRange } from "@/lib/planner-placement";
 
-import { PlannerTodos } from "./planner-todos";
+import { PlannerTodoEditor,PlannerTodos } from "./planner-todos";
+import { PlannerMonthView } from "./planner-month-view";
 import { PlannerCalendarBlocks,OverlapDialog } from "./planner-calendar-blocks";
 import { calendarSegments,type CalendarSegment } from "@/lib/planner-overlap";
 import { plannerSwatch as swatch,type CategoryColors } from "@/lib/planner-colors";
@@ -34,6 +35,8 @@ import { toggleTodo } from "@/lib/planner-todos";
 
 export type PlannerMark="done"|"partial"|"skipped"|"clear"|"edit";
 type Seed={todo?:PlannerTodo;ranges?:PlacementRange[];date:string;start:string;end:string;category?:PlannerBlock["category"];template?:PlannerTemplate;block?:PlannerBlock};
+const plannerViews={month:"월간",week:"주간",day:"하루"} as const;
+type PlannerView=keyof typeof plannerViews;
 const dateTitle=(date:string)=>new Intl.DateTimeFormat("ko-KR",{month:"long",day:"numeric",weekday:"long",timeZone:"UTC"}).format(new Date(`${date}T12:00Z`));
 
 export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRecord,recommendationMemory,nutritionGuide,dialogOpen=false,initialDate,onChecks}:{state:AppState;initialDate?:string;onChecks?:(date:string)=>void;dialogOpen?:boolean;nutritionGuide?:(date:string)=>ReactNode;recommendationMemory?:RecommendationMemory;busy:boolean;onRecord?:(b:PlannerBlock,date:string,status:PlannerMark)=>Promise<void>;onSave:(p:Planner,change?:PlannerChange)=>Promise<void>;onGenerate:()=>void;onSettings:()=>void}){
@@ -47,9 +50,10 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRec
   const [overlapMemo,setOverlapMemo]=useState<{date:string;segment:CalendarSegment}|null>(null);
   const draggedTodoId=useRef<string|null>(null);
   const todoPointer=useRef<{id:string;x:number;y:number}|null>(null);
-  const [selected,setSelected]=useState(initialDate??today),[mode,setMode]=useState<"week"|"day">("week"),[filter,setFilter]=useState("all");
-  useEffect(()=>{try{const saved=localStorage.getItem("routine-fit-plan-view");if(saved==="week"||saved==="day")setMode(saved);else if(window.matchMedia("(max-width:700px)").matches)setMode("day");}catch{/* Browser storage is optional. */}},[]);
-  const chooseMode=(value:"week"|"day")=>{setMode(value);try{localStorage.setItem("routine-fit-plan-view",value);}catch{/* Browser storage is optional. */}};
+  const [selected,setSelected]=useState(initialDate??today),[mode,setMode]=useState<PlannerView>("week"),[filter,setFilter]=useState("all");
+  const [todoEditor,setTodoEditor]=useState<{todo:PlannerTodo;date:string;quick?:boolean}|null>(null);
+  useEffect(()=>{try{const saved=localStorage.getItem("routine-fit-plan-view");if(saved==="month"||saved==="week"||saved==="day")setMode(saved);else if(window.matchMedia("(max-width:700px)").matches)setMode("month");}catch{/* Browser storage is optional. */}},[]);
+  const chooseMode=(value:PlannerView)=>{setMode(value);setMobilePanel("calendar");setEditorOpen(value!=="month");try{localStorage.setItem("routine-fit-plan-view",value);}catch{/* Browser storage is optional. */}};
   const [seed,setSeed]=useState<Seed|null>(null),[notice,setNotice]=useState(""),[undo,setUndo]=useState<{planner:Planner;plans?:Day[]}|null>(null);
   const [removal,setRemoval]=useState<RemovalTarget|null>(null);
   const [editing,setEditing]=useState<RemovalTarget|null>(null);
@@ -75,7 +79,7 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRec
   const commit=async(next:Planner,change?:PlannerChange)=>{setNotice("");const parsed=plannerSchema.safeParse(next);if(!parsed.success)throw new Error(parsed.error.issues[0].message);const conflicts=validatePlannerErrors(parsed.data);if(conflicts.length)throw new Error(conflicts.join("\n"));await onSave(parsed.data,change);};
   const startNew=(value?:Partial<Seed>)=>{setNotice("");setPlacement(null);setSeed({date:selected,start:"09:00",end:"10:00",...value});};
   const beginPlacement=(category:PlannerBlock["category"],template?:PlannerTemplate,todo?:PlannerTodo)=>{
-    setNotice("");setMobilePanel("calendar");setSeed(null);setMode("week");setCompact(false);setPlacement({category,template,todo,ranges:[]});
+    setNotice("");setMobilePanel("calendar");setSeed(null);setMode("week");setEditorOpen(true);setCompact(false);setPlacement({category,template,todo,ranges:[]});
     requestAnimationFrame(()=>{const heading=workspace.current?.querySelector<HTMLElement>("[data-placement-heading]");heading?.scrollIntoView({block:"start",behavior:"instant"});heading?.focus({preventScroll:true});});
   };
   const selectRange=(range:PlacementRange)=>{
@@ -97,8 +101,18 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRec
     setSeed(null);setPlacement(null);
   };
   const openBlock=(b:PlannerBlock,date:string)=>{setSelected(date);setNotice("");setSeed({date,start:b.start,end:b.end,block:b});};
+  const addMonthTodo=(date:string|null,end?:string)=>{
+    setNotice("");
+    if(date)setSelected(date);
+    const dates=date&&end&&date!==end?{period:{start:date,end}}:{todayDate:date??undefined};
+    setTodoEditor({
+      todo:{id:crypto.randomUUID(),title:"",status:"open",location:"",notes:"",checklist:[],...dates},
+      date:date??selected,quick:true,
+    });
+  };
+  const saveTodo=async(next:Planner,change?:PlannerChange)=>{await commit(next,change);setUndo({planner,plans:state.days});};
   const completeTodo=(id:string)=>void commit(toggleTodo(planner,id)).then(()=>setUndo({planner})).catch(e=>setNotice(e.message));
-  const visibleOverlaps=dates.flatMap(date=>calendarSegments(planner,date).filter(s=>s.occurrences.length>1).map(segment=>({date,segment})));
+  const visibleOverlaps=mode==="month"?[]:dates.flatMap(date=>calendarSegments(planner,date).filter(s=>s.occurrences.length>1).map(segment=>({date,segment})));
   const point=(e:React.PointerEvent<HTMLDivElement>)=>Math.max(0,Math.min(47,Math.floor((e.clientY-e.currentTarget.getBoundingClientRect().top)/24)));
   const placeTemplate=(id:string,date:string,slot:number)=>{const template=planner.templates.find(t=>t.id===id);if(!template)return;const start=slot*30;startNew({date,start:toTime(start),end:toTime(start+durationOf(template)),template});setDragTemplate(null);};
   const placeTodo=(id:string,date:string,slot:number)=>{const todo=planner.todos?.find(t=>t.id===id);if(!todo)return;startNew({date,start:toTime(slot*30),end:toTime(slot*30+(todo.estimate??30)),todo,category:todo.category??"task"});todoPointer.current=null;};
@@ -126,15 +140,21 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRec
   },[planner,busy,compact,placement,selected]);
   return <div className="sp-workspace" ref={workspace}>
     <div className="workspace-purpose"><span>일정과 할 일을 만들고, 원하는 시간에 배치해요.</span>{onChecks&&<button className="text-link" onClick={()=>onChecks(selected)}>이 날짜 실천 체크로 이동 <ArrowRight size={14}/></button>}</div>
+    <div className="sp-view-switch sp-main-view" role="group" aria-label="계획표 보기">
+      {(Object.keys(plannerViews) as PlannerView[]).map(view=><button type="button" key={view} disabled={!!placement} aria-pressed={mode===view} onClick={()=>chooseMode(view)}>{plannerViews[view]}</button>)}
+    </div>
+    {mode==="month"&&<PlannerMonthView planner={planner} selected={selected} today={today} busy={busy} onSelect={setSelected} onDay={()=>chooseMode("day")}
+      onAdd={addMonthTodo} onEditTodo={(todo,date)=>setTodoEditor({todo,date})}
+      onToggleTodo={completeTodo} onEditBlock={openBlock}/>}
 
-    <section className="panel sp-overview" aria-label="주간 계획 요약"><header><div className="sp-date-nav"><button className="icon-button" aria-label="요약 이전 주" onClick={()=>setSelected(addDate(selected,-7))}><ChevronLeft size={16}/></button><b>{week[0].slice(5).replace("-",".")}–{week[6].slice(5).replace("-",".")}</b><button className="icon-button" aria-label="요약 다음 주" onClick={()=>setSelected(addDate(selected,7))}><ChevronRight size={16}/></button><button className="sp-today" onClick={()=>setSelected(today)}>오늘</button></div><div><button className="button secondary" onClick={()=>{setEditorOpen(v=>!v);setPlacement(null);}}>{editorOpen?"하루 요약 보기":"전체 시간표 편집"}</button><button className="button primary" disabled={busy} onClick={()=>{setEditorOpen(true);beginPlacement("study");}}><Plus size={14}/>일정 추가</button></div></header><div className="sp-overview-days" role="group" aria-label="주간 날짜 선택">{week.map(date=><button key={date} aria-pressed={selected===date} onClick={()=>{if(!placement){setSelected(date);setMode("day");}}} disabled={!!placement}><span>{weekdayNames[weekday(date)]}</span><b>{Number(date.slice(8))}</b><small>{occurrencesInWindow(planner,date).length}개</small></button>)}</div><button className="text-link" onClick={()=>{setEditorOpen(true);setMobilePanel("todos");}}>할 일·블록 보관함 열기</button></section>
+    {mode!=="month"&&<section className="panel sp-overview" aria-label="주간 계획 요약"><header><div className="sp-date-nav"><button className="icon-button" aria-label="요약 이전 주" onClick={()=>setSelected(addDate(selected,-7))}><ChevronLeft size={16}/></button><b>{week[0].slice(5).replace("-",".")}–{week[6].slice(5).replace("-",".")}</b><button className="icon-button" aria-label="요약 다음 주" onClick={()=>setSelected(addDate(selected,7))}><ChevronRight size={16}/></button><button className="sp-today" onClick={()=>setSelected(today)}>오늘</button></div><div><button className="button secondary" onClick={()=>{setEditorOpen(v=>!v);setPlacement(null);}}>{editorOpen?"하루 요약 보기":"전체 시간표 편집"}</button><button className="button primary" disabled={busy} onClick={()=>{setEditorOpen(true);beginPlacement("study");}}><Plus size={14}/>일정 추가</button></div></header><div className="sp-overview-days" role="group" aria-label="주간 날짜 선택">{week.map(date=><button key={date} aria-pressed={selected===date} onClick={()=>{if(!placement){setSelected(date);setMode("day");}}} disabled={!!placement}><span>{weekdayNames[weekday(date)]}</span><b>{Number(date.slice(8))}</b><small>{occurrencesInWindow(planner,date).length}개</small></button>)}</div><button className="text-link" onClick={()=>{setEditorOpen(true);setMobilePanel("todos");}}>할 일·블록 보관함 열기</button></section>}
     {notice&&<p className="form-error" role="alert">{notice}</p>}
     {visibleOverlaps.length>0&&<details className="sp-overlap-summary"><summary>⚠ 시간이 겹치는 구간 {visibleOverlaps.length}개 · 저장할 수 있어요</summary><p>빨간 테두리나 아래 시간을 누르면 겹친 일정을 모두 확인할 수 있어요.</p>{visibleOverlaps.map(x=><button type="button" className="text-link" key={`${x.date}:${x.segment.from}`} onClick={()=>setOverlapMemo(x)}>{x.date} {toTime(x.segment.from)}–{toTime(x.segment.until)} · {x.segment.occurrences.length}개 일정</button>)}</details>}
     {undo&&<div className="sp-undo" role="status">변경 전 계획을 되돌릴 수 있어요. 이 화면을 벗어나거나 새로고침하면 되돌리기 정보가 사라져요.<button className="text-link" disabled={busy} onClick={()=>void onSave({...undo.planner,records:planner.records},{restorePlans:undo.plans}).then(()=>{setUndo(null);setNotice("");}).catch(e=>setNotice(e.message))}>되돌리기</button></div>}
-    {editorOpen&&<div className="sp-mobile-tabs" role="group" aria-label="모바일 계획표 화면"><button type="button" aria-pressed={mobilePanel==="calendar"} onClick={()=>setMobilePanel("calendar")}>시간표</button><button type="button" aria-pressed={mobilePanel==="todos"} onClick={()=>setMobilePanel("todos")}>할 일</button></div>}
-    {editorOpen&&<div className="sp-layout" data-mobile-panel={mobilePanel}>
+    {mode!=="month"&&editorOpen&&<div className="sp-mobile-tabs" role="group" aria-label="모바일 계획표 화면"><button type="button" aria-pressed={mobilePanel==="calendar"} onClick={()=>setMobilePanel("calendar")}>시간표</button><button type="button" aria-pressed={mobilePanel==="todos"} onClick={()=>setMobilePanel("todos")}>할 일</button></div>}
+    {mode!=="month"&&editorOpen&&<div className="sp-layout" data-mobile-panel={mobilePanel}>
       <section className="sp-calendar" aria-label="주간 및 하루 시간표">
-        <header className="sp-toolbar"><div className="sp-date-nav"><button className="icon-button" disabled={!!placement} aria-label={mode==="week"?"이전 주":"이전 날짜"} onClick={()=>setSelected(addDate(selected,mode==="week"?-7:-1))}><ChevronLeft size={18}/></button><div><b>{mode==="week"?`${week[0].slice(5).replace("-",".")} – ${week[6].slice(5).replace("-",".")}`:dateTitle(selected)}</b><small>{selected.slice(0,4)} · 한국 시간 기준</small></div><button className="icon-button" disabled={!!placement} aria-label={mode==="week"?"다음 주":"다음 날짜"} onClick={()=>setSelected(addDate(selected,mode==="week"?7:1))}><ChevronRight size={18}/></button><button className="sp-today" disabled={!!placement} onClick={()=>setSelected(today)}>오늘</button></div><div className="sp-view-switch" role="group" aria-label="계획표 보기"><button disabled={!!placement} aria-pressed={mode==="week"} onClick={()=>chooseMode("week")}>주간</button><button disabled={!!placement} aria-pressed={mode==="day"} onClick={()=>chooseMode("day")}>하루</button></div></header>
+        <header className="sp-toolbar"><div className="sp-date-nav"><button className="icon-button" disabled={!!placement} aria-label={mode==="week"?"이전 주":"이전 날짜"} onClick={()=>setSelected(addDate(selected,mode==="week"?-7:-1))}><ChevronLeft size={18}/></button><div><b>{mode==="week"?`${week[0].slice(5).replace("-",".")} – ${week[6].slice(5).replace("-",".")}`:dateTitle(selected)}</b><small>{selected.slice(0,4)} · 한국 시간 기준</small></div><button className="icon-button" disabled={!!placement} aria-label={mode==="week"?"다음 주":"다음 날짜"} onClick={()=>setSelected(addDate(selected,mode==="week"?7:1))}><ChevronRight size={18}/></button><button className="sp-today" disabled={!!placement} onClick={()=>setSelected(today)}>오늘</button></div></header>
         <div className="sp-time-view"><div className="sp-view-switch" role="group" aria-label="시간대 표시 방식"><button aria-pressed={!compact} onClick={()=>setCompact(false)}>전체 시간 · 계획 편집</button><button disabled={!!placement} aria-pressed={compact} onClick={()=>setCompact(true)}>빈 시간 숨기기 · 정리 보기</button></div><p id="sp-time-view-help">{compact?`이 주 7일 모두 비어 있는 시간대를 30분 단위로 숨겼어요. 생략 ${gaps.reduce((n,r)=>n+r.until-r.from,0)/60}시간 · 하루 보기에도 같은 주의 시간축을 사용해요.`:"00:00–24:00의 모든 시간을 표시해요. 빈칸을 드래그해 일정을 추가할 수 있어요."}</p></div>
         <div className="sp-calendar-actions"><span><GripVertical size={15}/>{compact?"일정을 누르면 수정할 수 있어요. 드래그·끌어놓기는 전체 시간에서 가능해요.":"시간을 드래그하거나 블록을 끌어 놓으세요."}</span><button className="button secondary" disabled={busy||!!placement} onClick={()=>beginPlacement("study")}><Plus size={15}/>블록 추가</button></div>
         {placement&&<BlockPlacementPanel title={placement.todo?.title??placement.template?.title??plannerCategories[placement.category]} ranges={placement.ranges} selected={selected} busy={busy} onChange={ranges=>setPlacement(p=>p?{...p,ranges}:p)} onCancel={()=>{setPlacement(null);setNotice("");}} onContinue={()=>{const r=placement.ranges[0];if(r){setNotice("");setSeed({...r,category:placement.category,template:placement.template,todo:placement.todo,ranges:placement.ranges});}}}/>}
@@ -153,12 +173,12 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRec
       </section>
       <aside className="sp-sidebar" aria-label="할 일과 블록 보관함"><div className="sp-side-tabs" role="group" aria-label="계획표 보관함 선택"><button type="button" aria-pressed={sideTab==="todos"} onClick={()=>setSideTab("todos")}>To-do</button><button type="button" aria-pressed={sideTab==="library"} onClick={()=>setSideTab("library")}>블록 보관함</button></div>
       <button type="button" className="sp-colors-trigger" disabled={busy||!!placement} onClick={()=>setShowColors(true)}><Palette size={15}/>카테고리 색상</button>
-      {sideTab==="todos"?<PlannerTodos planner={planner} date={selected} busy={busy||!!placement} onSave={async(next,change)=>{await commit(next,change);setUndo({planner,plans:state.days});}} onPlace={todo=>beginPlacement(todo.category??"task",undefined,todo)} onDrag={(id,x,y)=>{if(id===null){const previous=draggedTodoId.current;draggedTodoId.current=null;todoPointer.current=null;if(previous&&x!==undefined&&y!==undefined)dropTodoAt(previous,x,y);}else draggedTodoId.current=id;}} onPointerStart={(id,x,y)=>{todoPointer.current={id,x,y};}} onOpenSchedule={b=>openBlock(b,b.kind==="once"?b.date:selected)}/>:<>
+      {sideTab==="todos"?<PlannerTodos planner={planner} date={selected} busy={busy||!!placement} onSave={saveTodo} onPlace={todo=>beginPlacement(todo.category??"task",undefined,todo)} onDrag={(id,x,y)=>{if(id===null){const previous=draggedTodoId.current;draggedTodoId.current=null;todoPointer.current=null;if(previous&&x!==undefined&&y!==undefined)dropTodoAt(previous,x,y);}else draggedTodoId.current=id;}} onPointerStart={(id,x,y)=>{todoPointer.current={id,x,y};}} onOpenSchedule={b=>openBlock(b,b.kind==="once"?b.date:selected)}/>:<>
       <div className="sp-library" aria-label="카테고리별 블록 보관함"><div className="sp-library-head"><span className="eyebrow">YOUR BLOCK LIBRARY</span><h3>꺼내 쓰는 블록</h3><p>카테고리 + 또는 블록 제목을 누른 뒤 시간표에서 요일별 시간을 선택하세요. 화살표는 상세 정보, ‘수정’은 연결된 모든 일정에 반영돼요.</p></div><Select label="블록 카테고리" value={filter} options={{all:"모든 카테고리",...plannerCategories}} onChange={setFilter}/>
         {(Object.keys(plannerCategories) as PlannerBlock["category"][]).filter(k=>filter==="all"||filter===k).map(category=><section key={category} className="sp-library-group"><h4 style={swatch(category,1,planner.categoryColors)}><i/>{plannerCategories[category]}<button className="icon-button" disabled={busy||!!placement} aria-label={`${plannerCategories[category]} 새 블록`} onClick={()=>beginPlacement(category)}><Plus size={15}/></button></h4>{planner.templates.filter(t=>t.category===category).map(t=><PlannerLibraryBlock key={t.id} template={t} style={swatch(t.category,t.shade,planner.categoryColors)} busy={busy||!!placement} active={placement?.template?.id===t.id} onPlace={()=>beginPlacement(category,t)} onDrag={setDragTemplate} onEdit={()=>{setNotice("");setEditing({kind:"template",item:t,date:selected});}} onRemove={()=>{setNotice("");setRemoval({kind:"template",item:t,date:selected});}}/>)}{!planner.templates.some(t=>t.category===category)&&<button className="sp-empty-category" disabled={busy||!!placement} onClick={()=>beginPlacement(category)}>+ 첫 블록 만들기</button>}</section>)}
       </div></>}</aside>
     </div>}
-    {!editorOpen&&<section className="sp-daily" aria-labelledby="sp-daily-title"><header><div><span className="eyebrow">WEEK → DAY → ROUTINE</span><h2 id="sp-daily-title">{dateTitle(selected)}의 하루 계획</h2><p>주간 계획의 해당 날짜 일정을 자동으로 가져왔어요. 추가 일정도 함께 반영합니다.</p></div><Input label="하루 계획 날짜" type="date" value={selected} onChange={v=>{if(!placement&&/^\d{4}-\d{2}-\d{2}$/.test(v))setSelected(v);}}/></header>
+    {mode!=="month"&&!editorOpen&&<section className="sp-daily" aria-labelledby="sp-daily-title"><header><div><span className="eyebrow">WEEK → DAY → ROUTINE</span><h2 id="sp-daily-title">{dateTitle(selected)}의 하루 계획</h2><p>주간 계획의 해당 날짜 일정을 자동으로 가져왔어요. 추가 일정도 함께 반영합니다.</p></div><Input label="하루 계획 날짜" type="date" value={selected} onChange={v=>{if(!placement&&/^\d{4}-\d{2}-\d{2}$/.test(v))setSelected(v);}}/></header>
       <div className="sp-day-stats"><span><Repeat2 size={17}/><b>{fixed.length}</b>고정 일정</span><span><CalendarDays size={17}/><b>{extras.length}</b>추가 일정</span><span><Clock3 size={17}/><b>{Math.round(context.scheduledMinutes/60*10)/10}h</b>일정 시간</span><span><Brain size={17}/><b>{context.burdenKnown?`${context.mental}/5`:"미확인"}</b>정신적 부담</span><span><Activity size={17}/><b>{context.burdenKnown?`${context.physical}/5`:"미확인"}</b>육체적 피로</span></div>
       <p>정신·육체 값은 일정 길이를 반영한 내 예상치의 평균이에요. 실제 컨디션이나 임상 검사 점수는 아닙니다.</p>
       <div className="sp-day-progress"><b>일정 완료 {doneCount} / {occurrences.length}</b><span className="sp-progress-note">체크는 이 날짜의 일정에만 반영돼요. 제목은 내용 수정, 체크는 완료·취소예요.</span></div>
@@ -166,17 +186,21 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRec
       <PlannerRoutineAction selected={selected} today={today} busy={busy} onGoToday={()=>setSelected(today)} onGenerate={onGenerate} onPreview={()=>setPreviewDate(selected)}/>
       <button className="text-link" onClick={onSettings}>기상·식사·이동시간 및 기존 고정 일정 설정 <ChevronRight size={15}/></button>{state.schedule.events.length>0&&<p className="sp-legacy">기존 하루 설정의 고정 일정 {state.schedule.events.length}개도 루틴 배치 시 유지합니다. 주간 일정과 중복된다면 위 설정에서 정리해주세요.</p>}
     </section>}
-    {nutritionGuide&&<FeaturePanel title="영양 정보 · iHerb 보기" caption="일정에 맞춘 성분·제품 검색" emoji="💊" unavailable={dialogOpen||!!seed||!!editing||!!removal||!!previewDate}>{nutritionGuide(selected)}</FeaturePanel>}
+    {nutritionGuide&&<FeaturePanel title="영양 정보 · iHerb 보기" caption="일정에 맞춘 성분·제품 검색" emoji="💊" unavailable={dialogOpen||!!todoEditor||!!seed||!!editing||!!removal||!!previewDate}>{nutritionGuide(selected)}</FeaturePanel>}
     {overlapMemo&&<OverlapDialog segment={calendarSegments(planner,overlapMemo.date).find(s=>s.from===overlapMemo.segment.from&&s.until===overlapMemo.segment.until)??overlapMemo.segment} date={overlapMemo.date} today={today} planner={planner} busy={busy} onClose={()=>setOverlapMemo(null)} onEdit={(b,d)=>{setOverlapMemo(null);openBlock(b,d);}} onMark={(b,d,status)=>{setOverlapMemo(null);void mark(b,d,status);}} onCompleteTodo={completeTodo}/>}
     {showColors&&<PlannerCategoryColors planner={planner} busy={busy} onClose={()=>setShowColors(false)} onSave={async colors=>{await commit({...planner,categoryColors:colors});setUndo({planner});}}/>}
     {previewDate&&<RoutinePreviewDialog key={previewDate} recommendationMemory={recommendationMemory} state={state} date={previewDate} today={today} onClose={()=>setPreviewDate(null)}/>}
     {editing&&<BlockEditDialog planner={planner} target={editing} busy={busy} onClose={()=>setEditing(null)} onConfirm={async request=>{await commit(applyBlockEdit(planner,request),{edit:request});setUndo({planner,plans:state.days});setEditing(null);setNotice("");}}/>}
     {removal&&<BlockRemovalDialog planner={planner} target={removal} busy={busy} onClose={()=>setRemoval(null)} onConfirm={async request=>{await commit(applyBlockRemoval(planner,request),{remove:request});setUndo({planner,plans:state.days});setRemoval(null);setNotice("");}}/>}
-    <FeaturePanel title="고정·추가 일정 설정" caption="반복 일정과 날짜별 약속" emoji="📅" unavailable={dialogOpen||!!seed||!!editing||!!removal||!!previewDate}>
+    <FeaturePanel title="고정·추가 일정 설정" caption="반복 일정과 날짜별 약속" emoji="📅" unavailable={dialogOpen||!!todoEditor||!!seed||!!editing||!!removal||!!previewDate}>
       <div><span className="eyebrow">PLAN FIRST. MAKE ROOM FOR YOU.</span><h2>내 일정에서 시작하는 건강한 하루</h2><p>반복되는 일정을 먼저 담고, 달라지는 약속을 더하세요. 날짜에 맞는 계획이 오늘의 루틴으로 이어집니다.</p></div>
       <div className="sp-steps"><button className={!planner.setupComplete?"active":""} disabled={busy||!!placement} onClick={()=>void commit({...planner,setupComplete:false}).catch(e=>setNotice(e.message))}><span>01</span><div><b>고정 계획표</b><small>수업·회사·정기 알바</small></div></button><ArrowRight size={16}/><button className={planner.setupComplete?"active":""} disabled={busy||!!placement} onClick={()=>void commit({...planner,setupComplete:true}).catch(e=>setNotice(e.message))}><span>02</span><div><b>날짜별 일정</b><small>운동·과제·친구와 약속</small></div></button></div>
       {!planner.setupComplete&&<div className="sp-setup"><p><Repeat2 size={16}/>먼저 매주 반복되는 시간을 등록해주세요. 고정 일정이 없다면 바로 다음 단계로 넘어가도 괜찮아요.</p><button className="button primary" disabled={busy||!!placement} onClick={()=>void commit({...planner,setupComplete:true}).catch(e=>setNotice(e.message))}>고정 일정 설정 완료 <ArrowRight size={16}/></button></div>}
     </FeaturePanel>
+    {todoEditor&&<PlannerTodoEditor key={todoEditor.todo.id} {...todoEditor} planner={planner} busy={busy} onSave={saveTodo}
+      onClose={()=>{if(!busy)setTodoEditor(null);}} onSaved={()=>setTodoEditor(null)}
+      onOpenSchedule={block=>{setTodoEditor(null);openBlock(block,block.kind==="once"?block.date:todoEditor.date);}}
+      onPlace={todo=>{setSelected(todoEditor.date);beginPlacement(todo.category??"task",undefined,todo);}}/>}
     {seed&&<BlockEditor categoryColors={planner.categoryColors} todos={planner.todos??[]} previewWarnings={(b,scope,ranges)=>{try{const next=blockChange(b,scope,false,ranges);const affected=new Set(next.blocks.filter(x=>!planner.blocks.some(old=>old.id===x.id)||scope==="all"&&x.id===seed.block?.id).map(x=>x.id));return validatePlanner(next,affected);}catch{return [];}}} seed={seed} defaultKind={seed.todo||planner.setupComplete?"once":"fixed"} busy={busy} error={notice} onClose={()=>{if(!busy)setSeed(null);}} onSave={saveBlock} onRemove={remove} onEditAll={b=>{setEditing({kind:"block",item:b,date:seed.date});setSeed(null);}}/>}
   </div>;
 }

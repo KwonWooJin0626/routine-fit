@@ -17,5 +17,9 @@ export function removeTodo(p:Planner,id:string,removeSchedules=false):Planner{
   })});
 }
 export function todosForDate(p:Planner,date:string){
-  return (p.todos??[]).filter(t=>t.todayDate===date||t.status!=="done"&&!!t.dueDate&&t.dueDate<=date||p.blocks.some(b=>b.todoId===t.id&&occursOn(b,date)));
+  return (p.todos??[]).filter(t=>todoCoversDate(t,date)||t.dueDate===date||t.status!=="done"&&!!t.dueDate&&t.dueDate<date||p.blocks.some(b=>b.todoId===t.id&&occursOn(b,date)));
+}
+
+export function todoCoversDate(todo:PlannerTodo,date:string){
+  return todo.period ? todo.period.start<=date&&date<=todo.period.end : todo.todayDate===date;
 }

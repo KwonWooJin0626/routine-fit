@@ -21,6 +21,8 @@ export const plannerTodoSchema=z.object({
   id:z.string().min(1).max(50),title:z.string().trim().min(1,"할 일 제목을 입력해주세요.").max(60),
   status:z.enum(["open","done"]).default("open"),category:z.enum(["study","work","task","meal","growth","exercise","social","rest"]).optional(),
   dueDate:plannerDateSchema.optional(),todayDate:plannerDateSchema.optional(),estimate:z.number().int().min(5).max(720).optional(),
+  period:z.object({start:plannerDateSchema,end:plannerDateSchema}).refine(v=>v.start<=v.end,"마지막 날은 시작일과 같거나 이후여야 해요.").optional(),
+  important:z.boolean().optional(),
   location:z.string().trim().max(100).default(""),notes:z.string().max(1000).default(""),
   checklist:z.array(z.object({id:z.string().min(1).max(50),text:z.string().trim().min(1).max(100),done:z.boolean()})).max(30).default([]),
   completedAt:z.string().datetime().optional(),

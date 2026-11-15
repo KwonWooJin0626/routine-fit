@@ -32,6 +32,8 @@ export function TodayChecks({app,date,day,filter,onFilter,store,pet,busy,onPlan,
   const agenda=allEvents?orderedEvents:orderedEvents.slice(0,2);
   const completedTodos=(planner.todos??[]).filter(t=>t.status==="done"&&t.completedAt&&localDate(new Date(t.completedAt))===date);
   const todos=todosForDate(planner,date).filter(t=>t.status!=="done");
+  const overdueTodos=isToday?todos.filter(t=>t.dueDate&&t.dueDate<date):[];
+  const regularTodos=isToday?todos.filter(t=>!t.dueDate||t.dueDate>=date):todos;
   const done=day?.routines.filter(r=>day.statuses[r.id]==="done").length??0,pending=(day?.routines.length??0)-done;
   const saveTodo=async()=>{if(!title.trim()||busy||!isToday)return;try{setError("");await onSavePlanner(upsertTodo(planner,{id:crypto.randomUUID(),title:title.trim(),status:"open",todayDate:date,location:"",notes:"",checklist:[]}));setTitle("");}catch(e){setError((e as Error).message);}};
   const toggle=async(id:string)=>{try{setError("");await onSavePlanner(toggleTodo(planner,id));setLastTodo(id);onChecked();}catch(e){setError((e as Error).message);}};
@@ -51,10 +53,13 @@ export function TodayChecks({app,date,day,filter,onFilter,store,pet,busy,onPlan,
         {orderedEvents.length>2&&<button className="text-link" aria-expanded={allEvents} onClick={()=>setAllEvents(v=>!v)}>{allEvents?"일정 접기":`일정 ${orderedEvents.length-2}개 더 보기`}</button>}
         {!agenda.length&&<div className="home-empty"><p>{events.length?"이 날짜의 일정을 모두 체크했어요.":"아직 등록된 일정이 없어요."}</p><button className="button secondary" onClick={onPlan}><Plus size={15}/>계획 만들기</button></div>}
       </section>
-      <section className="panel home-todos" aria-label="시간 없는 할 일"><header><h2>시간 없는 할 일</h2><small>제목만 적어도 괜찮아요</small></header>
-        {(allTodos?todos:todos.slice(0,3)).map(t=><label key={t.id} className="home-todo"><input type="checkbox" disabled={busy||!isToday} checked={false} onChange={()=>void toggle(t.id)}/><span>{t.title}</span></label>)}
+      <section className="panel home-todos" aria-label="할 일"><header><h2>할 일</h2><small>제목만 적어도 괜찮아요</small></header>
+        {(allTodos?regularTodos:regularTodos.slice(0,3)).map(t=><label key={t.id} className="home-todo"><input type="checkbox" disabled={busy||!isToday} checked={false} onChange={()=>void toggle(t.id)}/><span>{t.important&&"★ "}{t.title}</span></label>)}
         {!todos.length&&<p className="muted">작은 할 일 하나로 시작해요.</p>}
-        {todos.length>3&&<button className="text-link" onClick={()=>setAllTodos(v=>!v)}>{allTodos?"접기":`할 일 ${todos.length-3}개 더 보기`}</button>}
+        {regularTodos.length>3&&<button className="text-link" onClick={()=>setAllTodos(v=>!v)}>{allTodos?"접기":`할 일 ${regularTodos.length-3}개 더 보기`}</button>}
+        {overdueTodos.length>0&&<details><summary className="home-todo-group-label">기한 지남 · {overdueTodos.length}개</summary>
+          {overdueTodos.map(t=><label key={t.id} className="home-todo"><input type="checkbox" disabled={busy} checked={false} onChange={()=>void toggle(t.id)}/><span>{t.important&&"★ "}{t.title}</span></label>)}
+        </details>}
         {isToday?<form className="home-todo-add" onSubmit={e=>{e.preventDefault();void saveTodo();}}><input aria-label="할 일 제목" maxLength={60} placeholder="할 일 제목만 입력" value={title} onChange={e=>setTitle(e.target.value)}/><button className="icon-button" disabled={busy||!title.trim()} aria-label="할 일 추가"><Plus size={18}/></button></form>:<p className="muted">할 일 체크는 오늘 실제로 완료한 시각으로 남겨요. 다른 날짜의 배치는 계획에서 관리해요.</p>}
         {lastTodo&&planner.todos?.some(t=>t.id===lastTodo&&t.status==="done")&&<button className="text-link" disabled={busy} onClick={()=>void toggle(lastTodo)}>방금 한 일 체크 되돌리기</button>}{error&&<p className="form-error" role="alert">{error}</p>}
       </section>
