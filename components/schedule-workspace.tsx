@@ -42,7 +42,7 @@ const dateTitle=(date:string)=>new Intl.DateTimeFormat("ko-KR",{month:"long",day
 export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRecord,recommendationMemory,nutritionGuide,dialogOpen=false,initialDate,onChecks}:{state:AppState;initialDate?:string;onChecks?:(date:string)=>void;dialogOpen?:boolean;nutritionGuide?:(date:string)=>ReactNode;recommendationMemory?:RecommendationMemory;busy:boolean;onRecord?:(b:PlannerBlock,date:string,status:PlannerMark)=>Promise<void>;onSave:(p:Planner,change?:PlannerChange)=>Promise<void>;onGenerate:()=>void;onSettings:()=>void}){
   const planner=state.planner??emptyPlanner(),today=localDate(),now=useVisibleMinute();
   const minute=now?(now.getUTCHours()*60+now.getUTCMinutes()+540)%1440:null;
-  const [compact,setCompact]=useState(false);
+  const [fullTime,setFullTime]=useState(false);
   const [editorOpen,setEditorOpen]=useState(false);
   const [showColors,setShowColors]=useState(false);
   const [mobilePanel,setMobilePanel]=useState<"calendar"|"todos">("calendar");
@@ -61,6 +61,7 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRec
   const [selection,setSelection]=useState<{date:string;start:number;end:number}|null>(null);
   const [dragTemplate,setDragTemplate]=useState<string|null>(null);
   const [placement,setPlacement]=useState<{category:PlannerBlock["category"];template?:PlannerTemplate;todo?:PlannerTodo;ranges:PlacementRange[]}|null>(null);
+  const compact=!fullTime&&!placement;
   const drag=useRef<{date:string;start:number}|null>(null),didDrag=useRef(false),scroller=useRef<HTMLDivElement>(null);
   const workspace = useRef<HTMLDivElement>(null);
   useChapterScroll(workspace, String(planner.setupComplete), { resetPage: true, skipInitial: true });
@@ -69,6 +70,7 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRec
   const gridRows=calendarRows(planner,selected,compact),gridHeight=gridRows.reduce((n,r)=>n+r.height,0);
   const gaps=gridRows.filter(r=>r.kind==="gap"),emptyWeek=compact&&!gridRows.some(r=>r.kind==="slot");
   const weekStart=mondayOf(selected);
+  useEffect(()=>{setFullTime(false);},[mode,selected]);
   useEffect(()=>{setSelection(null);drag.current=null;didDrag.current=false;},[mode,compact,weekStart,selected]);
   const axisTime=(minute:number)=>minute===1440?"24:00":toTime(minute);
   const context=scheduleContext(state.schedule,planner,selected,initialCheckin(state.answers));
@@ -79,7 +81,7 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRec
   const commit=async(next:Planner,change?:PlannerChange)=>{setNotice("");const parsed=plannerSchema.safeParse(next);if(!parsed.success)throw new Error(parsed.error.issues[0].message);const conflicts=validatePlannerErrors(parsed.data);if(conflicts.length)throw new Error(conflicts.join("\n"));await onSave(parsed.data,change);};
   const startNew=(value?:Partial<Seed>)=>{setNotice("");setPlacement(null);setSeed({date:selected,start:"09:00",end:"10:00",...value});};
   const beginPlacement=(category:PlannerBlock["category"],template?:PlannerTemplate,todo?:PlannerTodo)=>{
-    setNotice("");setMobilePanel("calendar");setSeed(null);setMode("week");setEditorOpen(true);setCompact(false);setPlacement({category,template,todo,ranges:[]});
+    setNotice("");setMobilePanel("calendar");setSeed(null);setMode("week");setEditorOpen(true);setFullTime(false);setPlacement({category,template,todo,ranges:[]});
     requestAnimationFrame(()=>{const heading=workspace.current?.querySelector<HTMLElement>("[data-placement-heading]");heading?.scrollIntoView({block:"start",behavior:"instant"});heading?.focus({preventScroll:true});});
   };
   const selectRange=(range:PlacementRange)=>{
@@ -155,7 +157,7 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRec
     {mode!=="month"&&editorOpen&&<div className="sp-layout" data-mobile-panel={mobilePanel}>
       <section className="sp-calendar" aria-label="주간 및 하루 시간표">
         <header className="sp-toolbar"><div className="sp-date-nav"><button className="icon-button" disabled={!!placement} aria-label={mode==="week"?"이전 주":"이전 날짜"} onClick={()=>setSelected(addDate(selected,mode==="week"?-7:-1))}><ChevronLeft size={18}/></button><div><b>{mode==="week"?`${week[0].slice(5).replace("-",".")} – ${week[6].slice(5).replace("-",".")}`:dateTitle(selected)}</b><small>{selected.slice(0,4)} · 한국 시간 기준</small></div><button className="icon-button" disabled={!!placement} aria-label={mode==="week"?"다음 주":"다음 날짜"} onClick={()=>setSelected(addDate(selected,mode==="week"?7:1))}><ChevronRight size={18}/></button><button className="sp-today" disabled={!!placement} onClick={()=>setSelected(today)}>오늘</button></div></header>
-        <div className="sp-time-view"><div className="sp-view-switch" role="group" aria-label="시간대 표시 방식"><button aria-pressed={!compact} onClick={()=>setCompact(false)}>전체 시간 · 계획 편집</button><button disabled={!!placement} aria-pressed={compact} onClick={()=>setCompact(true)}>빈 시간 숨기기 · 정리 보기</button></div><p id="sp-time-view-help">{compact?`이 주 7일 모두 비어 있는 시간대를 30분 단위로 숨겼어요. 생략 ${gaps.reduce((n,r)=>n+r.until-r.from,0)/60}시간 · 하루 보기에도 같은 주의 시간축을 사용해요.`:"00:00–24:00의 모든 시간을 표시해요. 빈칸을 드래그해 일정을 추가할 수 있어요."}</p></div>
+        <div className="sp-time-view"><div className="sp-view-switch" role="group" aria-label="시간대 표시 방식"><button disabled={!!placement} aria-pressed={!compact} onClick={()=>setFullTime(true)}>전체 시간 · 계획 편집</button><button disabled={!!placement} aria-pressed={compact} onClick={()=>setFullTime(false)}>빈 시간 숨기기 · 정리 보기</button></div><p id="sp-time-view-help">{compact?`이 주 7일 모두 비어 있는 시간대를 30분 단위로 숨겼어요. 생략 ${gaps.reduce((n,r)=>n+r.until-r.from,0)/60}시간 · 하루 보기에도 같은 주의 시간축을 사용해요.`:"00:00–24:00의 모든 시간을 표시해요. 빈칸을 드래그해 일정을 추가할 수 있어요."}</p></div>
         <div className="sp-calendar-actions"><span><GripVertical size={15}/>{compact?"일정을 누르면 수정할 수 있어요. 드래그·끌어놓기는 전체 시간에서 가능해요.":"시간을 드래그하거나 블록을 끌어 놓으세요."}</span><button className="button secondary" disabled={busy||!!placement} onClick={()=>beginPlacement("study")}><Plus size={15}/>블록 추가</button></div>
         {placement&&<BlockPlacementPanel title={placement.todo?.title??placement.template?.title??plannerCategories[placement.category]} ranges={placement.ranges} selected={selected} busy={busy} onChange={ranges=>setPlacement(p=>p?{...p,ranges}:p)} onCancel={()=>{setPlacement(null);setNotice("");}} onContinue={()=>{const r=placement.ranges[0];if(r){setNotice("");setSeed({...r,category:placement.category,template:placement.template,todo:placement.todo,ranges:placement.ranges});}}}/>}
         <div className={`sp-scroll ${compact?"compact":""} ${placement?"is-selecting":""}`} ref={scroller} aria-describedby="sp-time-view-help"><div className={`sp-grid ${mode}`}>
@@ -168,7 +170,7 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRec
             <PlannerCalendarBlocks key={date} planner={planner} date={date} today={today} rows={gridRows} busy={busy} selecting={!!placement} onEdit={openBlock} onMark={(b,d,status)=>void mark(b,d,status)} onCompleteTodo={completeTodo}/>
 
           </div>)}{compact&&gaps.map(r=><div key={r.from} className="sp-time-gap" style={{top:r.top,height:r.height}}><span>{axisTime(r.from)}–{axisTime(r.until)} · 빈 시간 생략</span></div>)}</div>
-        </div>{emptyWeek&&<div className="sp-compact-empty"><CalendarDays size={24}/><b>이번 주에 등록된 일정이 없어요.</b><p>일정을 추가하면 필요한 시간대만 모아서 보여드려요.</p><button className="button secondary" onClick={()=>setCompact(false)}>전체 시간에서 계획 만들기</button></div>}</div>
+        </div>{emptyWeek&&<div className="sp-compact-empty"><CalendarDays size={24}/><b>이번 주에 등록된 일정이 없어요.</b><p>일정을 추가하면 필요한 시간대만 모아서 보여드려요.</p><button className="button secondary" onClick={()=>setFullTime(true)}>전체 시간에서 계획 만들기</button></div>}</div>
         <footer className="sp-calendar-foot"><span>색상은 카테고리 · 채도는 내가 고른 강조 정도</span><span><Repeat2 size={13}/>매주 반복 <i/>날짜별 추가</span></footer>
       </section>
       <aside className="sp-sidebar" aria-label="할 일과 블록 보관함"><div className="sp-side-tabs" role="group" aria-label="계획표 보관함 선택"><button type="button" aria-pressed={sideTab==="todos"} onClick={()=>setSideTab("todos")}>To-do</button><button type="button" aria-pressed={sideTab==="library"} onClick={()=>setSideTab("library")}>블록 보관함</button></div>
