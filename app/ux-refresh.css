@@ -80,7 +80,7 @@
 .sp-now-line:before{content:"";position:absolute;width:7px;height:7px;border-radius:50%;background:#e5484d;top:-2.5px;left:-3px}
 .sp-now-line span{position:absolute;right:3px;bottom:3px;font-size:9px;background:#fff;color:#d13b42;border-radius:3px;padding:1px 3px}
 .sleep-grid .sleep-checkin{order:-1}
-.rf-v2 .space-bottom-nav{grid-template-columns:repeat(5,minmax(0,1fr))}
+.rf-v2 .space-bottom-nav{grid-template-columns:repeat(6,minmax(0,1fr))}
 @media(min-width:1000px){
  .rf-v2 .content[data-space=today],.rf-v2 .content[data-space=planner],.growth-analysis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
  .rf-v2 .content[data-space=today]>*:not(.feature-panel),.rf-v2 .content[data-space=planner]>*:not(.feature-panel),.growth-analysis>*:not(.feature-panel){grid-column:1/-1}
@@ -129,7 +129,7 @@
  .dialog{width:calc(100vw - 24px);max-height:calc(100dvh - 32px);border-radius:22px;margin:auto;padding:0}
  .dialog .dialog-head{padding:22px 20px}.dialog .dialog-head h2{font-size:19px}.dialog .dialog-content{padding:20px}
  .dialog .form-grid{grid-template-columns:1fr}.dialog .field{min-width:0}
- .rf-v2 .space-bottom-nav button{font-size:10px;gap:5px}
+ .rf-v2 .space-bottom-nav button{font-size:10px;gap:5px;min-width:0;padding-inline:2px;flex:1 1 0;white-space:nowrap}
  .feature-body .report-metrics{grid-template-columns:1fr}
 }
 @media(prefers-reduced-motion:reduce){.feature-action{transition:none}}
