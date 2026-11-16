@@ -4,7 +4,7 @@ export const effectTypes=["study","work","exercise","growth","social","sleep","r
 export const effectLabels:Record<EffectType,string>={study:"학업·공부",work:"업무",exercise:"운동",growth:"자기계발",social:"교류",sleep:"수면",rest:"휴식",leisure:"여가",none:"준비·생활 기록",meal:"식사"};
 export type EffectType=typeof effectTypes[number];
 // Even a light meal (30) lasts through the longest regular meal gap: 18:00 → 07:00.
-export const PET_FULLNESS_DECAY_PER_HOUR=2;
+export const PET_FULLNESS_DECAY_PER_HOUR=2.25;
 export const petSourceSchema=z.object({kind:z.enum(["routine","planner","sleep","manual"]),id:z.string().min(1).max(150),date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/)}).strict();
 export type PetSource=z.infer<typeof petSourceSchema>;
 export const sourceKey=(s:PetSource)=>`${s.kind}:${s.date}:${s.id}`;
