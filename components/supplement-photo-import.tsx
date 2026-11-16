@@ -11,12 +11,29 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
   const [message,setMessage]=useState("");
   const [upc,setUpc]=useState("");
   const [searchEntry,setSearchEntry]=useState("");
+  const [matches,setMatches]=useState<{name:string;pack?:string;label:SupplementLabel}[]>([]);
   useEffect(()=>()=>{run.current++;},[]);
+
+  async function findNihMatches(query:string,id:number){
+    try{
+      const response=await fetch("/api/supplement-label?"+new URLSearchParams({name:query}),{signal:AbortSignal.timeout(13000)});
+      if(!response.ok)return false;
+      const {products}=await response.json();
+      if(run.current!==id||!Array.isArray(products))return false;
+      const found=products.flatMap(product=>{
+        const label=supplementLabelSchema.safeParse(product?.label);
+        return label.success&&typeof product?.name==="string"?[{name:product.name,pack:product.pack,label:label.data}]:[];
+      });
+      setMatches(found);
+      return found.length>0;
+    }catch{return false;}
+  }
 
   async function findOnWeb(){
     const id=++run.current;
     setSearchEntry("");
     setResult(null);
+    setMatches([]);
     setMessage("");
     setWorking("web");
     try{
@@ -27,12 +44,16 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
       if(typeof entry==="string")setSearchEntry(entry);
       const label=supplementLabelSchema.safeParse(product?.label);
       if(!response.ok||!label.success||typeof product?.name!=="string"){
-        setMessage(typeof error==="string"?error:"확인 가능한 성분표를 찾지 못했어요. 브랜드·제형·맛·용량을 포함해 찾아보세요.");
+        const found=await findNihMatches(name,id);
+        if(run.current!==id)return;
+        setMessage(found?"NIH에서 비슷한 제품을 찾았어요. 같은 제품과 용량을 골라 주세요."
+          :typeof error==="string"?`${error} 영문 제품명 또는 바코드로 찾아보세요.`:"확인 가능한 성분표를 찾지 못했어요. 브랜드·제형·맛·용량을 포함해 찾아보세요.");
         return;
       }
       setResult({label:label.data,name:product.name});
     }catch{
-      if(run.current===id)setMessage("웹 검색에 연결하지 못했어요. 바코드로도 조회할 수 있어요.");
+      const found=await findNihMatches(name,id);
+      if(run.current===id)setMessage(found?"NIH에서 비슷한 제품을 찾았어요. 같은 제품과 용량을 골라 주세요.":"웹 검색에 연결하지 못했어요. 바코드로도 조회할 수 있어요.");
     }finally{
       if(run.current===id)setWorking(null);
     }
@@ -40,6 +61,7 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
 
   async function findBarcode(){
     const id=++run.current;
+    setMatches([]);
     setResult(null);
     setMessage("");
     setWorking("barcode");
@@ -63,6 +85,7 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
 
   async function read(file:File){
     const id=++run.current;
+    setMatches([]);
     setResult(null);
     setMessage("");
     if(!["image/jpeg","image/png","image/webp"].includes(file.type)||file.size>10*1024*1024){
@@ -110,8 +133,16 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
     </label>
     {working&&<p role="status">{working==="photo"?"사진에서 성분표를 읽고 있어요…":working==="web"?"웹에서 성분표를 찾고 있어요…":"NIH 성분표를 조회하고 있어요…"}</p>}
     {message&&<p role="status">{message}</p>}
+    {matches.length>0&&<ul>
+      {matches.map(match=><li key={match.label.dsldId}>
+        <button type="button" className="text-link" disabled={!!working} onClick={()=>{setResult(match);setMatches([]);setMessage("");}}>
+          {match.name}{match.pack?` · ${match.pack}`:""}{match.label.upc?` · ${match.label.upc}`:""}
+        </button>
+      </li>)}
+    </ul>}
     {result&&<div>
       {result.name&&<h3>{result.name}</h3>}
+      {result.label.dsldId&&<p><a href={`https://dsld.od.nih.gov/label/${result.label.dsldId}`} target="_blank" rel="noopener noreferrer">NIH 원본 라벨 보기</a></p>}
       {result.label.webSources?.map((source,index)=><p key={index}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></p>)}
       <p>{result.label.servingSize}{result.label.servingUnit} 기준 · 성분 {result.label.facts.length}개</p>
       <p className="muted">{result.label.partial?"함량을 확인할 수 있는 항목만 표시했어요. 제품 라벨과 대조해 주세요.":"보유한 제품 라벨의 제공량과 성분별 숫자·단위가 일치하는지 확인해 주세요."}</p>

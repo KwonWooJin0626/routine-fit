@@ -36,7 +36,16 @@ export async function POST(request:Request){
       }),
     });
     if(response.status===429)return reply({error:"지금은 무료 웹 검색을 이용할 수 없어요. 잠시 후 다시 시도하거나 바코드로 찾아 주세요."},429);
-    if(!response.ok)return reply({error:"무료 웹 검색에 연결하지 못했어요. 바코드로 성분표를 찾을 수 있어요."},502);
+    if(!response.ok){
+      const upstream=await response.json().catch(()=>null);
+      const rawReason=upstream?.error?.details?.find?.((item:{reason?:unknown})=>typeof item?.reason==="string")?.reason;
+      const reason=typeof rawReason==="string"&&/^[A-Z_0-9]{1,80}$/.test(rawReason)?rawReason:undefined;
+      console.warn("Supplement web search rejected",{status:response.status,reason});
+      const error=response.status===404?"이 Gemini 프로젝트에서 무료 웹 검색 모델을 사용할 수 없어요."
+        :response.status===403||response.status===401||reason==="API_KEY_INVALID"?"Gemini API 키 또는 프로젝트 권한을 확인해 주세요."
+        :`Gemini에서 웹 검색 요청을 처리하지 못했어요. (Google ${response.status})`;
+      return reply({error},502);
+    }
     const parsedGateway=gatewaySchema.safeParse(await response.json());
     const candidate=parsedGateway.success?parsedGateway.data.candidates[0]:undefined;
     const entry=candidate?.groundingMetadata.searchEntryPoint?.renderedContent;
