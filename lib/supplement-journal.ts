@@ -2,16 +2,18 @@ import { z } from "zod";
 import { localDate,toMinutes,toTime,type AppState } from "./model";
 import { addDate,weekday,occurrencesInWindow } from "./planner";
 import { plannerDateSchema } from "./planner-model";
+import { iherbProductId,supplementLabelSchema } from "./supplement-label";
 
 export class SupplementInputError extends Error {}
 const id=z.string().regex(/^[a-zA-Z0-9_-]+$/).min(1).max(60),time=z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 export const iherbUrlSchema=z.string().max(1000).refine(value=>{if(!value)return true;try{const u=new URL(value);return u.protocol==="https:"&&(u.hostname==="iherb.com"||u.hostname.endsWith(".iherb.com"))&&!u.username&&!u.password&&!u.port;}catch{return false;}},"https 형식의 iHerb 주소만 입력해주세요.");
 export const supplementProductSchema=z.object({
+  label:supplementLabelSchema.optional(),
   id,name:z.string().trim().min(1,"제품명을 입력해주세요.").max(100),ingredients:z.array(z.string().trim().min(1).max(60)).max(24).default([]),
   dose:z.string().trim().max(80).default(""),url:iherbUrlSchema.default(""),notes:z.string().max(400).default(""),active:z.boolean().default(true),
   startDate:plannerDateSchema,endDate:plannerDateSchema.optional(),weekdays:z.array(z.number().int().min(0).max(6)).min(1).max(7),
   slots:z.array(z.object({id,anchor:z.enum(["fixed","breakfast","lunch","dinner","exercise","bed"]),time,offset:z.number().int().min(-180).max(180).default(0)})).min(1).max(6),
-}).superRefine((v,c)=>{if(v.endDate&&v.endDate<v.startDate)c.addIssue({code:"custom",message:"종료일은 시작일 이후로 선택해주세요."});if(new Set(v.slots.map(s=>s.id)).size!==v.slots.length)c.addIssue({code:"custom",message:"복용 시간 ID가 중복됐어요."});if(new Set(v.weekdays).size!==v.weekdays.length)c.addIssue({code:"custom",message:"반복 요일이 중복됐어요."});});
+}).superRefine((v,c)=>{if(v.endDate&&v.endDate<v.startDate)c.addIssue({code:"custom",message:"종료일은 시작일 이후로 선택해주세요."});if(new Set(v.slots.map(s=>s.id)).size!==v.slots.length)c.addIssue({code:"custom",message:"복용 시간 ID가 중복됐어요."});if(new Set(v.weekdays).size!==v.weekdays.length)c.addIssue({code:"custom",message:"반복 요일이 중복됐어요."});}).refine(product=>!product.label||iherbProductId(product.url)===product.label.productId,{path:["label"],message:"성분표와 상품 링크가 일치하지 않아요."});
 export const supplementRecordSchema=z.object({
   id:z.string().min(1).max(150),productId:id,date:plannerDateSchema,slotId:id,status:z.enum(["taken","skipped","unknown"]),
   actualAt:z.string().datetime().nullable(),dose:z.string().trim().max(80),recordedAt:z.string().datetime(),updatedAt:z.string().datetime(),

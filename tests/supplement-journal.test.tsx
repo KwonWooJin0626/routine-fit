@@ -6,11 +6,24 @@ import { emptyNutritionProfile } from "../lib/nutrition-profile";
 import { applySupplementCommand,emptySupplementJournal,supplementProductSchema,supplementOccurrences,supplementIngredientQuery,supplementPlannedAt,iherbUrlSchema,type SupplementProduct } from "../lib/supplement-journal";
 import { createSupplementHandlers,type SupplementRepository } from "../lib/supplement-api";
 import { SupplementChecks,SupplementProductDialog } from "../components/supplement-workspace";
+import { lookupSupplementLabel } from "../lib/supplement-label";
 import type { SupplementStore } from "../components/use-supplement-journal";
 const date="2026-11-09",now=new Date(`${date}T20:00:00+09:00`);
 const app:AppState={version:1,consentAt:now.toISOString(),consentVersion:"2026-10-growth-v1",answers:defaultAnswers,schedule:defaultSchedule,days:[],inbody:[],planner:{setupComplete:true,blocks:[],templates:[]}};
 const product=(patch:Partial<SupplementProduct>={})=>supplementProductSchema.parse({id:"vitamin",name:"등록 제품",dose:"1캡슐",startDate:"2026-11-01",weekdays:[0,1,2,3,4,5,6],slots:[{id:"morning",anchor:"fixed",time:"09:00",offset:0}],...patch});
 const registered=()=>applySupplementCommand(emptySupplementJournal(),{action:"save",product:product()},app,now);
+test("확인된 iHerb 상품의 라벨 25개를 채우고 이름이 같은 다른 상품과 구분한다",()=>{
+  const url="https://kr.iherb.com/pr/life-extension-two-per-day-multivitamin-120-tablets/137715?rcode=example";
+  const imported=lookupSupplementLabel(url)!;
+  assert.equal(imported.label.servingSize,2);
+  assert.equal(imported.label.facts.length,25);
+  assert.equal(imported.label.facts.find(row=>row.name==="비오틴(B7)")?.unit,"μg");
+  const saved=applySupplementCommand(emptySupplementJournal(),{action:"save",product:product({url,label:imported.label})},app,now);
+  assert.deepEqual(saved.products[0].label,imported.label);
+  assert.match(renderToStaticMarkup(<SupplementProductDialog product={product({url})} busy={false} onSave={async()=>{}} onClose={()=>{}}/>),/성분표 25개 가져옴/);
+  assert.equal(lookupSupplementLabel(url.replace("137715","86454")),null);
+  assert.throws(()=>product({url:url.replace("137715","86454"),label:imported.label}));
+});
 test("제품 입력은 빈 폼으로 열리고 잘못된 주소·반복·시간은 거절한다",()=>{
   assert.match(renderToStaticMarkup(<SupplementProductDialog busy={false} onSave={async()=>{}} onClose={()=>{}}/>),/정확한 제품명/);
   for(const url of ["javascript:alert(1)","https://iherb.com.evil.example/pr/1","https://user@kr.iherb.com/pr/1","http://kr.iherb.com"])assert.equal(iherbUrlSchema.safeParse(url).success,false);
