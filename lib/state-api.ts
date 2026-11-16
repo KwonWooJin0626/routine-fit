@@ -15,7 +15,7 @@ const response = (body: unknown, status = 200) => Response.json(body, { status, 
 const sameOrigin = (request: Request) => request.headers.get("origin") === new URL(request.url).origin;
 const inputSchema = z.object({ state: stateSchema, revision: z.number().int().min(0),intent:recommendationIntentSchema.optional() });
 
-// Production uses only verified Clerk identity and Postgres storage.
+// The caller resolves a verified identity to the account's Postgres owner ID.
 // Dependency injection enables unit tests without a runtime auth bypass.
 export function createStateHandlers(identity: () => Promise<string | null>, repository: StateRepository) {
   return {

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import "./pet.css";
 import "./media.css";
@@ -25,9 +24,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className="antialiased">
-        <ClerkProvider signInUrl="/sign-in" signUpUrl="/sign-up" signInFallbackRedirectUrl="/?start=1" signUpFallbackRedirectUrl="/?start=1">
-          {children}
-        </ClerkProvider>
+        {children}
       </body>
     </html>
   );

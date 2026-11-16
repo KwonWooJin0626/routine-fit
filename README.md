@@ -1,7 +1,7 @@
 # ROUTINE FIT
 
 짧은 질문으로 작은 실천을 시작하고, 일정과 실행 기록으로 루틴을 조정하는 자기개발 React 웹서비스입니다.
-기존 화면·추천 엔진·주간/하루 계획 기능을 Next.js로 이전하고, Clerk 인증과 Neon Postgres 계정별 저장을 연결했습니다.
+Next.js 화면·추천 엔진·주간/하루 계획은 Supabase Auth에서 확인한 사용자와 Neon Postgres의 계정별 기록을 연결합니다.
 
 서비스: [routine-fit-seven.vercel.app](https://routine-fit-seven.vercel.app/)
 
@@ -35,11 +35,11 @@ GitHub `main` 브랜치는 Vercel 프로젝트에 연결되어 변경 시 자동
 - 19종 영양소·보충 성분의 역할·효과·한계·출처, 식단 기반 최대 5개 우선 검토 후보 (근거 부족 시 0개)
 - 음식·섭취 프로필, 원료 필터, 단일·복합 제품 선호·장단점, WPC/WPI/식물성 분기, iHerb 유형 검색
 - InBody 수치 수동 등록, 선택적 이미지 OCR
-- Clerk 로그인·로그아웃, Neon 저장·복원, JSON 내보내기·이전 파일 가져오기
+- Supabase Auth의 Google 로그인·로그아웃, Neon 저장·복원, JSON 내보내기·이전 파일 가져오기
 
 ## 기술 구조
 
-React 19 + TypeScript → Next.js 16 App Router → Clerk 세션 검증 → Drizzle ORM / pg → Neon Postgres
+React 19 + TypeScript → Next.js 16 App Router → Supabase Auth 세션 검증 → Drizzle ORM / pg → Neon Postgres
 
 Vercel Functions와 DB는 Singapore 리전을 사용합니다. 운영 DB와 개발/미리보기 DB는 분리되어 있습니다.
 DB 연결은 TLS 인증서·호스트 이름 검증(`sslmode=verify-full`)을 명시합니다.
@@ -57,20 +57,38 @@ npm run db:migrate
 npm run dev
 ```
 
-`vercel link`에서는 본인이 소유한 올바른 팀·프로젝트를 선택하세요. 개발 서버 주소는 `http://localhost:3000`입니다.
-인증키 및 DB 연결은 Vercel Marketplace에서 연결한 Clerk / Neon의 환경변수를 사용합니다.
+`vercel link`에서는 본인이 소유한 올바른 팀·프로젝트를 선택하세요. 개발 서버 주소는 `http://127.0.0.1:5173`입니다.
+Neon 환경변수를 불러온 후, 전용 Supabase 프로젝트의 URL·publishable key를 개발 환경에 입력하세요.
 별도 설정 시 `.env.example`의 변수명만 참고하고, 실제 값은 로컬 또는 플랫폼의 비밀 환경변수에 입력하세요.
 
 | 변수 | 용도 |
 | --- | --- |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk 공개 인증 설정 |
-| `CLERK_SECRET_KEY` | 서버 전용 Clerk 인증키 |
+| `NEXT_PUBLIC_SUPABASE_URL` | 전용 Supabase 프로젝트 URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | 전용 Supabase 프로젝트 공개 키 |
+| `SUPABASE_LEGACY_ACCOUNT_LINKS` | 서버 전용 JSON. 확인된 Supabase 사용자 UUID를 기존 Neon 소유자 ID에 연결 |
 | `DATABASE_URL` | 서버 실행용 pooled 연결 |
 | `DATABASE_URL_UNPOOLED` | 스키마 마이그레이션용 direct 연결 |
 | `GOOGLE_VISION_API_KEY` | 선택적 OCR 키. 없으면 수동 입력 사용 |
 
 `db:migrate`는 `.env.local`의 대상 DB에 적용합니다. 운영 적용은 대상·마이그레이션을 먼저 검토하고 별도로 실행하세요.
 앱 빌드가 운영 DB 마이그레이션을 자동 실행하지 않도록 분리했습니다.
+
+## Google 로그인 연결
+
+1. Google Auth Platform에서 External·Testing과 테스트 사용자를 설정합니다. Data Access에는 `openid`, `userinfo.email`, `userinfo.profile` 범위를 사용합니다.
+2. Web application 클라이언트를 만듭니다. 개발 origin에는 `http://127.0.0.1:5173`을 입력하고, Authorized redirect URI에는 Supabase의 Google 공급자 화면에 표시된 콜백 주소를 그대로 입력합니다.
+3. Supabase Authentication → Providers → Google에 Client ID와 Secret을 입력합니다. URL Configuration에는 개발 복귀 주소 `http://127.0.0.1:5173/auth/callback`과 사용할 고정 미리보기·운영 복귀 주소를 등록합니다.
+4. 운영 전환 전, 기존 계정에 기록이 있는 사용자에게 기존 계정과 새 Google 계정의 소유권을 각각 확인합니다. 확인된 Supabase 사용자 UUID와 기존 Neon 소유자 ID를 `SUPABASE_LEGACY_ACCOUNT_LINKS`에 일대일로 등록하고, 미리보기에서 기존 기록을 복원해 확인합니다. 신규 사용자에게는 Supabase UUID가 소유자 ID로 사용됩니다.
+
+Google의 Client Secret은 Supabase 공급자 설정에 입력합니다. 프로젝트 URL과 publishable key는 로컬 환경 및 Vercel에 등록합니다. [Supabase Google 설정](https://supabase.com/docs/guides/auth/social-sign-in/auth-google)
+
+## 네이버 로그인 연결
+
+1. 네이버 개발자센터에서 웹 애플리케이션을 등록하고 네이버 로그인을 선택합니다. Callback URL에는 ROUTINE FIT 전용 Supabase의 Custom OAuth Providers 등록 화면에 표시된 콜백 주소를 입력합니다.
+2. Supabase Authentication → Providers → Custom OAuth Providers에서 Auto-discovery (OIDC) 공급자를 만듭니다. 공급자 식별자는 `custom:naver`, Issuer는 `https://nid.naver.com`입니다. 네이버 Client ID와 Client Secret으로 등록하고, 이메일 없는 로그인을 허용합니다(`email_optional: true`). Scope는 `openid`, PKCE는 활성화합니다.
+3. 공급자가 연결되면 앱의 서버 환경에 `SUPABASE_NAVER_ENABLED=true`를 설정합니다. Google과 같은 앱 복귀 주소 `/auth/callback`을 사용합니다.
+
+처음 네이버로 로그인한 계정에는 자체 기록을 저장합니다. 기존 Google·Clerk 기록을 연결하려면 두 계정의 소유권 확인이 필요합니다.
 
 ## 검증
 
@@ -91,7 +109,7 @@ GPT/LLM은 연결하지 않습니다. 제품 판매 문구가 아닌 NIH ODS·NC
 
 iHerb 공식 카탈로그·성분표·가격·재고 API 권한은 미확인입니다. 현재 외부 링크는 명시적으로 **유형 검색**이며, 조건에 적합하다고 검증된 실제 상품 추천이 아닙니다. 정식 상품 비교는 승인된 피드/재사용 권한과 SKU별 라벨 검토 후 별도로 연결해야 합니다. 조회·계획·클릭을 실제 섭취·구매로 기록하지 않습니다.
 챕터 전환 때만 세로 스크롤을 초기화하며 입력·체크·상세 펼치기에서는 위치를 유지합니다. 팝업은 팝업 내부를, 메뉴·계획 단계는 문서도 함께 초기화합니다.
-실제 Clerk 개발 세션으로 API → Neon 저장/복원·계정 격리·CAS·같은 출처 검증·루틴 생성을 확인했습니다.
+기존 Clerk 기반 `scripts/verify-*.mjs`의 인증 통합 검사는 이전 배포 검증용입니다. Supabase로 전환할 때는 미리보기에서 실제 Google 로그인과 Neon 기록 복원을 확인하세요.
 배포 환경에서도 Clerk 세션 → Vercel API → 운영용 Neon DB 저장·복원을 합성 계정으로 확인했습니다.
 검증용 합성 계정과 기록은 검증 후 삭제했습니다. 사용자의 실제 Gmail 로그인/가입 완료는 별도 확인이 필요합니다.
 

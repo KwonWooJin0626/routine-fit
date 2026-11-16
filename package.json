@@ -3,9 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": "24.x" },
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
-    "dev": "next dev --hostname localhost",
+    "dev": "next dev --hostname 127.0.0.1 --port 5173",
     "build": "next build",
     "start": "next start --hostname localhost",
     "typecheck": "tsc --noEmit",
@@ -16,7 +18,8 @@
     "db:migrate": "node --env-file=.env.local scripts/migrate.mjs"
   },
   "dependencies": {
-    "@clerk/nextjs": "7.9.15",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.119.0",
     "@vercel/functions": "3.10.1",
     "drizzle-orm": "0.45.2",
     "lucide-react": "1.31.0",

@@ -1,5 +1,9 @@
-import { SignUp } from "@clerk/nextjs";
+import { redirect } from "next/navigation";
+import { authDestination } from "@/lib/auth-destination";
 
-export default function SignUpPage() {
-  return <main className="loading-screen"><a href="/" className="text-link">ROUTINE FIT · 홈으로</a><SignUp signInUrl="/sign-in" fallbackRedirectUrl="/?start=1" /></main>;
+export default async function SignUpPage({ searchParams }: {
+  searchParams: Promise<{ redirect_url?: string }>;
+}) {
+  const destination = authDestination((await searchParams).redirect_url);
+  redirect("/sign-in?" + new URLSearchParams({ redirect_url: destination }));
 }
