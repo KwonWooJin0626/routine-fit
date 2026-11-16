@@ -7,7 +7,7 @@ import { applySupplementCommand,emptySupplementJournal,supplementProductSchema,s
 import { createSupplementHandlers,type SupplementRepository } from "../lib/supplement-api";
 import { SupplementChecks,SupplementProductDialog } from "../components/supplement-workspace";
 import { lookupSupplementLabel } from "../lib/supplement-label";
-import { intakeStatus,supplementIntake } from "../lib/supplement-intake";
+import { intakeStatus,servingCount,supplementIntake } from "../lib/supplement-intake";
 import type { SupplementStore } from "../components/use-supplement-journal";
 const date="2026-11-09",now=new Date(`${date}T20:00:00+09:00`);
 const app:AppState={version:1,consentAt:now.toISOString(),consentVersion:"2026-10-growth-v1",answers:defaultAnswers,schedule:defaultSchedule,days:[],inbody:[],planner:{setupComplete:true,blocks:[],templates:[]}};
@@ -15,7 +15,11 @@ const product=(patch:Partial<SupplementProduct>={})=>supplementProductSchema.par
 const registered=()=>applySupplementCommand(emptySupplementJournal(),{action:"save",product:product()},app,now);
 test("1일 섭취표는 제공량을 환산하고 계획과 실제 복용을 구분한다",()=>{
   const url="https://kr.iherb.com/pr/example/137715",label=lookupSupplementLabel(url)!.label;
-  const p=product({url,label,dose:"1정",slots:[product().slots[0],{id:"evening",anchor:"fixed",time:"19:00",offset:0}]});
+  const p=product({url,label,dose:"1",slots:[product().slots[0],{id:"evening",anchor:"fixed",time:"19:00",offset:0}]});
+  assert.equal(servingCount("2",label),1);
+  assert.equal(servingCount("1정",label),0.5);
+  assert.equal(servingCount("1스쿱",label),null);
+  assert.equal(servingCount("1.5",{...label,servingUnit:"스쿱",servingSize:1}),1.5);
   let journal=applySupplementCommand(emptySupplementJournal(),{action:"save",product:p},app,now);
   journal=applySupplementCommand(journal,{action:"record",productId:p.id,date,slotId:"morning",status:"taken"},app,now);
   journal=applySupplementCommand(journal,{action:"record",productId:p.id,date,slotId:"evening",status:"skipped"},app,now);

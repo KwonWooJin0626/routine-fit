@@ -9,8 +9,8 @@ type IntakeRow={id:string;name:string;amounts:Record<string,number>;missing:bool
 export const nutrientKey=(fact:Column)=>`${fact.name}|${fact.unit}`;
 
 export function servingCount(dose:string,label:SupplementLabel){
-  const match=dose.trim().match(/^(\d+(?:\.\d+)?)\s*(정|캡슐|스쿱|mL|g|포|방울|소프트젤)$/i);
-  if(!match||match[2].toLowerCase()!==label.servingUnit.toLowerCase())return null;
+  const match=dose.trim().match(/^(\d+(?:\.\d+)?)(?:\s*(정|캡슐|스쿱|mL|g|포|방울|소프트젤))?$/i);
+  if(!match||(match[2]&&match[2].toLowerCase()!==label.servingUnit.toLowerCase()))return null;
   const units=Number(match[1]);
   return units>0&&units<=1000000?units/label.servingSize:null;
 }

@@ -43,7 +43,7 @@ export function SupplementIntakeTable({journal,app}:{journal:SupplementJournal;a
     </div>:<p className={styles.notice}>{mode==="plan"?"이 날짜에 등록된 복용 계획이 없어요.":"이 날짜에 완료한 복용 기록이 없어요."}</p>}
     <details><summary>색상과 계산 기준</summary>
       <p>연녹색은 미국 라벨 기준치의 50% 미만, 녹색은 50~100%, 주황색은 100% 초과입니다. 빨간색은 확인된 양만으로 지원하는 상한 기준을 넘은 경우(현재 비타민 D3)에 표시해요. 식사와 미등록 제품이 제외되어요.</p>
-      <p>복용량은 라벨과 같은 단위로 입력해 주세요. 예를 들어 2정 기준 라벨이면 <b>1정</b>처럼 적으면 계산돼요. 실제 복용 표에는 기록할 당시 저장한 성분표를 사용합니다.</p>
+      <p>복용량에 <b>1</b>을 입력하면 제품 라벨의 단위를 붙여 1정 또는 1스쿱으로 계산해요. 실제 복용 표에는 기록할 당시 저장한 성분표를 사용합니다.</p>
       <a href="https://www.fda.gov/food/nutrition-facts-label/daily-value-new-nutrition-and-supplement-facts-labels" target="_blank" rel="noreferrer">FDA 라벨 기준치</a>{" · "}
       <a href="https://ods.od.nih.gov/factsheets/VitaminD-Consumer/" target="_blank" rel="noreferrer">NIH 비타민 D 상한</a>
     </details>
