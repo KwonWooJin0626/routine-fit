@@ -4,13 +4,39 @@ import { useEffect,useRef,useState } from "react";
 import { parseSupplementPhoto } from "@/lib/supplement-label-photo";
 import { iherbProductId,supplementLabelSchema,type SupplementLabel } from "@/lib/supplement-label";
 
-export function SupplementPhotoImport({url,onApply}:{url:string;onApply:(label:SupplementLabel,name?:string)=>void}){
+export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string;onApply:(label:SupplementLabel,name?:string)=>void}){
   const run=useRef(0);
   const [result,setResult]=useState<{label:SupplementLabel;omitted?:number;name?:string}|null>(null);
-  const [working,setWorking]=useState<"photo"|"barcode"|null>(null);
+  const [working,setWorking]=useState<"photo"|"barcode"|"web"|null>(null);
   const [message,setMessage]=useState("");
   const [upc,setUpc]=useState("");
+  const [searchEntry,setSearchEntry]=useState("");
   useEffect(()=>()=>{run.current++;},[]);
+
+  async function findOnWeb(){
+    const id=++run.current;
+    setSearchEntry("");
+    setResult(null);
+    setMessage("");
+    setWorking("web");
+    try{
+      const response=await fetch("/api/supplement-web-search",{method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({name}),signal:AbortSignal.timeout(18000)});
+      const {product,error,entry}=await response.json();
+      if(run.current!==id)return;
+      if(typeof entry==="string")setSearchEntry(entry);
+      const label=supplementLabelSchema.safeParse(product?.label);
+      if(!response.ok||!label.success||typeof product?.name!=="string"){
+        setMessage(typeof error==="string"?error:"확인 가능한 성분표를 찾지 못했어요. 브랜드·제형·맛·용량을 포함해 찾아보세요.");
+        return;
+      }
+      setResult({label:label.data,name:product.name});
+    }catch{
+      if(run.current===id)setMessage("웹 검색에 연결하지 못했어요. 바코드로도 조회할 수 있어요.");
+    }finally{
+      if(run.current===id)setWorking(null);
+    }
+  }
 
   async function findBarcode(){
     const id=++run.current;
@@ -63,7 +89,10 @@ export function SupplementPhotoImport({url,onApply}:{url:string;onApply:(label:S
     }
   }
 
-  return <section className="dose-product-details" aria-label="성분표 사진으로 가져오기">
+  return <section className="dose-product-details" aria-label="성분표 가져오기">
+    <button type="button" className="button secondary" disabled={!!working||name.trim().length<3} onClick={()=>void findOnWeb()}>제품명으로 웹에서 더 찾기</button>
+    {searchEntry&&<iframe title="Google 추천 검색" sandbox="allow-popups allow-popups-to-escape-sandbox" width="100%" height="105"
+      srcDoc={'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'">'+searchEntry}/>}
     <details>
       <summary>바코드 번호로 성분표 찾기</summary>
       <label className="field"><span>바코드 아래 숫자</span>
@@ -79,10 +108,11 @@ export function SupplementPhotoImport({url,onApply}:{url:string;onApply:(label:S
         if(file)void read(file);
       }}/>
     </label>
-    {working&&<p role="status">{working==="photo"?"사진에서 성분표를 읽고 있어요…":"NIH 성분표를 조회하고 있어요…"}</p>}
+    {working&&<p role="status">{working==="photo"?"사진에서 성분표를 읽고 있어요…":working==="web"?"웹에서 성분표를 찾고 있어요…":"NIH 성분표를 조회하고 있어요…"}</p>}
     {message&&<p role="status">{message}</p>}
     {result&&<div>
       {result.name&&<h3>{result.name}</h3>}
+      {result.label.webSources?.map((source,index)=><p key={index}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></p>)}
       <p>{result.label.servingSize}{result.label.servingUnit} 기준 · 성분 {result.label.facts.length}개</p>
       <p className="muted">{result.label.partial?"함량을 확인할 수 있는 항목만 표시했어요. 제품 라벨과 대조해 주세요.":"보유한 제품 라벨의 제공량과 성분별 숫자·단위가 일치하는지 확인해 주세요."}</p>
       <div className="record-table"><table><thead><tr><th scope="col">성분</th><th scope="col">함량</th></tr></thead>
