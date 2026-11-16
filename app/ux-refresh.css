@@ -9,6 +9,13 @@
 .feature-copy strong{font-size:15px;line-height:1.5;word-break:keep-all;overflow-wrap:anywhere}
 .feature-copy small{color:#8792a2;font-size:12px;line-height:1.5;word-break:keep-all}
 .feature-action>svg{flex:none;color:#9aa4b2}
+.space-settings > .feature-action{align-self:start}
+.space-settings .feature-emoji{display:grid;place-items:center;flex:0 0 42px;height:42px;border-radius:12px;background:#f6f2f5;font-size:21px}
+.space-settings .feature-copy small{color:#667286}
+@media(max-width:700px){
+  .space-settings.settings-grid{grid-template-columns:minmax(0,1fr)}
+  dialog.dialog.settings-sheet{inset:auto 0 0;margin:0;width:100%;max-width:none;max-height:85dvh;border-radius:20px 20px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+}
 .feature-body{display:grid;gap:20px;min-width:0}
 .feature-body>details,.feature-body>.panel{margin:0}
 .feature-footer{display:flex;justify-content:flex-end;margin-top:24px;padding-top:16px;border-top:1px solid #edf0f4}
