@@ -6,7 +6,7 @@ import { emptyNutritionProfile } from "../lib/nutrition-profile";
 import { applySupplementCommand,emptySupplementJournal,supplementProductSchema,supplementOccurrences,supplementIngredientQuery,supplementPlannedAt,iherbUrlSchema,type SupplementProduct } from "../lib/supplement-journal";
 import { createSupplementHandlers,type SupplementRepository } from "../lib/supplement-api";
 import { SupplementChecks,SupplementProductDialog } from "../components/supplement-workspace";
-import { lookupSupplementLabel } from "../lib/supplement-label";
+import { lookupSupplementLabel,searchSupplementCatalog } from "../lib/supplement-label";
 import { intakeStatus,servingCount,supplementIntake } from "../lib/supplement-intake";
 import { parseSupplementPhoto } from "../lib/supplement-label-photo";
 import type { SupplementStore } from "../components/use-supplement-journal";
@@ -69,6 +69,10 @@ test("확인된 iHerb 상품의 라벨 25개를 채우고 이름이 같은 다�
   assert.deepEqual(saved.products[0].label,imported.label);
   assert.match(renderToStaticMarkup(<SupplementProductDialog product={product({url})} busy={false} onSave={async()=>{}} onClose={()=>{}}/>),/성분표 25개 가져옴/);
   assert.equal(lookupSupplementLabel(url.replace("137715","86454")),null);
+  const [goldC]=searchSupplementCatalog("Gold C 1000mg 240캡슐");
+  assert.equal(goldC.label.servingUnit,"캡슐");
+  assert.equal(goldC.label.facts[0].amount,1000);
+  assert.equal(searchSupplementCatalog("Gold C 1000mg 60캡슐").length,0);
   for(const [id,count] of [["71026",1],["71031",15],["136132",11]] as const){
     const known=lookupSupplementLabel(`https://kr.iherb.com/pr/example/${id}`);
     assert.equal(known?.label.servingUnit,"스쿱");

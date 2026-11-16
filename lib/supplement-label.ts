@@ -76,11 +76,25 @@ export function lookupSupplementLabel(url:string){
   return catalog.get(iherbProductId(url)??"")??null;
 }
 
+catalog.set("61865",{
+  name:"California Gold Nutrition Gold C 비타민 C 1,000mg 240캡슐",
+  label:supplementLabelSchema.parse({
+    productId:"61865",productCode:"CGN-00932",upc:"898220009329",
+    servingSize:1,servingUnit:"캡슐",servingsPerContainer:240,
+    facts:[{name:"비타민 C",amount:1000,unit:"mg",dailyValuePercent:1111}],
+  }),
+});
+
 const productAliases:Record<string,string[]>={
   "137715":["투퍼데이","twoperday","two per day multivitamin"],
   "71026":["크레아틴","creatine monohydrate"],
   "71031":["wpi","분리유청단백질","whey protein isolate"],
   "136132":["eaa","allmax essentials eaa"],
+  "61865":[
+    "Gold C 1000mg 240캡슐","Gold C 1000mg 240 Veggie Capsules","CGN-00932",
+    "California Gold Nutrition Gold C USP Grade Vitamin C 1000 mg 240 Veggie Capsules",
+    "California Gold Nutrition (캘리포니아골드뉴트리션), Gold C®, USP 등급 비타민C, 1,000mg, 베지 캡슐 240정",
+  ],
 };
 const searchKey=(text:string)=>text.toLowerCase().replace(/[^\p{L}\p{N}]/gu,"");
 
