@@ -22,7 +22,7 @@ export function supplementIntake(journal:SupplementJournal,app:AppState,date:str
     const row=rows.get(id)??{id,name,amounts:{},missing:false,occurrences:0};
     rows.set(id,row);row.occurrences++;
     const factor=label?servingCount(dose,label):null;
-    if(!label||factor===null)row.missing=true;
+    if(!label||label.partial||factor===null)row.missing=true;
     for(const fact of label?.facts??[]){
       const key=nutrientKey(fact);
       columns.set(key,{name:fact.name,unit:fact.unit});

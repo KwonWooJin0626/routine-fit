@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const supplementFactUnits=["g","mg","μg","μg RAE","μg DFE","mg NE","IU","CFU"] as const;
+export const supplementFactUnits=["g","mg","μg","μg RAE","μg DFE","mg NE","IU","CFU","kcal"] as const;
 export const supplementServingUnits=["정","캡슐","스쿱","mL","g","포","방울","소프트젤"] as const;
 const unit=z.enum(supplementFactUnits);
 const fact=z.object({name:z.string().trim().min(1).max(120),amount:z.number().finite().nonnegative().max(1e15),unit,
@@ -8,10 +8,13 @@ const fact=z.object({name:z.string().trim().min(1).max(120),amount:z.number().fi
 export const supplementLabelSchema=z.object({
   productId:z.string().regex(/^\d+$/).optional(),
   productCode:z.string().max(60).optional(),
-  upc:z.string().regex(/^\d{12,14}$/).optional(),
+  upc:z.string().regex(/^(?:\d{8}|\d{12,14})$/).optional(),
   servingSize:z.number().min(0.000001).max(1000000),
   servingUnit:z.enum(supplementServingUnits),
   servingsPerContainer:z.number().positive().optional(),
+  source:z.enum(["photo","dsld"]).optional(),
+  dsldId:z.number().int().positive().optional(),
+  partial:z.boolean().optional(),
   facts:z.array(fact).min(1).max(80),
 }).refine(label=>new Set(label.facts.map(row=>row.name+"|"+row.unit)).size===label.facts.length,
   {path:["facts"],message:"같은 이름과 단위의 성분이 중복됐어요."});
@@ -44,6 +47,30 @@ const twoPerDay={
   }),
 };
 
+const catalog=new Map<string,{name:string;label:SupplementLabel}>([["137715",twoPerDay]]);
+function addPowder(productId:string,name:string,productCode:string,upc:string,servingsPerContainer:number,rows:typeof facts){
+  catalog.set(productId,{name,label:supplementLabelSchema.parse({
+    productId,productCode,upc,servingSize:1,servingUnit:"스쿱",servingsPerContainer,
+    facts:rows.map(([name,amount,unit,dailyValuePercent])=>({name,amount,unit,dailyValuePercent})),
+  })});
+}
+
+addPowder("71026","California Gold Nutrition 크레아틴 일수화물 무맛 454g","CGN-01059","898220010592",91,[
+  ["크레아틴 일수화물",5,"g",null],
+]);
+addPowder("71031","California Gold Nutrition 분리유청단백질 무맛 454g","CGN-01064","898220010646",15,[
+  ["열량",120,"kcal",null],["총 지방",0,"g",0],["포화지방",0,"g",0],["트랜스지방",0,"g",null],
+  ["콜레스테롤",15,"mg",5],["나트륨",55,"mg",2],["총 탄수화물",0,"g",0],
+  ["식이섬유",0,"g",0],["총당류",0,"g",null],["첨가당",0,"g",0],["단백질",27,"g",55],
+  ["비타민 D",0,"μg",0],["칼슘",120,"mg",10],["철분",0,"mg",0],["칼륨",130,"mg",2],
+]);
+addPowder("136132","ALLMAX Essentials EAA 320g","AMX-22988","665553229881",30,[
+  ["L-류신",2544,"mg",null],["L-이소류신",1272,"mg",null],["L-발린",1272,"mg",null],
+  ["BCAA (류신·이소류신·발린 합계)",5088,"mg",null],["L-라이신",2590,"mg",null],
+  ["L-메티오닌",612,"mg",null],["L-페닐알라닌",315,"mg",null],["L-트레오닌",275,"mg",null],
+  ["L-히스티딘",150,"mg",null],["L-트립토판",220,"mg",null],["EAA (필수 아미노산 합계)",9250,"mg",null],
+]);
+
 export function lookupSupplementLabel(url:string){
-  return iherbProductId(url)===twoPerDay.label.productId?twoPerDay:null;
+  return catalog.get(iherbProductId(url)??"")??null;
 }

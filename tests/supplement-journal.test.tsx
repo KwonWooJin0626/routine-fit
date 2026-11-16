@@ -8,11 +8,34 @@ import { createSupplementHandlers,type SupplementRepository } from "../lib/suppl
 import { SupplementChecks,SupplementProductDialog } from "../components/supplement-workspace";
 import { lookupSupplementLabel } from "../lib/supplement-label";
 import { intakeStatus,servingCount,supplementIntake } from "../lib/supplement-intake";
+import { parseSupplementPhoto } from "../lib/supplement-label-photo";
 import type { SupplementStore } from "../components/use-supplement-journal";
 const date="2026-11-09",now=new Date(`${date}T20:00:00+09:00`);
 const app:AppState={version:1,consentAt:now.toISOString(),consentVersion:"2026-10-growth-v1",answers:defaultAnswers,schedule:defaultSchedule,days:[],inbody:[],planner:{setupComplete:true,blocks:[],templates:[]}};
 const product=(patch:Partial<SupplementProduct>={})=>supplementProductSchema.parse({id:"vitamin",name:"등록 제품",dose:"1캡슐",startDate:"2026-11-01",weekdays:[0,1,2,3,4,5,6],slots:[{id:"morning",anchor:"fixed",time:"09:00",offset:0}],...patch});
 const registered=()=>applySupplementCommand(emptySupplementJournal(),{action:"save",product:product()},app,now);
+test("사진 성분표는 제공량과 단위를 가져오고 확인되지 않은 행을 표시한다",()=>{
+  const url="https://kr.iherb.com/pr/example/1234";
+  const result=parseSupplementPhoto(`Supplement Facts
+Serving Size: 2 Scoops (20 g)
+Servings Per Container 30
+Amount Per Serving % Daily Value
+Magnesium (as citrate) 100 mg 24%
+Vitamin D3 25 mcg 125%
+Protein 12 g
+L-leucine amount unavailable
+Other Ingredients: Natural flavor`,url);
+  assert.ok(result);
+  assert.equal(result.label.productId,"1234");
+  assert.equal(result.label.servingUnit,"스쿱");
+  assert.equal(result.label.servingSize,2);
+  assert.equal(result.label.partial,true);
+  assert.equal(result.omitted,1);
+  assert.deepEqual(result.label.facts.map(f=>[f.name,f.amount,f.unit]),[
+    ["마그네슘",100,"mg"],["비타민 D3",25,"μg"],["Protein",12,"g"],
+  ]);
+  assert.equal(parseSupplementPhoto("Vitamin D3 25 mcg 125%",url),null);
+});
 test("1일 섭취표는 제공량을 환산하고 계획과 실제 복용을 구분한다",()=>{
   const url="https://kr.iherb.com/pr/example/137715",label=lookupSupplementLabel(url)!.label;
   const p=product({url,label,dose:"1",slots:[product().slots[0],{id:"evening",anchor:"fixed",time:"19:00",offset:0}]});
@@ -46,6 +69,11 @@ test("확인된 iHerb 상품의 라벨 25개를 채우고 이름이 같은 다�
   assert.deepEqual(saved.products[0].label,imported.label);
   assert.match(renderToStaticMarkup(<SupplementProductDialog product={product({url})} busy={false} onSave={async()=>{}} onClose={()=>{}}/>),/성분표 25개 가져옴/);
   assert.equal(lookupSupplementLabel(url.replace("137715","86454")),null);
+  for(const [id,count] of [["71026",1],["71031",15],["136132",11]] as const){
+    const known=lookupSupplementLabel(`https://kr.iherb.com/pr/example/${id}`);
+    assert.equal(known?.label.servingUnit,"스쿱");
+    assert.equal(known?.label.facts.length,count);
+  }
   assert.throws(()=>product({url:url.replace("137715","86454"),label:imported.label}));
 });
 test("제품 입력은 빈 폼으로 열리고 잘못된 주소·반복·시간은 거절한다",()=>{
