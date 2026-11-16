@@ -11,18 +11,28 @@ export interface SleepRepository{
   emailCheckin:(id:string,token:string,now:Date)=>Promise<SleepRecord|null>;
 }
 const response=(body:unknown,status=200)=>Response.json(body,{status,headers:{"Cache-Control":"private, no-store","Referrer-Policy":"no-referrer"}});
-export function createSleepHandlers(identity:()=>Promise<SleepIdentity|null>,repo:SleepRepository,capability:()=>{mailConfigured:boolean;schedulerConfigured:boolean},clock=()=>new Date()){
+export function createSleepHandlers(identity:()=>Promise<SleepIdentity|null>,repo:SleepRepository,capability:()=>{mailConfigured:boolean;schedulerConfigured:boolean;mealMailConfigured?:boolean},clock=()=>new Date()){
   const sameOrigin=(r:Request)=>r.headers.get("origin")===new URL(r.url).origin;
   return {
-    async GET(){const user=await identity();if(!user)return response({error:"로그인이 필요해요."},401);try{return response({...await repo.get(user.userId),...capability()});}catch{return response({error:"수면 기록을 불러오지 못했어요."},503);}},
+    async GET(){const user=await identity();if(!user)return response({error:"로그인이 필요해요."},401);try{return response({...await repo.get(user.userId),...capability(),mealMailConfigured:user.verified&&!!user.email&&!!capability().mealMailConfigured});}catch{return response({error:"수면 기록을 불러오지 못했어요."},503);}},
     async PUT(request:Request){
       const user=await identity();if(!user)return response({error:"로그인이 필요해요."},401);if(!sameOrigin(request))return response({error:"같은 사이트에서 요청해주세요."},403);
       try{
         const raw=await request.text();if(raw.length>4000)return response({error:"입력이 너무 길어요."},413);
-        const input=JSON.parse(raw),settings=sleepSettingsSchema.safeParse(input.settings);
+        const input=JSON.parse(raw);
+        if(typeof input.mealEmailEnabled==="boolean"&&input.settings===undefined){
+          if(!Number.isInteger(input.revision)||input.revision<0)return response({error:"설정을 다시 불러와주세요."},400);
+          if(input.mealEmailEnabled&&(!user.verified||!user.email||!capability().mealMailConfigured))return response({error:"식사 메일을 받으려면 인증된 이메일과 발송 설정이 필요해요."},400);
+          const {profile:previous}=await repo.get(user.userId);
+          const current=previous?.settings??{...defaultSleepSettings(),goalEnabled:false};
+          const profile=await repo.settings(user.userId,user.verified?user.email:"",{...current,mealEmailEnabled:input.mealEmailEnabled},input.revision);
+          return profile?response({profile}):response({error:"다른 창에서 설정이 바뀌었어요. 다시 불러와주세요."},409);
+        }
+        const settings=sleepSettingsSchema.safeParse(input.settings);
         if(!settings.success||!Number.isInteger(input.revision)||input.revision<0)return response({error:"시간과 요일을 확인해주세요."},400);
         if(settings.data.emailEnabled&&(!user.verified||!capability().mailConfigured||!capability().schedulerConfigured))return response({error:"Resend·예약 발송 설정과 인증된 이메일을 확인한 후 메일 알림을 사용할 수 있어요. 지금은 웹 체크인을 이용해주세요."},400);
-        const profile=await repo.settings(user.userId,user.verified?user.email:"",settings.data,input.revision);
+        const {profile:previous}=await repo.get(user.userId);
+        const profile=await repo.settings(user.userId,user.verified?user.email:"",{...settings.data,mealEmailEnabled:previous?.settings.mealEmailEnabled},input.revision);
         return profile?response({profile}):response({error:"다른 창에서 설정이 바뀌었어요. 다시 불러와주세요."},409);
       }catch{return response({error:"설정을 저장하지 못했어요. 입력을 확인하거나 잠시 후 다시 시도해주세요."},503);}
     },

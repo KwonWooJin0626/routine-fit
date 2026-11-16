@@ -29,6 +29,7 @@ import { petCompletionMessage } from "@/lib/pet-effort";
 import { executionMinutes } from "@/lib/pet-execution";
 import { PetHome,PetHistory,PetSettings } from "./pet-companion";
 import { ExecutionConfirmDialog,type ExecutionDraft } from "./execution-confirm-dialog";
+import { MealReminderSettings } from "./meal-reminder-settings";
 import { routineEffect,blockEffect,executionFor,plannerExecutionTimes } from "@/lib/pet-guidance";
 import type { PetCommand,PetExecution } from "@/lib/pet-model";
 import type { SleepRecord } from "@/lib/sleep";
@@ -362,6 +363,7 @@ export default function RoutineFit({ user }: {user:{name:string;email:string}|nu
           <SleepWorkspace mode="settings" demo={demo} initialBed={state.schedule.bed} initialWake={state.schedule.wake}/>
         </FeaturePanel>
         <FeatureAction title="실천 체크" caption="일정·루틴·복용·수면 기록" emoji="✅" onClick={()=>showChecks(today)}/>
+        <FeaturePanel sheet title="식사 기록 알림" caption="점심·저녁 기록 안내 메일" emoji="🍽️"><MealReminderSettings demo={demo}/></FeaturePanel>
         <FeaturePanel sheet title="책·음악 취향" caption="책 분야와 음악 장르 선택" emoji="🎧"><MediaSettings/></FeaturePanel>
         <FeaturePanel sheet title="개인화 추천" caption="추천 기준과 반영된 취향 확인" emoji="✨">
           <RecommendationSettings memory={recommendations.memory} error={recommendations.error} busy={busy} onChange={recommendations.change}/>

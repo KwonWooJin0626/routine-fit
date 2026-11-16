@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { createSleepHandlers,type SleepIdentity,type SleepProfile,type SleepRepository } from "../lib/sleep-api";
 import { defaultSleepSettings,dueSleepEvents,sleepSessionDate,plannedSleepTime,type SleepRecord } from "../lib/sleep";
 import { signSleepToken,readSleepToken } from "../lib/sleep-token";
+import { hasMealRecord,mealReminderWindow } from "../lib/meal-reminders";
 
 const now=new Date("2026-10-26T22:05:00.000Z"),origin="https://routine.test";
 const request=(method:string,body:unknown,site=origin)=>new Request(`${origin}/api/sleep`,{method,headers:{Origin:site,"Content-Type":"application/json"},body:JSON.stringify(body)});
-function setup(){
+function setup(mealMailConfigured=false){
   let user:SleepIdentity|null={userId:"user-a",email:"synthetic@example.test",verified:true};
   const profiles=new Map<string,SleepProfile>(),records=new Map<string,SleepRecord[]>();
   const repo:SleepRepository={
@@ -16,9 +17,30 @@ function setup(){
     async correct(id,key,actualAt,updatedAt){const old=(records.get(id)??[]).find(r=>r.id===key);if(!old)return null;const next={...old,actualAt,updatedAt};records.set(id,records.get(id)!.map(r=>r.id===key?next:r));return next;},
     async emailCheckin(){return null;},
   };
-  const handlers=createSleepHandlers(async()=>user,repo,()=>({mailConfigured:false,schedulerConfigured:false}),()=>now);
+  const handlers=createSleepHandlers(async()=>user,repo,()=>({mailConfigured:false,schedulerConfigured:false,mealMailConfigured}),()=>now);
   return {handlers,profiles,records,login:(next:SleepIdentity|null)=>{user=next;}};
 }
+test("식사 알림은 한국 시간의 구간이 끝난 뒤에만 실행하고 취소된 기록은 제외한다",()=>{
+  assert.equal(mealReminderWindow("lunch",new Date("2026-11-16T04:59:00Z")),null);
+  const lunch=mealReminderWindow("lunch",new Date("2026-11-16T05:40:00Z"))!;
+  assert.equal(lunch.date,"2026-11-16");
+  const meal={type:"meal",end:"2026-11-16T05:00:00Z"};
+  assert.equal(hasMealRecord([meal],lunch),true);
+  assert.equal(hasMealRecord([{...meal,cancelled:true},{type:"exercise",end:meal.end}],lunch),false);
+  assert.equal(hasMealRecord([meal],mealReminderWindow("dinner",new Date("2026-11-16T12:00:00Z"))!),false);
+  assert.equal(mealReminderWindow("dinner",new Date("2026-11-16T13:00:00Z")),null);
+});
+test("식사 알림 동의는 별도로 저장하며 수면 목표를 만들거나 기존 동의를 덮어쓰지 않는다",async()=>{
+  const {handlers,profiles}=setup(true);
+  assert.equal((await handlers.PUT(request("PUT",{mealEmailEnabled:true,revision:0}))).status,200);
+  assert.equal(profiles.get("user-a")?.settings.goalEnabled,false);
+  assert.equal(profiles.get("user-a")?.settings.emailEnabled,false);
+  assert.equal((await handlers.PUT(request("PUT",{settings:defaultSleepSettings(),revision:1}))).status,200);
+  assert.equal(profiles.get("user-a")?.settings.mealEmailEnabled,true);
+  assert.equal((await handlers.PUT(request("PUT",{mealEmailEnabled:false,revision:2}))).status,200);
+  assert.equal(profiles.get("user-a")?.settings.mealEmailEnabled,false);
+  assert.equal((await setup().handlers.PUT(request("PUT",{mealEmailEnabled:true,revision:0}))).status,400);
+});
 test("수면 날짜는 한국 시간·기상일을 기준으로 밤샘과 전날 취침을 구분한다",()=>{
   const s=defaultSleepSettings();assert.equal(sleepSessionDate("wake",now,s),"2026-10-27");
   assert.equal(sleepSessionDate("bed",new Date("2026-10-26T14:00:00Z"),s),"2026-10-27");

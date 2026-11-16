@@ -3,6 +3,7 @@ import { z } from "zod";
 const time=z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 export const sleepSettingsSchema=z.object({
   goalEnabled:z.boolean().optional(),
+  mealEmailEnabled:z.boolean().optional(),
   bed:time,wake:time,weekdays:z.array(z.number().int().min(0).max(6)).min(1).max(7).refine(v=>new Set(v).size===v.length),
   timezone:z.literal("Asia/Seoul"),emailEnabled:z.boolean(),bedReference:z.enum(["checkin","alarm-setting"]),
 }).refine(v=>v.bed!==v.wake,{message:"취침·기상 목표를 서로 다르게 선택해주세요."});

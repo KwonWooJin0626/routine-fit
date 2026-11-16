@@ -14,10 +14,14 @@ export function ExecutionConfirmDialog({draft,document,companion=true,currentFul
   const [title,setTitle]=useState(old?.title??draft.title),[type,setType]=useState<EffectType>(old?.type??draft.type),[minutes,setMinutes]=useState(String(old?Math.round(executionMinutes(old)):draft.minutes||10));
   const [initialStart]=useState(()=>old?.start??draft.start??new Date(Date.parse(initialEnd)-(draft.minutes||10)*60000).toISOString());
   const [end,setEnd]=useState(koreanInput(initialEnd)),[start,setStart]=useState(koreanInput(initialStart)),[useRange,setUseRange]=useState(!!draft.fixedSleep||!!old?.breaks?.length);
+  const mealDate=old?koreanInput(old.end).slice(0,10):draft.source.date;
+  const [mealTime,setMealTime]=useState(()=>koreanInput(initialEnd).slice(11));
   const [customMinutes,setCustomMinutes]=useState(()=>!durationPresets.includes(Number(minutes)));
   const [fullness,setFullness]=useState<30|60|80|undefined>(old?.fullness),[intensity,setIntensity]=useState(old?.intensity??"moderate"),[linkTo,setLinkTo]=useState(""),[error,setError]=useState("");
   async function submit(){try{
-    setError("");const finish=draft.fixedSleep?draft.end!:end===koreanInput(initialEnd)?initialEnd:inputISO(end),begin=type==="meal"?finish:draft.fixedSleep?draft.start!:useRange?(start===koreanInput(initialStart)?initialStart:inputISO(start)):new Date(Date.parse(finish)-Number(minutes)*60000).toISOString();
+    setError("");
+    if(type==="meal"&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(mealTime))throw Error("식사 시간을 입력해주세요.");
+    const finish=type==="meal"?inputISO(`${mealDate}T${mealTime}`):draft.fixedSleep?draft.end!:end===koreanInput(initialEnd)?initialEnd:inputISO(end),begin=type==="meal"?finish:draft.fixedSleep?draft.start!:useRange?(start===koreanInput(initialStart)?initialStart:inputISO(start)):new Date(Date.parse(finish)-Number(minutes)*60000).toISOString();
     if(!title.trim())throw Error("활동 이름을 입력해주세요.");
     if(type==="meal"&&!fullness)throw Error("실제로 먹은 식사량을 선택해주세요.");
     if(type!=="meal"&&(!Number.isFinite(Date.parse(begin))||Date.parse(begin)>=Date.parse(finish)))throw Error("실제 수행 구간을 확인해주세요.");
@@ -33,7 +37,7 @@ export function ExecutionConfirmDialog({draft,document,companion=true,currentFul
       {type==="meal"?<>
         <fieldset><legend>실제로 먹은 식사량</legend><div className="choice-buttons">{([[30,"가볍게 · 30"],[60,"보통 · 60"],[80,"든든하게 · 80"]] as const).map(([v,label])=><button type="button" key={v} aria-pressed={fullness===v} onClick={()=>setFullness(v)}>{label}</button>)}</div></fieldset>
         <p className="pet-rule-note">포만감은 선택한 값으로 설정되고 시간당 {PET_FULLNESS_DECAY_PER_HOUR}씩 줄어요. 저녁 6시에 가볍게 먹어도 다음 날 아침 7시에는 4가 남아요. 30 이하이면 쉬는 표정이므로 ‘가볍게’는 잠깐 기뻐한 뒤 다시 쉬어요. 이 수치에 맞추려고 실제 식사량을 늘릴 필요는 없어요.</p>
-        <Input label="실제 식사 시각 (한국 시간)" type="datetime-local" value={end} onChange={setEnd}/>
+        <Input label="실제 식사 시각 (한국 시간)" type="time" required value={mealTime} onChange={setMealTime} hint={`${mealDate} 기록`}/>
       </>:<>
         <fieldset><legend>활동한 시간</legend>
           {!useRange&&<><div className="choice-buttons">{durationPresets.map(n=><button type="button" key={n} aria-pressed={!customMinutes&&minutes===String(n)} onClick={()=>{setCustomMinutes(false);setMinutes(String(n));}}>{n}분</button>)}<button type="button" aria-pressed={customMinutes} onClick={()=>setCustomMinutes(true)}>직접 입력</button></div>
