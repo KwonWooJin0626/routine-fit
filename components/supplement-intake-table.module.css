@@ -1,0 +1,16 @@
+.panel { margin-block: 16px; min-width: 0; }
+.header { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.notice { margin-block: 10px; }
+.scroll { overflow: auto; max-height: 440px; margin-bottom: 12px; border: 1px solid #e1e8e5; border-radius: 12px; }
+.scroll table { border-spacing: 0; min-width: 100%; text-align: right; font-variant-numeric: tabular-nums; }
+.scroll :is(th,td) { padding: 9px 12px; min-width: 104px; border-block-end: 1px solid #e7eeeb; white-space: nowrap; }
+.scroll :is(thead th,tr th:first-child) { background: #fff; position: sticky; }
+.scroll thead th { top: 0; z-index: 2; }
+.scroll tr th:first-child { left: 0; text-align: left; white-space: normal; min-width: 122px; max-width: 190px; z-index: 1; }
+.scroll thead tr th:first-child { z-index: 3; }
+.scroll small { display: block; font-size: 11px; }
+.low { background: #edf8f0; color: #3c6250; }
+.within { background: #d2ebdb; color: #194f31; }
+.above { background: #ffebd5; color: #884612; }
+.high { background: #fde0df; color: #8e2927; }
+.unknown { background: #f1f3f5; color: #475569; }

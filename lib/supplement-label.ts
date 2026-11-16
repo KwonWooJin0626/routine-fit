@@ -1,16 +1,20 @@
 import { z } from "zod";
 
-const unit=z.enum(["mg","μg","μg RAE","μg DFE","mg NE"]);
+export const supplementFactUnits=["g","mg","μg","μg RAE","μg DFE","mg NE","IU","CFU"] as const;
+export const supplementServingUnits=["정","캡슐","스쿱","mL","g","포","방울","소프트젤"] as const;
+const unit=z.enum(supplementFactUnits);
+const fact=z.object({name:z.string().trim().min(1).max(120),amount:z.number().finite().nonnegative().max(1e15),unit,
+  dailyValuePercent:z.number().finite().nonnegative().nullable()});
 export const supplementLabelSchema=z.object({
-  productId:z.string().regex(/^\d+$/),
-  productCode:z.string().max(60),
-  upc:z.string().regex(/^\d{12,14}$/),
-  servingSize:z.number().positive(),
-  servingUnit:z.string().min(1).max(20),
-  servingsPerContainer:z.number().positive(),
-  facts:z.array(z.object({name:z.string().min(1).max(120),amount:z.number().finite().nonnegative(),unit,
-    dailyValuePercent:z.number().finite().nonnegative().nullable()})).min(1).max(80),
-});
+  productId:z.string().regex(/^\d+$/).optional(),
+  productCode:z.string().max(60).optional(),
+  upc:z.string().regex(/^\d{12,14}$/).optional(),
+  servingSize:z.number().min(0.000001).max(1000000),
+  servingUnit:z.enum(supplementServingUnits),
+  servingsPerContainer:z.number().positive().optional(),
+  facts:z.array(fact).min(1).max(80),
+}).refine(label=>new Set(label.facts.map(row=>row.name+"|"+row.unit)).size===label.facts.length,
+  {path:["facts"],message:"같은 이름과 단위의 성분이 중복됐어요."});
 export type SupplementLabel=z.infer<typeof supplementLabelSchema>;
 
 export function iherbProductId(value:string){

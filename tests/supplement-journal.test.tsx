@@ -7,11 +7,31 @@ import { applySupplementCommand,emptySupplementJournal,supplementProductSchema,s
 import { createSupplementHandlers,type SupplementRepository } from "../lib/supplement-api";
 import { SupplementChecks,SupplementProductDialog } from "../components/supplement-workspace";
 import { lookupSupplementLabel } from "../lib/supplement-label";
+import { intakeStatus,supplementIntake } from "../lib/supplement-intake";
 import type { SupplementStore } from "../components/use-supplement-journal";
 const date="2026-11-09",now=new Date(`${date}T20:00:00+09:00`);
 const app:AppState={version:1,consentAt:now.toISOString(),consentVersion:"2026-10-growth-v1",answers:defaultAnswers,schedule:defaultSchedule,days:[],inbody:[],planner:{setupComplete:true,blocks:[],templates:[]}};
 const product=(patch:Partial<SupplementProduct>={})=>supplementProductSchema.parse({id:"vitamin",name:"등록 제품",dose:"1캡슐",startDate:"2026-11-01",weekdays:[0,1,2,3,4,5,6],slots:[{id:"morning",anchor:"fixed",time:"09:00",offset:0}],...patch});
 const registered=()=>applySupplementCommand(emptySupplementJournal(),{action:"save",product:product()},app,now);
+test("1일 섭취표는 제공량을 환산하고 계획과 실제 복용을 구분한다",()=>{
+  const url="https://kr.iherb.com/pr/example/137715",label=lookupSupplementLabel(url)!.label;
+  const p=product({url,label,dose:"1정",slots:[product().slots[0],{id:"evening",anchor:"fixed",time:"19:00",offset:0}]});
+  let journal=applySupplementCommand(emptySupplementJournal(),{action:"save",product:p},app,now);
+  journal=applySupplementCommand(journal,{action:"record",productId:p.id,date,slotId:"morning",status:"taken"},app,now);
+  journal=applySupplementCommand(journal,{action:"record",productId:p.id,date,slotId:"evening",status:"skipped"},app,now);
+  assert.equal(supplementIntake(journal,app,date,"plan").totals["마그네슘|mg"],100);
+  assert.equal(supplementIntake(journal,app,date,"actual").totals["마그네슘|mg"],50);
+  const manual=product({id:"manual",dose:"1정",label:{servingSize:1,servingUnit:"정",facts:[{name:"마그네슘",amount:30,unit:"mg",dailyValuePercent:null}]}});
+  journal=applySupplementCommand(journal,{action:"save",product:manual},app,now);
+  assert.equal(supplementIntake(journal,app,date,"plan").totals["마그네슘|mg"],130);
+  journal=applySupplementCommand(journal,{action:"save",product:{...p,dose:""}},app,now);
+  const planned=supplementIntake(journal,app,date,"plan");
+  assert.equal(planned.totals["마그네슘|mg"],30);
+  assert.equal(planned.missingCount,1);
+  assert.equal(supplementIntake(journal,app,date,"actual").totals["마그네슘|mg"],50);
+  assert.equal(intakeStatus({name:"마그네슘",unit:"mg"},30,true).level,"unknown");
+  assert.equal(intakeStatus({name:"비타민 D3",unit:"μg"},101,false).level,"high");
+});
 test("확인된 iHerb 상품의 라벨 25개를 채우고 이름이 같은 다른 상품과 구분한다",()=>{
   const url="https://kr.iherb.com/pr/life-extension-two-per-day-multivitamin-120-tablets/137715?rcode=example";
   const imported=lookupSupplementLabel(url)!;

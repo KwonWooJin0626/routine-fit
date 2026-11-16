@@ -13,11 +13,11 @@ export const supplementProductSchema=z.object({
   dose:z.string().trim().max(80).default(""),url:iherbUrlSchema.default(""),notes:z.string().max(400).default(""),active:z.boolean().default(true),
   startDate:plannerDateSchema,endDate:plannerDateSchema.optional(),weekdays:z.array(z.number().int().min(0).max(6)).min(1).max(7),
   slots:z.array(z.object({id,anchor:z.enum(["fixed","breakfast","lunch","dinner","exercise","bed"]),time,offset:z.number().int().min(-180).max(180).default(0)})).min(1).max(6),
-}).superRefine((v,c)=>{if(v.endDate&&v.endDate<v.startDate)c.addIssue({code:"custom",message:"종료일은 시작일 이후로 선택해주세요."});if(new Set(v.slots.map(s=>s.id)).size!==v.slots.length)c.addIssue({code:"custom",message:"복용 시간 ID가 중복됐어요."});if(new Set(v.weekdays).size!==v.weekdays.length)c.addIssue({code:"custom",message:"반복 요일이 중복됐어요."});}).refine(product=>!product.label||iherbProductId(product.url)===product.label.productId,{path:["label"],message:"성분표와 상품 링크가 일치하지 않아요."});
+}).superRefine((v,c)=>{if(v.endDate&&v.endDate<v.startDate)c.addIssue({code:"custom",message:"종료일은 시작일 이후로 선택해주세요."});if(new Set(v.slots.map(s=>s.id)).size!==v.slots.length)c.addIssue({code:"custom",message:"복용 시간 ID가 중복됐어요."});if(new Set(v.weekdays).size!==v.weekdays.length)c.addIssue({code:"custom",message:"반복 요일이 중복됐어요."});}).refine(product=>!product.label?.productId||iherbProductId(product.url)===product.label.productId,{path:["label"],message:"성분표와 상품 링크가 일치하지 않아요."});
 export const supplementRecordSchema=z.object({
   id:z.string().min(1).max(150),productId:id,date:plannerDateSchema,slotId:id,status:z.enum(["taken","skipped","unknown"]),
   actualAt:z.string().datetime().nullable(),dose:z.string().trim().max(80),recordedAt:z.string().datetime(),updatedAt:z.string().datetime(),
-  snapshot:z.object({name:z.string().min(1).max(100),ingredients:z.array(z.string().max(60)).max(24),plannedDose:z.string().max(80),plannedAt:z.string().datetime()}),
+  snapshot:z.object({name:z.string().min(1).max(100),ingredients:z.array(z.string().max(60)).max(24),plannedDose:z.string().max(80),plannedAt:z.string().datetime(),label:supplementLabelSchema.optional()}),
 });
 export const supplementJournalSchema=z.object({products:z.array(supplementProductSchema).max(40),records:z.array(supplementRecordSchema).max(6000)}).superRefine((v,c)=>{
   if(new Set(v.products.map(p=>p.id)).size!==v.products.length||new Set(v.records.map(r=>r.id)).size!==v.records.length)c.addIssue({code:"custom",message:"같은 제품이나 기록이 중복됐어요."});
@@ -83,7 +83,7 @@ export function applySupplementCommand(j:SupplementJournal,input:SupplementComma
     if(input.status==="taken"&&input.date!==today&&!input.actualAt)throw new SupplementInputError("과거 복용은 실제 복용 시각을 입력해주세요.");
     const actualAt=input.status==="taken"?(input.actualAt??now.toISOString()):null;
     if(actualAt&&(Date.parse(actualAt)>now.getTime()||Math.abs(Date.parse(actualAt)-Date.parse(`${input.date}T12:00:00+09:00`))>36*3600000))throw new SupplementInputError("실제 복용 시각은 미래가 될 수 없으며 선택한 날짜와 36시간 이내여야 해요.");
-    const record:SupplementRecord={id:key,productId:input.productId,date:input.date,slotId:input.slotId,status:input.status,actualAt,dose:input.status==="taken"?(input.dose??old?.dose??o.product.dose):"",recordedAt:old?.recordedAt??now.toISOString(),updatedAt:now.toISOString(),snapshot:old?.snapshot??{name:o.product.name,ingredients:o.product.ingredients,plannedDose:o.product.dose,plannedAt:o.plannedAt}};
+    const record:SupplementRecord={id:key,productId:input.productId,date:input.date,slotId:input.slotId,status:input.status,actualAt,dose:input.status==="taken"?(input.dose??old?.dose??o.product.dose):"",recordedAt:old?.recordedAt??now.toISOString(),updatedAt:now.toISOString(),snapshot:old?.snapshot??{name:o.product.name,ingredients:o.product.ingredients,plannedDose:o.product.dose,plannedAt:o.plannedAt,label:o.product.label}};
     next.records=[...next.records.filter(r=>r.id!==key),record];
   }
   next.records=next.records.filter(r=>r.date>=cutoff);return supplementJournalSchema.parse(next);
