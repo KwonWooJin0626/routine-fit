@@ -75,3 +75,21 @@ addPowder("136132","ALLMAX Essentials EAA 320g","AMX-22988","665553229881",30,[
 export function lookupSupplementLabel(url:string){
   return catalog.get(iherbProductId(url)??"")??null;
 }
+
+const productAliases:Record<string,string[]>={
+  "137715":["투퍼데이","twoperday","two per day multivitamin"],
+  "71026":["크레아틴","creatine monohydrate"],
+  "71031":["wpi","분리유청단백질","whey protein isolate"],
+  "136132":["eaa","allmax essentials eaa"],
+};
+const searchKey=(text:string)=>text.toLowerCase().replace(/[^\p{L}\p{N}]/gu,"");
+
+export function searchSupplementCatalog(query:string){
+  const normalized=searchKey(query);
+  if(normalized.length<2)return [];
+  return [...catalog].flatMap(([id,product])=>{
+    if(![product.name,...(productAliases[id]??[])].some(value=>searchKey(value)===normalized))return [];
+    const label={...product.label,productId:undefined,webSources:[{title:"iHerb 원본 성분표",url:`https://kr.iherb.com/pr/i/${id}`}]};
+    return [{name:product.name,label}];
+  });
+}

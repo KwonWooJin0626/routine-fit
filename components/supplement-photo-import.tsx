@@ -37,6 +37,11 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
     setMessage("");
     setWorking("web");
     try{
+      if(await findNihMatches(name,id)){
+        if(run.current===id)setMessage("성분표 후보를 찾았어요. 같은 제품과 용량을 골라 주세요.");
+        return;
+      }
+      if(run.current!==id)return;
       const response=await fetch("/api/supplement-web-search",{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({name}),signal:AbortSignal.timeout(18000)});
       const {product,error,entry}=await response.json();
@@ -44,16 +49,12 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
       if(typeof entry==="string")setSearchEntry(entry);
       const label=supplementLabelSchema.safeParse(product?.label);
       if(!response.ok||!label.success||typeof product?.name!=="string"){
-        const found=await findNihMatches(name,id);
-        if(run.current!==id)return;
-        setMessage(found?"NIH에서 비슷한 제품을 찾았어요. 같은 제품과 용량을 골라 주세요."
-          :typeof error==="string"?`${error} 영문 제품명 또는 바코드로 찾아보세요.`:"확인 가능한 성분표를 찾지 못했어요. 브랜드·제형·맛·용량을 포함해 찾아보세요.");
+        setMessage(typeof error==="string"?error:"확인 가능한 성분표를 찾지 못했어요. 브랜드·제형·맛·용량을 포함해 찾아보세요.");
         return;
       }
       setResult({label:label.data,name:product.name});
     }catch{
-      const found=await findNihMatches(name,id);
-      if(run.current===id)setMessage(found?"NIH에서 비슷한 제품을 찾았어요. 같은 제품과 용량을 골라 주세요.":"웹 검색에 연결하지 못했어요. 바코드로도 조회할 수 있어요.");
+      if(run.current===id)setMessage("웹 검색에 연결하지 못했어요. 바코드로도 조회할 수 있어요.");
     }finally{
       if(run.current===id)setWorking(null);
     }
@@ -113,7 +114,7 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
   }
 
   return <section className="dose-product-details" aria-label="성분표 가져오기">
-    <button type="button" className="button secondary" disabled={!!working||name.trim().length<3} onClick={()=>void findOnWeb()}>제품명으로 웹에서 더 찾기</button>
+    <button type="button" className="button secondary" disabled={!!working||name.trim().length<2} onClick={()=>void findOnWeb()}>제품명으로 웹에서 더 찾기</button>
     {searchEntry&&<iframe title="Google 추천 검색" sandbox="allow-popups allow-popups-to-escape-sandbox" width="100%" height="105"
       srcDoc={'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'">'+searchEntry}/>}
     <details>
@@ -134,7 +135,7 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
     {working&&<p role="status">{working==="photo"?"사진에서 성분표를 읽고 있어요…":working==="web"?"웹에서 성분표를 찾고 있어요…":"NIH 성분표를 조회하고 있어요…"}</p>}
     {message&&<p role="status">{message}</p>}
     {matches.length>0&&<ul>
-      {matches.map(match=><li key={match.label.dsldId}>
+      {matches.map(match=><li key={match.label.dsldId??match.label.upc??match.name}>
         <button type="button" className="text-link" disabled={!!working} onClick={()=>{setResult(match);setMatches([]);setMessage("");}}>
           {match.name}{match.pack?` · ${match.pack}`:""}{match.label.upc?` · ${match.label.upc}`:""}
         </button>

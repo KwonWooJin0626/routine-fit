@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { supplementLabelSchema } from "@/lib/supplement-label";
+import { searchSupplementCatalog,supplementLabelSchema } from "@/lib/supplement-label";
 import { labelFactName,labelFactUnit,labelServingUnit } from "@/lib/supplement-label-photo";
 
 const base="https://api.ods.od.nih.gov/dsld/v9/";
@@ -60,7 +60,9 @@ export async function GET(request:Request){
   const params=new URL(request.url).searchParams;
   const name=params.get("name")?.trim();
   if(name){
-    if(name.length<3||name.length>100)return Response.json({error:"제품명을 3~100자로 입력해 주세요."},{status:400});
+    if(name.length<2||name.length>100)return Response.json({error:"제품명을 2~100자로 입력해 주세요."},{status:400});
+    const known=searchSupplementCatalog(name);
+    if(known.length)return Response.json({products:known});
     try{return Response.json({products:await findByName(name)});}
     catch{return Response.json({error:"NIH 제품명 검색에 연결하지 못했어요."},{status:502});}
   }

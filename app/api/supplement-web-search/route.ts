@@ -3,8 +3,10 @@ import { getSessionUser } from "@/lib/auth";
 import { supplementLabelSchema } from "@/lib/supplement-label";
 import { labelFactName } from "@/lib/supplement-label-photo";
 
-const endpoint="https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent";
-const input=z.object({name:z.string().trim().min(3).max(100)});
+const endpoint="https://generativelanguage.googleapis.com/v1beta/models/";
+const primaryModel="gemini-2.5-flash-lite";
+const fallbackModel="gemini-2.5-flash";
+const input=z.object({name:z.string().trim().min(2).max(100)});
 const resultSchema=z.object({name:z.string().trim().min(1).max(100),servingSize:z.number(),servingUnit:z.string(),
   partial:z.boolean(),facts:z.array(z.object({name:z.string(),unit:z.string(),amount:z.number().nonnegative()})).min(1).max(80)});
 const gatewaySchema=z.object({candidates:z.array(z.object({
@@ -24,9 +26,10 @@ export async function POST(request:Request){
   if(!key)return reply({error:"웹 검색 연결을 설정 중이에요. 아래 바코드 조회를 이용할 수 있어요."},503);
   if(!(await getSessionUser())?.userId)return reply({error:"로그인하면 제품명을 웹에서 검색할 수 있어요."},401);
   const parsed=input.safeParse(await request.json().catch(()=>null));
-  if(!parsed.success)return reply({error:"제품명을 3~100자로 입력해 주세요."},400);
+  if(!parsed.success)return reply({error:"제품명을 2~100자로 입력해 주세요."},400);
   try{
-    const response=await fetch(endpoint,{method:"POST",cache:"no-store",signal:AbortSignal.timeout(14000),
+    const signal=AbortSignal.timeout(14000);
+    const send=(model:string)=>fetch(`${endpoint}${model}:generateContent`,{method:"POST",cache:"no-store",signal,
       headers:{"Content-Type":"application/json","x-goog-api-key":key},
       body:JSON.stringify({
         tools:[{google_search:{}}],
@@ -35,13 +38,19 @@ export async function POST(request:Request){
         generationConfig:{temperature:0,maxOutputTokens:4096,thinkingConfig:{thinkingBudget:0}},
       }),
     });
+    let model=primaryModel,response=await send(model);
+    if(response.status===404){
+      await response.body?.cancel();
+      model=fallbackModel;
+      response=await send(model);
+    }
     if(response.status===429)return reply({error:"지금은 무료 웹 검색을 이용할 수 없어요. 잠시 후 다시 시도하거나 바코드로 찾아 주세요."},429);
     if(!response.ok){
       const upstream=await response.json().catch(()=>null);
       const rawReason=upstream?.error?.details?.find?.((item:{reason?:unknown})=>typeof item?.reason==="string")?.reason;
       const reason=typeof rawReason==="string"&&/^[A-Z_0-9]{1,80}$/.test(rawReason)?rawReason:undefined;
-      console.warn("Supplement web search rejected",{status:response.status,reason});
-      const error=response.status===404?"이 Gemini 프로젝트에서 무료 웹 검색 모델을 사용할 수 없어요."
+      console.warn("Supplement web search rejected",{model,status:response.status,reason});
+      const error=response.status===404?"현재 Google 검색을 사용할 수 없어요. 바코드나 영문 제품명으로 성분표를 찾아보세요."
         :response.status===403||response.status===401||reason==="API_KEY_INVALID"?"Gemini API 키 또는 프로젝트 권한을 확인해 주세요."
         :`Gemini에서 웹 검색 요청을 처리하지 못했어요. (Google ${response.status})`;
       return reply({error},502);
