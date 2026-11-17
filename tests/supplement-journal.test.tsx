@@ -73,6 +73,10 @@ test("확인된 iHerb 상품의 라벨 25개를 채우고 이름이 같은 다�
   assert.equal(goldC.label.servingUnit,"캡슐");
   assert.equal(goldC.label.facts[0].amount,1000);
   assert.equal(searchSupplementCatalog("Gold C 1000mg 60캡슐").length,0);
+  const lutein=lookupSupplementLabel("https://kr.iherb.com/pr/i/95888");
+  assert.equal(lutein?.label.servingUnit,"소프트젤");
+  assert.deepEqual(searchSupplementCatalog("루테인 제아잔틴 60정")[0].label.facts.map(f=>f.amount),[20,1]);
+  assert.equal(lookupSupplementLabel("https://kr.iherb.com/pr/i/94824"),null);
   for(const [id,count] of [["71026",1],["71031",15],["136132",11]] as const){
     const known=lookupSupplementLabel(`https://kr.iherb.com/pr/example/${id}`);
     assert.equal(known?.label.servingUnit,"스쿱");

@@ -85,11 +85,28 @@ catalog.set("61865",{
   }),
 });
 
+catalog.set("95888",{
+  name:"California Gold Nutrition 루테인·제아잔틴 베지 소프트젤 60정",
+  label:supplementLabelSchema.parse({
+    productId:"95888",productCode:"CGN-01408",upc:"898220014088",
+    servingSize:1,servingUnit:"소프트젤",servingsPerContainer:60,
+    facts:[
+      {name:"루테인",amount:20,unit:"mg",dailyValuePercent:null},
+      {name:"제아잔틴",amount:1,unit:"mg",dailyValuePercent:null},
+    ],
+  }),
+});
+
 const productAliases:Record<string,string[]>={
   "137715":["투퍼데이","twoperday","two per day multivitamin"],
   "71026":["크레아틴","creatine monohydrate"],
   "71031":["wpi","분리유청단백질","whey protein isolate"],
   "136132":["eaa","allmax essentials eaa"],
+  "95888":[
+    "California Gold Nutrition (캘리포니아골드뉴트리션), 루테인, 금잔화 추출물 유래 제아잔틴 함유, 베지 소프트젤 60정",
+    "California Gold Nutrition Lutein with Zeaxanthin from Marigold Extract 60 Veggie Softgels",
+    "루테인 제아잔틴 60정","CGN-01408",
+  ],
   "61865":[
     "Gold C 1000mg 240캡슐","Gold C 1000mg 240 Veggie Capsules","CGN-00932",
     "California Gold Nutrition Gold C USP Grade Vitamin C 1000 mg 240 Veggie Capsules",
