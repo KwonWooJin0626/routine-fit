@@ -3,7 +3,8 @@ import { initialPetStats,PET_FULLNESS_DECAY_PER_HOUR,type EffectType,type PetDoc
 import { executionSegments } from "./pet-execution";
 
 const MINUTE=60000,DAY=86400000;
-const rates:Record<EffectType,[number,number,number,number]>={study:[-3,3,10,0],work:[-4,3,0,0],exercise:[-8,2,0,5],growth:[-2,2,8,0],social:[2,-3,0,0],sleep:[8,-2,0,0],rest:[6,-4,0,0],leisure:[3,-3,0,0],none:[0,0,0,0],meal:[0,0,0,0]};
+export const petActivityRates:Record<EffectType,readonly [stamina:number,stress:number,learningXP:number,fitnessXP:number]>={study:[-3,3,10,0],work:[-4,3,0,0],exercise:[-8,2,0,5],growth:[-2,2,8,0],social:[2,-3,0,0],sleep:[8,-2,0,0],rest:[6,-4,0,0],leisure:[3,-3,0,0],none:[0,0,0,0],meal:[0,0,0,0]};
+export const petIntensityFactors={light:.75,moderate:1,high:1.25} as const;
 const clamp=(n:number,min:number,max:number)=>Math.max(min,Math.min(max,n));
 const copy=(s:PetStats):PetStats=>({...s});
 export function petBaseState(fullness:number,stress:number):"idle"|"tired"{return fullness<=30||stress>=80?"tired":"idle";}
@@ -33,7 +34,7 @@ export function calculatePet(doc:PetDocument,now=new Date()):PetView&{lastEviden
     const from=bounds[i-1],until=bounds[i],minutes=(until-from)/MINUTE,date=localDate(new Date(from));
     const active=records.find(r=>r.type!=="meal"&&segments.get(r.id)!.some(s=>s.start<=from&&s.end>=until));
     if(active){
-      const e=effect(active),rate=rates[active.type],factor={light:.75,moderate:1,high:1.25}[active.intensity];
+      const e=effect(active),rate=petActivityRates[active.type],factor=petIntensityFactors[active.intensity];
       let effective=minutes;
       if(active.type==="sleep"){effective=Math.min(minutes,Math.max(0,540-(sleepByDate[date]??0)));sleepByDate[date]=(sleepByDate[date]??0)+minutes;}
       const staminaBefore=s.stamina,stressBefore=s.stress;

@@ -2,7 +2,8 @@
 import { useState } from "react";
 import { PawPrint,Plus,Sparkles,Utensils,Settings,Eye,Heart } from "lucide-react";
 import { localDate } from "@/lib/model";
-import { effectLabels,PET_FULLNESS_DECAY_PER_HOUR,type PetCommand,type PetResult,type PetExecution } from "@/lib/pet-model";
+import { effectLabels,PET_FULLNESS_DECAY_PER_HOUR,type EffectType,type PetCommand,type PetResult,type PetExecution } from "@/lib/pet-model";
+import { petActivityRates,petIntensityFactors } from "@/lib/pet-engine";
 import { executionMinutes } from "@/lib/pet-execution";
 import { petTime } from "@/lib/pet-guidance";
 import { PetAnimator } from "./pet-animator";
@@ -10,13 +11,44 @@ import { Dialog,Input,Toggle } from "./forms";
 import type { ExecutionDraft } from "./execution-confirm-dialog";
 
 type Props={pet:PetResult|null;busy:boolean;error:string;loading:boolean;onCommand:(c:PetCommand)=>Promise<void>;onRecord:(d:ExecutionDraft)=>void;onCheckin:()=>void;onSettings:()=>void};
+
+const timedActivities=["exercise","study","work","growth","social","sleep","rest","leisure","none"] as const satisfies readonly EffectType[];
+const factors=[1,2,4];
+const signed=(value:number)=>value>0?`+${value}`:String(value);
+
+function PetActivityRules(){
+  return <details className="panel pet-history">
+    <summary><PawPrint size={17}/>활동별 강아지 변화</summary>
+    <p className="pet-rule-note">일정에서 실제 수행을 확인하면 선택한 활동과 시간에 따라 반영돼요. 아래 수치는 보통 강도 기준이에요.</p>
+    <div className="record-table" role="region" aria-label="시간별 체력과 스트레스 변화" tabIndex={0}>
+      <table>
+        <thead><tr><th scope="col">활동</th><th scope="col">30분<br/>체력 / 스트레스</th><th scope="col">1시간<br/>체력 / 스트레스</th><th scope="col">2시간<br/>체력 / 스트레스</th><th scope="col">XP<br/>30분 / 1시간 / 2시간</th></tr></thead>
+        <tbody>{timedActivities.map(type=>{
+          const [stamina,stress,learning,fitness]=petActivityRates[type];
+          const xp=learning||fitness;
+          return <tr key={type}><th scope="row">{effectLabels[type]}</th>
+            {factors.map(factor=><td key={factor}>{signed(stamina*factor)} / {signed(stress*factor)}</td>)}
+            <td>{xp?`${fitness?"운동":"학습"} ${factors.map(factor=>signed(xp*factor)).join(" / ")}`:"—"}</td>
+          </tr>;
+        })}</tbody>
+      </table>
+    </div>
+    <ul className="pet-rule-note">
+      <li>체력 소모와 스트레스 증가에는 가벼움 ×{petIntensityFactors.light}, 보통 ×{petIntensityFactors.moderate}, 높음 ×{petIntensityFactors.high}이 적용돼요. XP는 실제 시간으로 계산해요.</li>
+      <li>포만감은 시간당 {PET_FULLNESS_DECAY_PER_HOUR}점 줄어요. 식사를 기록하면 포만감이 30·60·80점 중 선택한 값으로 설정되고 스트레스가 최대 4점 줄어요.</li>
+      <li>운동 XP는 한국 시간 기준 하루 최대 30이에요. 50 XP마다 최대 체력이 5점씩 늘어 150점까지 성장해요. 첫 학습 레벨업은 100 XP, 이후에는 레벨마다 필요 XP가 20씩 늘어요.</li>
+      <li>활동 사이에는 시간당 체력 +2, 스트레스 −1이 적용돼요. 자동 변화는 마지막 활동 이후 최대 24시간, 수면 회복은 하루 최대 9시간이에요.</li>
+      <li>포만감이 30 이하이거나 스트레스가 80 이상이면 강아지가 쉬어요.</li>
+    </ul>
+  </details>;
+}
 export function PetHome({pet,busy,error,loading,onCommand,onRecord,onCheckin,onSettings}:Props){
   const [adopt,setAdopt]=useState(false),[name,setName]=useState("솜이"),[failure,setFailure]=useState("");
   const doc=pet?.document,v=pet?.view;
   if(!doc||!v)return <section className="pet-invite"><div className="pet-invite-image"><PetAnimator reducedMotion name="새 친구"/></div><div><span className="eyebrow">YOUR LITTLE COMPANION</span><h3>나의 작은 실천, 사모예드와 함께</h3><p>루틴은 그대로. 실제로 한 활동을 기록하며 빨간 스카프의 아기 사모예드와 자라요.</p>{error?<p role="alert">{error}</p>:<button className="button secondary" disabled={busy||loading} onClick={()=>setAdopt(true)}><PawPrint size={16}/>{loading?"친구를 확인하고 있어요…":"사모예드와 함께 시작"}</button>}<button className="text-link pet-solo-start" onClick={onCheckin}>오늘 컨디션 체크 · 루틴 만들기</button></div>{adopt&&<Dialog title="새 친구의 이름은 무엇인가요?" subtitle="선택 기능이에요. 건강 설문에 답을 더하지 않아도 시작할 수 있어요." onClose={()=>{if(!busy)setAdopt(false);}}><Input label="강아지 이름 (최대 20자)" value={name} onChange={setName}/><p className="pet-rule-note">체력·스트레스·성장은 게임 수치예요. 실제 건강 상태나 지능을 측정하지 않아요. 쉬거나 기록하지 않아도 실패하지 않아요.</p>{failure&&<p role="alert" className="form-error">{failure}</p>}<button className="button primary" disabled={busy||!name.trim()||name.length>20} onClick={async()=>{try{setFailure("");await onCommand({action:"adopt",name:name.trim()});setAdopt(false);}catch(e){setFailure((e as Error).message);}}}><Heart size={16}/>함께 시작하기</button></Dialog>}</section>;
   if(!doc.visible)return <section className="pet-invite pet-hidden"><PawPrint size={24}/><div><b>{doc.name}는 잠시 쉬고 있어요</b><p>기록은 유지돼요. 설정에서 언제든 다시 볼 수 있어요.</p></div><button className="button secondary" disabled={busy} onClick={()=>void onCommand({action:"settings",name:doc.name,visible:true,reducedMotion:doc.reducedMotion}).catch(()=>{})}><Eye size={16}/>다시 보기</button></section>;
   const record=(meal=false)=>onRecord({source:{kind:"manual",id:crypto.randomUUID(),date:localDate()},title:meal?"식사 기록":"오늘의 활동",type:meal?"meal":"rest",minutes:10});
-  return <section className="pet-home" aria-label="나의 사모예드"><div className="pet-home-copy"><div className="pet-home-heading"><span className="eyebrow"><PawPrint size={14}/>MY GROWTH COMPANION</span><button className="icon-button" aria-label="사모예드 설정" onClick={onSettings}><Settings size={17}/></button></div><h2>{doc.name}와 함께,<br/><em>작은 실천 하나.</em></h2><p>{v.baseState==="tired"?"지금은 편안하게 쉬고 있어요. 기록은 나의 속도로 남겨주세요.":"오늘의 작은 기록이 우리를 조금씩 자라게 해요."}</p><PetStats pet={pet}/><div className="pet-actions"><button className="button primary" disabled={busy} onClick={onCheckin}><Sparkles size={15}/>오늘 컨디션 체크</button><button className="button secondary" disabled={busy} onClick={()=>record(true)}><Utensils size={15}/>식사 기록</button><button className="button secondary" disabled={busy} onClick={()=>record()}><Plus size={15}/>활동</button></div><small>계획은 보상에 반영되지 않아요 · 실제 수행 확인 후 반영</small></div><div className="pet-home-art"><span className={`pet-mood ${v.baseState}`}>{v.baseState==="tired"?"편안히 쉬는 중":"꼬리 살랑, 함께하는 중"}</span><PetAnimator baseState={v.baseState} reactionId={pet?.reactionId} reducedMotion={doc.reducedMotion} name={doc.name}/><span className="pet-art-caption">SMALL STEPS, TOGETHER</span></div>{v.pausedByGap&&<p className="pet-away-note">오랜만이에요. 24시간 이후의 자동 변화는 멈춰 두었어요. 지금부터 다시 기록해도 괜찮아요.</p>}</section>;
+  return <><section className="pet-home" aria-label="나의 사모예드"><div className="pet-home-copy"><div className="pet-home-heading"><span className="eyebrow"><PawPrint size={14}/>MY GROWTH COMPANION</span><button className="icon-button" aria-label="사모예드 설정" onClick={onSettings}><Settings size={17}/></button></div><h2>{doc.name}와 함께,<br/><em>작은 실천 하나.</em></h2><p>{v.baseState==="tired"?"지금은 편안하게 쉬고 있어요. 기록은 나의 속도로 남겨주세요.":"오늘의 작은 기록이 우리를 조금씩 자라게 해요."}</p><PetStats pet={pet}/><div className="pet-actions"><button className="button primary" disabled={busy} onClick={onCheckin}><Sparkles size={15}/>오늘 컨디션 체크</button><button className="button secondary" disabled={busy} onClick={()=>record(true)}><Utensils size={15}/>식사 기록</button><button className="button secondary" disabled={busy} onClick={()=>record()}><Plus size={15}/>활동</button></div><small>계획은 보상에 반영되지 않아요 · 실제 수행 확인 후 반영</small></div><div className="pet-home-art"><span className={`pet-mood ${v.baseState}`}>{v.baseState==="tired"?"편안히 쉬는 중":"꼬리 살랑, 함께하는 중"}</span><PetAnimator baseState={v.baseState} reactionId={pet?.reactionId} reducedMotion={doc.reducedMotion} name={doc.name}/><span className="pet-art-caption">SMALL STEPS, TOGETHER</span></div>{v.pausedByGap&&<p className="pet-away-note">오랜만이에요. 24시간 이후의 자동 변화는 멈춰 두었어요. 지금부터 다시 기록해도 괜찮아요.</p>}</section><PetActivityRules/></>;
 }
 function PetStats({pet}:{pet:PetResult}){const s=pet.view!.stats;return <div className="pet-stats">{[{label:"체력",n:s.stamina,max:s.maxStamina,color:"#70a894"},{label:"스트레스",n:s.stress,max:100,color:"#c99a73"},{label:"포만감",n:s.fullness,max:100,color:"#e5686b"}].map(x=><div key={x.label}><span>{x.label}<b>{x.n.toFixed(1)}<small>/{x.max}</small></b></span><meter min={0} max={x.max} value={x.n} style={{"--pet-meter":x.color} as React.CSSProperties}>{Math.round(x.n)}</meter></div>)}</div>;}
 export function PetHistory({pet,busy,onEdit,onCommand}:{pet:PetResult;busy:boolean;onEdit:(r:PetExecution)=>void;onCommand:(c:PetCommand)=>Promise<void>}){
