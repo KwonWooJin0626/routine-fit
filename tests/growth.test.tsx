@@ -15,6 +15,16 @@ import { GrowthAnalysis } from "../components/growth-analysis";
 import { withGrowthProfile } from "../lib/growth-migration";
 import { growthCatalog } from "../lib/growth-routines";
 import { lifestyleCharts,partitionTime,plannedLoad,actualTimeSpans,timeCategoryColor } from "../lib/lifestyle-charts";
+
+test("부담은 항목마다 확인된 시간으로 계산한다",()=>{
+  const spans=[{id:"study",title:"학업",category:"study" as const,from:0,until:60,mental:4},
+    {id:"exercise",title:"운동",category:"exercise" as const,from:30,until:60,physical:2}];
+  const load=plannedLoad(spans);
+  assert.equal(load.mental,4);
+  assert.equal(load.mentalMinutes,60);
+  assert.equal(load.physical,2);
+  assert.equal(load.physicalMinutes,30);
+});
 import { plannerBlockSchema,type PlannerBlock } from "../lib/planner-model";
 import { newPetDocument } from "../lib/pet-engine";
 import type { PetExecution } from "../lib/pet-model";
@@ -118,7 +128,10 @@ test("실제 시간은 확인한 수행 기록만 사용하고 체크·다중 �
   assert.equal(lifestyleCharts(s,date,"day","actual").occupiedMinutes,0);
   const pet=newPetDocument("테스트","charts",new Date(`${date}T00:00:00+09:00`));
   const r:PetExecution={id:"actual",title:"실제 강의",type:"study",start:`${date}T09:30:00+09:00`,end:`${date}T10:30:00+09:00`,intensity:"moderate",sources:[{kind:"planner",id:"study",date},{kind:"routine",id:"linked-routine",date}],cancelled:false,feeling:"same",updatedAt:`${date}T03:00:00Z`,status:"done"};
-  pet.records=[r,{...r,id:"cancelled",cancelled:true}];const result=lifestyleCharts(s,date,"day","actual",pet);assert.equal(result.occupiedMinutes,60);assert.equal(result.slices.find(s=>s.key==="study")!.minutes,60);assert.equal(result.slices.find(s=>s.key==="unregistered")!.label,"미기록 시간");assert.equal(result.mental,3);
+  pet.records=[r,{...r,id:"cancelled",cancelled:true}];const result=lifestyleCharts(s,date,"day","actual",pet);assert.equal(result.occupiedMinutes,60);assert.equal(result.slices.find(s=>s.key==="study")!.minutes,60);assert.equal(result.slices.find(s=>s.key==="unregistered")!.label,"미기록 시간");assert.equal(result.mental,null);
+  r.burden={actual:{physical:4}};
+  assert.equal(lifestyleCharts(s,date,"day","actual",pet).physical,4);
+  assert.equal(lifestyleCharts(s,date,"day","planned",pet).mental,3);
   r.start=`${date}T23:00:00+09:00`;r.end="2026-10-28T02:00:00+09:00";r.breaks=[{start:"2026-10-28T00:30:00+09:00",end:"2026-10-28T01:00:00+09:00"}];
   assert.equal(actualTimeSpans(s,date,pet).reduce((n,s)=>n+s.until-s.from,0),60);assert.equal(actualTimeSpans(s,"2026-10-28",pet).reduce((n,s)=>n+s.until-s.from,0),90);
 });

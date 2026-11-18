@@ -5,12 +5,16 @@ export const effectLabels:Record<EffectType,string>={study:"학업·공부",work
 export type EffectType=typeof effectTypes[number];
 // Even a light meal (30) lasts through the longest regular meal gap: 18:00 → 07:00.
 export const PET_FULLNESS_DECAY_PER_HOUR=2.25;
-export const petSourceSchema=z.object({kind:z.enum(["routine","planner","sleep","manual"]),id:z.string().min(1).max(150),date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/)}).strict();
+export const petSourceSchema=z.object({kind:z.enum(["routine","planner","todo","sleep","manual"]),id:z.string().min(1).max(150),date:z.string().regex(/^\d{4}-\d{2}-\d{2}$/)}).strict();
 export type PetSource=z.infer<typeof petSourceSchema>;
 export const sourceKey=(s:PetSource)=>`${s.kind}:${s.date}:${s.id}`;
+const burdenRating=z.number().int().min(1).max(5);
+const burdenPair=z.object({mental:burdenRating.optional(),physical:burdenRating.optional()}).strict();
+export const petBurdenSchema=z.object({planned:burdenPair.optional(),actual:burdenPair.optional()}).strict();
 export const executionInputSchema=z.object({
   title:z.string().trim().min(1).max(150),type:z.enum(effectTypes),start:z.string().datetime(),end:z.string().datetime(),
   intensity:z.enum(["light","moderate","high"]).default("moderate"),fullness:z.union([z.literal(30),z.literal(60),z.literal(80)]).optional(),
+  burden:petBurdenSchema.optional(),
   breaks:z.array(z.object({start:z.string().datetime(),end:z.string().datetime()}).strict()).max(5).optional(),
   source:petSourceSchema,status:z.enum(["done","partial"]).default("done"),linkTo:z.string().max(100).optional(),
 }).strict();

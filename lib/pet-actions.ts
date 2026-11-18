@@ -22,6 +22,8 @@ function validateSource(app:AppState,source:PetSource,type:string,sleep:SleepRec
   }else if(source.kind==="planner"){
     const block=app.planner?.blocks.find(b=>b.id===source.id);
     if(!block||!occursOn(block,source.date))throw new PetError("해당 날짜의 일정을 다시 확인해주세요.",409);
+  }else if(source.kind==="todo"){
+    if(!app.planner?.todos?.some(todo=>todo.id===source.id))throw new PetError("해당 할 일을 다시 확인해주세요.",409);
   }else if(source.kind==="sleep"){
     if(type!=="sleep"||!sleep.some(r=>r.sessionDate===source.date&&r.kind==="bed"&&r.actualAt)||!sleep.some(r=>r.sessionDate===source.date&&r.kind==="wake"&&r.actualAt))throw new PetError("취침·기상 실제 시각을 먼저 확인해주세요.");
   }
@@ -95,7 +97,15 @@ export function applyPetCommand(old:PetDocument|null,app:AppState,input:PetReque
         linked.sources=[...linked.sources,...sources.filter(s=>!linked.sources.some(p=>sourceKey(p)===sourceKey(s)))];linked.updatedAt=at;
       }else{
         if(v.type!=="meal"&&doc.records.some(r=>!r.cancelled&&r.type!=="meal"&&r.id!==oldRecord?.id&&executionsOverlap(r,v)))throw new PetError("실제 수행 시간이 겹쳐요. 시간을 나누거나 같은 활동으로 연결해주세요.",409);
-        const record:PetExecution={id:oldRecord?.id??input.key,title:v.title,type:v.type,start:v.start,end:v.end,intensity:v.intensity,fullness:v.type==="meal"?v.fullness:undefined,breaks:v.breaks,status:v.status,sources:oldRecord?.sources??sources,cancelled:false,feeling:oldRecord?.feeling??"same",updatedAt:at};
+        const plannerSource=sources.find(s=>s.kind==="planner");
+        const block=app.planner?.blocks.find(b=>b.id===plannerSource?.id);
+        const todo=app.planner?.todos?.find(t=>t.id===(v.source.kind==="todo"?v.source.id:block?.todoId));
+        const mental=block&&(block.mentalSource==="user"||block.mentalSource==="template")?block.mental:todo?.mental;
+        const physical=block&&(block.physicalSource==="user"||block.physicalSource==="template")?block.physical:todo?.physical;
+        const planned=oldRecord?oldRecord.burden?.planned:mental!==undefined||physical!==undefined?{mental,physical}:undefined;
+        const actual=v.burden?.actual??oldRecord?.burden?.actual;
+        const burden=planned||actual?{planned,actual}:undefined;
+        const record:PetExecution={id:oldRecord?.id??input.key,title:v.title,type:v.type,start:v.start,end:v.end,intensity:v.intensity,burden,fullness:v.type==="meal"?v.fullness:undefined,breaks:v.breaks,status:v.status,sources:oldRecord?.sources??sources,cancelled:false,feeling:oldRecord?.feeling??"same",updatedAt:at};
         doc.records=doc.records.filter(r=>r.id!==record.id);doc.records.push(record);changedId=record.id;
       }
     }

@@ -1,5 +1,5 @@
 import { humanDocument } from "./activity-journal";
-import type { AppState } from "./model";
+import { localDate,type AppState } from "./model";
 import { addDate,mondayOf,occurrencesInWindow,activeOccurrenceSpans } from "./planner";
 import { plannerCategories,type PlannerBlock } from "./planner-model";
 import { plannerHue } from "./planner-colors";
@@ -22,7 +22,14 @@ export function timeCategoryColor(key:TimeCategory,state:AppState){
   return {sleep:"#7B74B4",leisure:"#7C9F70",other:"#8392A5",overlap:"#B9404A",unregistered:"#E5EAF0"}[key as keyof typeof extraLabels];
 }
 export function plannedTimeSpans(state:AppState,date:string):TimeSpan[]{
-  return occurrencesInWindow(state.planner,date).flatMap(o=>activeOccurrenceSpans(o,date).map(span=>({...span,id:`${o.block.id}:${o.date}`,title:o.block.title,category:o.block.category,mental:["user","template"].includes(o.block.mentalSource??"")&&["user","template"].includes(o.block.physicalSource??"")?o.block.mental:undefined,physical:["user","template"].includes(o.block.mentalSource??"")&&["user","template"].includes(o.block.physicalSource??"")?o.block.physical:undefined})));
+  return occurrencesInWindow(state.planner,date).flatMap(occurrence=>{
+    const {block,date:occurrenceDate}=occurrence;
+    const todo=state.planner?.todos?.find(t=>t.id===block.todoId);
+    const mental=block.mentalSource==="user"||block.mentalSource==="template"?block.mental:todo?.mental;
+    const physical=block.physicalSource==="user"||block.physicalSource==="template"?block.physical:todo?.physical;
+    return activeOccurrenceSpans(occurrence,date).map(span=>({...span,
+      id:`${block.id}:${occurrenceDate}`,title:block.title,category:block.category,mental,physical}));
+  });
 }
 export function actualTimeSpans(state:AppState,date:string,pet?:PetDocument|null):TimeSpan[]{
   const start=Date.parse(`${date}T00:00:00+09:00`),end=start+86400000,seen=new Set<string>();
@@ -30,7 +37,7 @@ export function actualTimeSpans(state:AppState,date:string,pet?:PetDocument|null
     if(record.cancelled||seen.has(record.id))return [];seen.add(record.id);
     const linked=[...new Set(record.sources.filter(s=>s.kind==="planner").flatMap(s=>{const b=state.planner?.blocks.find(b=>b.id===s.id);return b?[b.category]:[];}))];
     const category=linked.length===1?linked[0]:typeCategory[record.type];
-    return executionSegments(record).flatMap(s=>{const from=Math.max(start,s.start),until=Math.min(end,s.end);return until>from?[{id:record.id,title:record.title,category,from:(from-start)/60000,until:(until-start)/60000}]:[];});
+    return executionSegments(record).flatMap(s=>{const from=Math.max(start,s.start),until=Math.min(end,s.end);return until>from?[{id:record.id,title:record.title,category,...record.burden?.actual,from:(from-start)/60000,until:(until-start)/60000}]:[];});
   });
 }
 /** Partition calendar time, never adding overlapping activities twice. */
@@ -51,14 +58,17 @@ export function partitionTime(spans:TimeSpan[],date:string){
   return {totals,activities,occupied,overlap};
 }
 export function plannedLoad(spans:TimeSpan[],from=0,until=1440){
-  const clipped=spans.filter(s=>s.from<until&&s.until>from&&s.mental!==undefined&&s.physical!==undefined),points=[...new Set([from,until,...clipped.flatMap(s=>[Math.max(from,s.from),Math.min(until,s.until)])])].sort((a,b)=>a-b);
-  let occupied=0,mentalSum=0,physicalSum=0,highMinutes=0;
+  const clipped=spans.filter(s=>s.from<until&&s.until>from&&(s.mental!==undefined||s.physical!==undefined)),points=[...new Set([from,until,...clipped.flatMap(s=>[Math.max(from,s.from),Math.min(until,s.until)])])].sort((a,b)=>a-b);
+  let occupied=0,mentalSum=0,physicalSum=0,mentalMinutes=0,physicalMinutes=0,highMinutes=0;
   for(let i=0;i<points.length-1;i++){
     const length=points[i+1]-points[i],active=clipped.filter(s=>s.from<points[i+1]&&s.until>points[i]);if(!active.length)continue;
-    const mental=Math.max(...active.map(s=>s.mental??1)),physical=Math.max(...active.map(s=>s.physical??1));
-    occupied+=length;mentalSum+=mental*length;physicalSum+=physical*length;if(mental>=4||physical>=4)highMinutes+=length;
+    const mental=Math.max(0,...active.map(s=>s.mental??0)),physical=Math.max(0,...active.map(s=>s.physical??0));
+    occupied+=length;
+    if(mental){mentalMinutes+=length;mentalSum+=mental*length;}
+    if(physical){physicalMinutes+=length;physicalSum+=physical*length;}
+    if(mental>=4||physical>=4)highMinutes+=length;
   }
-  return {minutes:occupied,mental:occupied?mentalSum/occupied:null,physical:occupied?physicalSum/occupied:null,highMinutes};
+  return {minutes:occupied,mental:mentalMinutes?mentalSum/mentalMinutes:null,physical:physicalMinutes?physicalSum/physicalMinutes:null,highMinutes,mentalMinutes,physicalMinutes};
 }
 export function lifestyleCharts(state:AppState,date:string,period:ChartPeriod,basis:ChartBasis,pet?:PetDocument|null){
   const start=period==="week"?mondayOf(date):date,dates=Array.from({length:period==="week"?7:1},(_,i)=>addDate(start,i)),totalMinutes=dates.length*1440;
@@ -67,11 +77,15 @@ export function lifestyleCharts(state:AppState,date:string,period:ChartPeriod,ba
     const planned=plannedTimeSpans(state,day),spans=basis==="planned"?planned:actualTimeSpans(state,day,pet),partition=partitionTime(spans,day);
     for(const [key,minutes] of partition.totals)sums.set(key,(sums.get(key)??0)+minutes);
     for(const [key,rows] of partition.activities){const group=activitySums.get(key)??new Map<string,TimeActivity>();for(const [id,row] of rows){const old=group.get(id);group.set(id,{...row,minutes:row.minutes+(old?.minutes??0),dates:[...new Set([...(old?.dates??[]),...row.dates])]});}activitySums.set(key,group);}
-    return {date:day,occupied:partition.occupied,overlap:partition.overlap,load:plannedLoad(planned),planned};
+    return {date:day,occupied:partition.occupied,overlap:partition.overlap,load:plannedLoad(spans),spans};
   });
   const order:TimeCategory[]=[...categoryKeys,"sleep","leisure","other","overlap","unregistered"];
   const slices:TimeSlice[]=order.filter(key=>(sums.get(key)??0)>0).map(key=>({key,label:key==="unregistered"&&basis==="actual"?"미기록 시간":plannerCategories[key as keyof typeof plannerCategories]??extraLabels[key as keyof typeof extraLabels],color:timeCategoryColor(key,state),minutes:sums.get(key)!,activities:[...(activitySums.get(key)?.values()??[])].sort((a,b)=>b.minutes-a.minutes)}));
-  const loadSeries=period==="week"?days.map(d=>({label:new Intl.DateTimeFormat("ko-KR",{weekday:"short",timeZone:"Asia/Seoul"}).format(new Date(`${d.date}T12:00:00+09:00`)),detail:d.date,...d.load})):Array.from({length:6},(_,i)=>({label:`${String(i*4).padStart(2,"0")}–${String((i+1)*4).padStart(2,"0")}시`,detail:`${date} ${i*4}–${(i+1)*4}시`,...plannedLoad(days[0].planned,i*240,(i+1)*240)}));
-  const loadMinutes=days.reduce((n,d)=>n+d.load.minutes,0),mental=loadMinutes?days.reduce((n,d)=>n+(d.load.mental??0)*d.load.minutes,0)/loadMinutes:null,physical=loadMinutes?days.reduce((n,d)=>n+(d.load.physical??0)*d.load.minutes,0)/loadMinutes:null;
-  return {start,end:dates[dates.length-1],dates,totalMinutes,slices,days,loadSeries,mental,physical,loadMinutes,highMinutes:days.reduce((n,d)=>n+d.load.highMinutes,0),occupiedMinutes:days.reduce((n,d)=>n+d.occupied,0),overlapMinutes:days.reduce((n,d)=>n+d.overlap,0),coveredDays:days.filter(d=>d.occupied>0).length};
+  const loadSeries=period==="week"?days.map(d=>({label:new Intl.DateTimeFormat("ko-KR",{weekday:"short",timeZone:"Asia/Seoul"}).format(new Date(`${d.date}T12:00:00+09:00`)),detail:d.date,...d.load})):Array.from({length:6},(_,i)=>({label:`${String(i*4).padStart(2,"0")}–${String((i+1)*4).padStart(2,"0")}시`,detail:`${date} ${i*4}–${(i+1)*4}시`,...plannedLoad(days[0].spans,i*240,(i+1)*240)}));
+  const loadMinutes=days.reduce((n,d)=>n+d.load.minutes,0);
+  const mentalMinutes=days.reduce((n,d)=>n+d.load.mentalMinutes,0),physicalMinutes=days.reduce((n,d)=>n+d.load.physicalMinutes,0);
+  const mental=mentalMinutes?days.reduce((n,d)=>n+(d.load.mental??0)*d.load.mentalMinutes,0)/mentalMinutes:null;
+  const physical=physicalMinutes?days.reduce((n,d)=>n+(d.load.physical??0)*d.load.physicalMinutes,0)/physicalMinutes:null;
+  const doneTodos=(state.planner?.todos??[]).filter(t=>t.status==="done"&&t.completedAt&&dates.includes(localDate(new Date(t.completedAt)))).length;
+  return {start,end:dates[dates.length-1],doneTodos,dates,totalMinutes,slices,days,loadSeries,mental,physical,loadMinutes,mentalMinutes,physicalMinutes,highMinutes:days.reduce((n,d)=>n+d.load.highMinutes,0),occupiedMinutes:days.reduce((n,d)=>n+d.occupied,0),overlapMinutes:days.reduce((n,d)=>n+d.overlap,0),coveredDays:days.filter(d=>d.occupied>0).length};
 }

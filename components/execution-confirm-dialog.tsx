@@ -8,25 +8,30 @@ import { executionMinutes } from "@/lib/pet-execution";
 
 const durationPresets=[5,10,20,30,60,90];
 
-export type ExecutionDraft={source:PetSource;title:string;type:EffectType;minutes:number;status?:"done"|"partial";existing?:PetExecution;start?:string;end?:string;fixedSleep?:boolean;detailed?:boolean;planned?:{start:string;end:string;breaks?:{start:string;end:string}[]}};
+export type ExecutionDraft={source:PetSource;title:string;type:EffectType;minutes:number;status?:"done"|"partial";existing?:PetExecution;start?:string;end?:string;requireTime?:boolean;fixedSleep?:boolean;detailed?:boolean;planned?:{start:string;end:string;breaks?:{start:string;end:string}[]}};
 export function ExecutionConfirmDialog({draft,document,companion=true,currentFullness,busy,onSave,onLater,onClose}:{draft:ExecutionDraft;document:PetDocument;companion?:boolean;currentFullness?:number;busy:boolean;onSave:(command:PetCommand)=>Promise<void>;onLater?:()=>Promise<void>;onClose:()=>void}){
   const old=draft.existing,[initialEnd]=useState(()=>old?.end??draft.planned?.end??draft.end??new Date().toISOString());
   const [title,setTitle]=useState(old?.title??draft.title),[type,setType]=useState<EffectType>(old?.type??draft.type),[minutes,setMinutes]=useState(String(old?Math.round(executionMinutes(old)):draft.minutes||10));
   const [initialStart]=useState(()=>old?.start??draft.start??new Date(Date.parse(initialEnd)-(draft.minutes||10)*60000).toISOString());
-  const [end,setEnd]=useState(koreanInput(initialEnd)),[start,setStart]=useState(koreanInput(initialStart)),[useRange,setUseRange]=useState(!!draft.fixedSleep||!!old?.breaks?.length);
+  const [end,setEnd]=useState(draft.requireTime?"":koreanInput(initialEnd)),[start,setStart]=useState(koreanInput(initialStart)),[useRange,setUseRange]=useState(!!draft.fixedSleep||!!old?.breaks?.length);
   const mealDate=old?koreanInput(old.end).slice(0,10):draft.source.date;
-  const [mealTime,setMealTime]=useState(()=>koreanInput(initialEnd).slice(11));
+  const [mealTime,setMealTime]=useState(()=>draft.requireTime?"":koreanInput(initialEnd).slice(11));
   const [customMinutes,setCustomMinutes]=useState(()=>!durationPresets.includes(Number(minutes)));
   const [fullness,setFullness]=useState<30|60|80|undefined>(old?.fullness),[intensity,setIntensity]=useState(old?.intensity??"moderate"),[linkTo,setLinkTo]=useState(""),[error,setError]=useState("");
+  const [mental,setMental]=useState(String(old?.burden?.actual?.mental??""));
+  const [physical,setPhysical]=useState(String(old?.burden?.actual?.physical??""));
+  const burdenOptions={"":"미입력",1:"1 · 낮음",2:"2",3:"3 · 보통",4:"4",5:"5 · 높음"};
   async function submit(){try{
     setError("");
     if(type==="meal"&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(mealTime))throw Error("식사 시간을 입력해주세요.");
+    if(type!=="meal"&&!draft.fixedSleep&&!end)throw Error("실제로 마친 시각을 입력해주세요.");
     const finish=type==="meal"?inputISO(`${mealDate}T${mealTime}`):draft.fixedSleep?draft.end!:end===koreanInput(initialEnd)?initialEnd:inputISO(end),begin=type==="meal"?finish:draft.fixedSleep?draft.start!:useRange?(start===koreanInput(initialStart)?initialStart:inputISO(start)):new Date(Date.parse(finish)-Number(minutes)*60000).toISOString();
     if(!title.trim())throw Error("활동 이름을 입력해주세요.");
     if(type==="meal"&&!fullness)throw Error("실제로 먹은 식사량을 선택해주세요.");
     if(type!=="meal"&&(!Number.isFinite(Date.parse(begin))||Date.parse(begin)>=Date.parse(finish)))throw Error("실제 수행 구간을 확인해주세요.");
-    const breaks=type!=="meal"&&old?.breaks&&begin===old.start&&finish===old.end?old.breaks:undefined;
-    const record={title:title.trim(),type,start:begin,end:finish,intensity,fullness:type==="meal"?fullness:undefined,breaks,source:draft.source,status:draft.status??old?.status??"done",...(linkTo?{linkTo}:{})};
+    const scheduled=old??draft.planned;
+    const breaks=type!=="meal"&&scheduled?.breaks&&begin===scheduled.start&&finish===scheduled.end?scheduled.breaks:undefined;
+    const record={title:title.trim(),type,start:begin,end:finish,intensity,burden:type==="meal"?undefined:{actual:{mental:mental?Number(mental):undefined,physical:physical?Number(physical):undefined}},fullness:type==="meal"?fullness:undefined,breaks,source:draft.source,status:draft.status??old?.status??"done",...(linkTo?{linkTo}:{})};
     await onSave(old?{action:"edit",id:old.id,record}:{action:"record",record});onClose();
   }catch(e){setError((e as Error).message);}}
   const choices=document.records.filter(r=>!r.cancelled&&r.type===type&&r.id!==old?.id);
@@ -48,6 +53,10 @@ export function ExecutionConfirmDialog({draft,document,companion=true,currentFul
         {useRange&&<Input label="활동을 시작한 시각 (한국 시간)" type="datetime-local" value={start} onChange={setStart}/>}
         <Input label="활동을 마친 시각 (한국 시간)" type="datetime-local" value={end} onChange={setEnd}/>
         {!old&&draft.planned&&<small className="muted">계획표의 종료 시각을 기본으로 넣었어요. 실제로 마친 시각이 다르면 수정해주세요.{Date.parse(initialEnd)>Date.now()&&end===koreanInput(initialEnd)&&" 아직 예정 종료 전이라면 현재 이전의 실제 시각으로 수정해야 저장할 수 있어요."}</small>}
+        <details><summary>실제로 느낀 부담 (선택)</summary>
+          <Select label="실제 정신적 부담" value={mental} options={burdenOptions} onChange={setMental}/>
+          <Select label="실제 육체적 피로" value={physical} options={burdenOptions} onChange={setPhysical}/>
+        </details>
         <Select label="활동 강도" value={intensity} options={{light:"가볍게",moderate:"보통",high:"높게"}} onChange={v=>setIntensity(v as typeof intensity)}/>
       </>}
     </>}

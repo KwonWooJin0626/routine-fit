@@ -34,7 +34,7 @@ function PetActivityRules(){
       </table>
     </div>
     <ul className="pet-rule-note">
-      <li>체력 소모와 스트레스 증가에는 가벼움 ×{petIntensityFactors.light}, 보통 ×{petIntensityFactors.moderate}, 높음 ×{petIntensityFactors.high}이 적용돼요. XP는 실제 시간으로 계산해요.</li>
+      <li>체력 소모와 스트레스 증가에는 가벼움 ×{petIntensityFactors.light}, 보통 ×{petIntensityFactors.moderate}, 높음 ×{petIntensityFactors.high}이 적용돼요. 부담 점수가 있으면 실제 점수, 계획 점수 순으로 사용하고 1~5점은 각각 0.6·0.8·1·1.2·1.4배예요. XP는 실제 시간으로 계산해요.</li>
       <li>포만감은 시간당 {PET_FULLNESS_DECAY_PER_HOUR}점 줄어요. 식사를 기록하면 포만감이 30·60·80점 중 선택한 값으로 설정되고 스트레스가 최대 4점 줄어요.</li>
       <li>운동 XP는 한국 시간 기준 하루 최대 30이에요. 50 XP마다 최대 체력이 5점씩 늘어 150점까지 성장해요. 첫 학습 레벨업은 100 XP, 이후에는 레벨마다 필요 XP가 20씩 늘어요.</li>
       <li>활동 사이에는 시간당 체력 +2, 스트레스 −1이 적용돼요. 자동 변화는 마지막 활동 이후 최대 24시간, 수면 회복은 하루 최대 9시간이에요.</li>

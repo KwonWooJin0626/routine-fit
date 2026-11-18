@@ -35,11 +35,15 @@ export function calculatePet(doc:PetDocument,now=new Date()):PetView&{lastEviden
     const active=records.find(r=>r.type!=="meal"&&segments.get(r.id)!.some(s=>s.start<=from&&s.end>=until));
     if(active){
       const e=effect(active),rate=petActivityRates[active.type],factor=petIntensityFactors[active.intensity];
+      const burdenFactor=(axis:"mental"|"physical")=>{
+        const rating=active.burden?.actual?.[axis]??active.burden?.planned?.[axis];
+        return rating===undefined?factor:(rating+2)/5;
+      };
       let effective=minutes;
       if(active.type==="sleep"){effective=Math.min(minutes,Math.max(0,540-(sleepByDate[date]??0)));sleepByDate[date]=(sleepByDate[date]??0)+minutes;}
       const staminaBefore=s.stamina,stressBefore=s.stress;
-      s.stamina=clamp(s.stamina+rate[0]*effective/30*(rate[0]<0?factor:1),0,s.maxStamina);
-      s.stress=clamp(s.stress+rate[1]*effective/30*(rate[1]>0?factor:1),0,100);
+      s.stamina=clamp(s.stamina+rate[0]*effective/30*(rate[0]<0?burdenFactor("physical"):1),0,s.maxStamina);
+      s.stress=clamp(s.stress+rate[1]*effective/30*(rate[1]>0?burdenFactor("mental"):1),0,100);
       e.stamina+=s.stamina-staminaBefore;e.stress+=s.stress-stressBefore;
       const requested=rate[3]*minutes/30,fitness=Math.min(requested,Math.max(0,30-(fitnessByDate[date]??0))),learning=rate[2]*effective/30;
       fitnessByDate[date]=(fitnessByDate[date]??0)+fitness;e.requestedFitnessXP+=requested;e.fitnessXP+=fitness;e.learningXP+=learning;

@@ -8,8 +8,8 @@ import { createPlannerDragPreview } from "@/lib/planner-drag-preview";
 import { Dialog,Input,Select } from "./forms";
 import type { PlannerChange } from "@/lib/planner-removal";
 
-type Props={planner:Planner;date:string;busy:boolean;compact?:boolean;onSave:(p:Planner,change?:PlannerChange)=>Promise<void>;onPlace?:(t:PlannerTodo)=>void;onDrag?:(id:string|null,x?:number,y?:number)=>void;onPointerStart?:(id:string,x:number,y:number)=>void;onOpenSchedule?:(b:PlannerBlock)=>void;onPlan?:()=>void};
-export function PlannerTodos({planner,date,busy,compact=false,onSave,onPlace,onDrag,onPointerStart,onOpenSchedule,onPlan}:Props){
+type Props={planner:Planner;date:string;busy:boolean;compact?:boolean;onTodoChecked?:()=>void;onRecordTodo?:(todo:PlannerTodo,date:string)=>void;onSave:(p:Planner,change?:PlannerChange)=>Promise<void>;onPlace?:(t:PlannerTodo)=>void;onDrag?:(id:string|null,x?:number,y?:number)=>void;onPointerStart?:(id:string,x:number,y:number)=>void;onOpenSchedule?:(b:PlannerBlock)=>void;onPlan?:()=>void};
+export function PlannerTodos({planner,date,busy,compact=false,onTodoChecked,onRecordTodo,onSave,onPlace,onDrag,onPointerStart,onOpenSchedule,onPlan}:Props){
   const [title,setTitle]=useState(""),[editing,setEditing]=useState<PlannerTodo|null>(null),[filter,setFilter]=useState("day"),[error,setError]=useState(""),[showDone,setShowDone]=useState(false);
   const all=planner.todos??[],day=todosForDate(planner,date);
   const filtered=(filter==="all"?all:filter==="unplaced"?all.filter(t=>!planner.blocks.some(b=>b.todoId===t.id)):day);
@@ -22,7 +22,7 @@ export function PlannerTodos({planner,date,busy,compact=false,onSave,onPlace,onD
     <form className="todo-quick-add" onSubmit={e=>{e.preventDefault();void perform(add);}}><label className="sr-only" htmlFor={compact?"home-todo-title":"planner-todo-title"}>새 할 일 제목</label><input id={compact?"home-todo-title":"planner-todo-title"} value={title} maxLength={60} disabled={busy} placeholder="할 일을 입력하고 Enter" onChange={e=>setTitle(e.target.value)}/><button type="submit" className="icon-button" disabled={busy||!title.trim()} aria-label="할 일 추가"><Plus size={18}/></button></form>
     <button type="button" className="text-link todo-new-details" disabled={busy} onClick={()=>setEditing(draft())}>새 할 일 세부 설정</button>
     {!compact&&<div className="todo-filters" role="group" aria-label="할 일 보기">{Object.entries({day:"선택한 날",unplaced:"시간 미정",all:"전체"}).map(([key,label])=><button type="button" key={key} aria-pressed={filter===key} onClick={()=>setFilter(key)}>{label}</button>)}</div>}
-    <div className="todo-list">{rows.map(t=><TodoRow key={t.id} todo={t} busy={busy} onToggle={()=>void perform(()=>onSave(toggleTodo(planner,t.id)))} onDetails={()=>setEditing(t)} onDrag={onDrag} onPointerStart={onPointerStart}/>)}</div>
+    <div className="todo-list">{rows.map(t=><TodoRow key={t.id} todo={t} busy={busy} onToggle={()=>void perform(async()=>{await onSave(toggleTodo(planner,t.id));if(t.status!=="done")onTodoChecked?.();})} onDetails={()=>setEditing(t)} onRecord={onRecordTodo?()=>onRecordTodo(t,date):undefined} onDrag={onDrag} onPointerStart={onPointerStart}/>)}</div>
     {!rows.length&&<p className="todo-empty">{all.length?"이 목록에 남은 할 일이 없어요.":"제목만 적어서 가볍게 시작해요."}</p>}
     <button className="text-link todo-show-done" type="button" onClick={()=>setShowDone(!showDone)}>{showDone?"완료한 할 일 접기":"완료한 할 일 보기"}</button>
     {onPlan&&<button className="text-link" type="button" onClick={onPlan}>계획표에서 할 일·시간 관리하기{visible.length>5?` · 나머지 ${visible.length-5}개`:""}</button>}
@@ -58,11 +58,11 @@ export function PlannerTodoEditor({todo,planner,date,busy,onClose,onSaved,onSave
     onOpenSchedule={onOpenSchedule} onPlan={onPlan}/>;
 }
 
-function TodoRow({todo:t,busy,onToggle,onDetails,onDrag,onPointerStart}:{todo:PlannerTodo;busy:boolean;onToggle:()=>void;onDetails:()=>void;onDrag?: (id:string|null,x?:number,y?:number)=>void;onPointerStart?:(id:string,x:number,y:number)=>void}){
+function TodoRow({todo:t,busy,onToggle,onDetails,onRecord,onDrag,onPointerStart}:{todo:PlannerTodo;busy:boolean;onToggle:()=>void;onDetails:()=>void;onRecord?:()=>void;onDrag?: (id:string|null,x?:number,y?:number)=>void;onPointerStart?:(id:string,x:number,y:number)=>void}){
   const preview=useRef<HTMLElement|null>(null);
   useEffect(()=>()=>preview.current?.remove(),[]);
   return <article className={`todo-row ${t.status==="done"?"is-done":""}`} draggable={!busy&&!!onDrag} onPointerDown={e=>{if(e.button===0&&!busy&&!(e.target as HTMLElement).closest("button,input"))onPointerStart?.(t.id,e.clientX,e.clientY);}} onDragStart={e=>{if(!onDrag)return;preview.current?.remove();preview.current=createPlannerDragPreview(e.currentTarget,t.title);e.dataTransfer.setData("application/x-routinefit-todo",t.id);e.dataTransfer.effectAllowed="copy";e.dataTransfer.setDragImage(preview.current,40,12);onDrag(t.id);}} onDragEnd={e=>{preview.current?.remove();preview.current=null;onDrag?.(null,e.clientX,e.clientY);}}>
-    <button className="todo-check" type="button" disabled={busy} aria-pressed={t.status==="done"} aria-label={`${t.title} 할 일 ${t.status==="done"?"완료 취소":"완료"}`} onClick={onToggle}><span>{t.status==="done"?<Check size={15}/>:null}</span></button><span className="todo-title">{t.title}</span><button className="text-link" type="button" disabled={busy} aria-label={`${t.title} 세부 설정`} onClick={onDetails}>세부 설정</button>
+    <button className="todo-check" type="button" disabled={busy} aria-pressed={t.status==="done"} aria-label={`${t.title} 할 일 ${t.status==="done"?"완료 취소":"완료"}`} onClick={onToggle}><span>{t.status==="done"?<Check size={15}/>:null}</span></button><span className="todo-title">{t.title}</span>{onRecord&&<button className="text-link" type="button" disabled={busy} aria-label={`${t.title} 실제 시간`} onClick={onRecord}>실제 시간</button>}<button className="text-link" type="button" disabled={busy} aria-label={`${t.title} 세부 설정`} onClick={onDetails}>세부 설정</button>
   </article>;
 }
 
@@ -100,6 +100,8 @@ function TodoDetails({todo,planner,date,busy,quick,onClose,onSave,onDelete,onPla
     </div>}
     {show("settings")&&<div className="form-grid todo-editor-fields">
       <Input label="마감일 (선택)" type="date" value={v.dueDate??""} onChange={dueDate=>update({dueDate:dueDate||undefined})}/>
+      <Select label="예상 정신적 부담 (선택)" value={String(v.mental??"")} options={{"":"미입력",1:"1",2:"2",3:"3",4:"4",5:"5"}} onChange={value=>update({mental:value?Number(value):undefined})}/>
+      <Select label="예상 육체적 피로 (선택)" value={String(v.physical??"")} options={{"":"미입력",1:"1",2:"2",3:"3",4:"4",5:"5"}} onChange={value=>update({physical:value?Number(value):undefined})}/>
       <Input label="예상 소요 시간 (분, 선택)" type="number" min={5} max={720} value={v.estimate??""} hint="실제 수행 시간과 별도로 보관해요." onChange={n=>update({estimate:n?Number(n):undefined})}/>
       <div className="form-span"><Input label="장소 (선택)" value={v.location} onChange={location=>update({location:location.slice(0,100)})}/></div>
     </div>}
