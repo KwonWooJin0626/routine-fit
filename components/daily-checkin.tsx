@@ -7,7 +7,7 @@ import { ChoiceButtons } from "./choice-buttons";
 import { QuestionFrame } from "./question-frame";
 
 function DetailedCheckin({initial,style,hasActivities=false,onPlan,busy,error,onSubmit,onClose,preview}:{initial:Checkin;hasActivities?:boolean;onPlan?:()=>void;style:Answers["planningStyle"];busy:boolean;error:string;onSubmit:(c:Checkin)=>void;onClose:()=>void;preview:(c:Checkin)=>Day}){
-  const [c,set]=useState<Checkin>(initial),[step,setStep]=useState(0),[notice,setNotice]=useState("");
+  const [c,set]=useState<Checkin>({...initial,morning:false,energyKnown:false,sleepKnown:false}),[step,setStep]=useState(0),[notice,setNotice]=useState("");
   const update=<K extends keyof Checkin>(key:K,value:Checkin[K])=>set(s=>({...s,[key]:value}));
   const planned=style==="planned",total=hasActivities?4:planned?5:8;
   const submit=()=>{const result=checkinSchema.safeParse({...c,reported:true});if(!result.success){setNotice("수면시간과 선택한 값을 확인해주세요.");return;}setNotice("");onSubmit(result.data);};
@@ -16,12 +16,12 @@ function DetailedCheckin({initial,style,hasActivities=false,onPlan,busy,error,on
   return <QuestionFrame step={step} total={total} title={hasActivities?["오늘 활동할 여유는 어떤가요?","오늘 모든 새 루틴에 쓸 수 있는 시간은요?","오늘 새로운 몸 불편이 있나요?","오늘은 어떤 방식으로 할까요?"][step]:titles[step]} hint={hasActivities?"저장한 목표·선호는 다시 묻지 않아요. 오늘 분량만 조정하며 주간 목표와 이전 실천 기록은 유지해요.":hints[step]} onClose={onClose} busy={busy} error={notice||error} onBack={step?()=>setStep(s=>s-1):undefined} onNext={()=>step<total-1?setStep(s=>s+1):submit()} nextLabel={step===total-1?"오늘의 루틴 보기":"다음"}>
     <span className="sr-only">CHECK-IN {step+1} / {total}</span>
     {hasActivities?<>
-      {step===0&&<ChoiceButtons label="오늘 에너지" value={String(c.energy)} options={{5:"상쾌해요",4:"괜찮아요",3:"보통이에요",2:"많이 피곤해요",1:"매우 지쳐요"}} onChange={v=>update("energy",Number(v))}/>}
+      {step===0&&<ChoiceButtons label="오늘 에너지" value={String(c.energy)} options={{5:"상쾌해요",4:"괜찮아요",3:"보통이에요",2:"많이 피곤해요",1:"매우 지쳐요"}} onChange={v=>set(old=>({...old,energy:Number(v),energyKnown:true}))}/>}
       {step===1&&<ChoiceButtons label="모든 분야가 함께 사용할 시간" value={String(c.minutes)} options={Object.fromEntries([...new Set([5,30,60,120,240,c.minutes])].sort((a,b)=>a-b).map(n=>[n,`${n}분`]))} onChange={v=>update("minutes",Number(v))}/>}
       {step===2&&<ChoiceButtons label="통증·어지럼·발열 등 새로운 불편" value={c.unwell?"yes":"no"} options={{no:"없어요",yes:"있어요 · 회복 우선"}} onChange={v=>update("unwell",v==="yes")}/>}
       {step===3&&<><ChoiceButtons label="오늘 활동 방식" value={c.activityMode??"same"} options={{same:"계획한 범위에서",light:"가볍게 줄이기",rest:"오늘 새 활동은 쉬기"}} onChange={v=>update("activityMode",v as Checkin["activityMode"])}/><p className="question-small">일정이나 장소가 바뀌면 계획표 또는 목표·활동 수정을 이용해요.</p>{onPlan&&<button type="button" className="text-link" disabled={busy} onClick={onPlan}>계획표 확인·수정</button>}</>}
     </>:<>
-    {step===0&&<ChoiceButtons label="오늘 에너지" value={String(c.energy)} options={{5:"상쾌해요",4:"괜찮아요",3:"보통이에요",2:"많이 피곤해요",1:"매우 지쳐요"}} onChange={v=>update("energy",Number(v))}/>}
+    {step===0&&<ChoiceButtons label="오늘 에너지" value={String(c.energy)} options={{5:"상쾌해요",4:"괜찮아요",3:"보통이에요",2:"많이 피곤해요",1:"매우 지쳐요"}} onChange={v=>set(old=>({...old,energy:Number(v),energyKnown:true}))}/>}
     {step===1&&<><ChoiceButtons label="어젯밤 실제 수면시간" value={c.sleepKnown===false?"unknown":String(c.sleep)} options={{unknown:"아직 모르겠어요",4:"4시간",5:"5시간",6:"6시간",7:"7시간",8:"8시간",9:"9시간"}} onChange={v=>set(p=>({...p,sleepKnown:v!=="unknown",...(v!=="unknown"?{sleep:Number(v)}:{})}))}/><details className="question-help"><summary>다른 수면시간 직접 입력</summary><Input label="실제 수면시간 (시간)" type="number" min={0} max={14} value={c.sleepKnown===false?"":c.sleep} onChange={v=>set(p=>({...p,sleep:v===""?7:Number(v),sleepKnown:v!==""}))}/></details></>}
     {step===2&&<ChoiceButtons label="루틴 가능 시간" value={String(c.minutes)} options={{5:"5분",10:"10분",15:"15분",20:"20분",30:"30분",60:"60분"}} onChange={v=>update("minutes",Number(v))}/>}
     {step===3&&<ChoiceButtons label="통증·어지럼·발열 등 새로운 불편" value={c.unwell?"yes":"no"} options={{no:"없어요",yes:"있어요 · 회복 우선"}} onChange={v=>update("unwell",v==="yes")}/>}
@@ -29,6 +29,7 @@ function DetailedCheckin({initial,style,hasActivities=false,onPlan,busy,error,on
     {step===5&&<><ChoiceButtons label="오늘 운동 계획" value={c.exerciseType??"unknown"} options={{unknown:"아직 몰라요",none:"없어요",light:"가벼운 활동",strength:"근력운동",cardio:"유산소운동"}} onChange={v=>set(p=>({...p,exerciseType:v as Checkin["exerciseType"],exerciseMinutes:0}))}/>{c.exerciseType&&!["none","unknown"].includes(c.exerciseType)&&<ChoiceButtons label="예정 시간" value={String(c.exerciseMinutes??0)} options={{0:"시간 미정",15:"15분",30:"30분",60:"60분",90:"90분",120:"120분"}} onChange={v=>update("exerciseMinutes",Number(v))}/>}</>}
     {step===6&&<ChoiceButtons label="공부·집중 업무 예정 시간" value={String(c.studyMinutes??0)} options={{0:"아직 몰라요·없어요",60:"1시간",120:"2시간",240:"4시간",360:"6시간 이상"}} onChange={v=>update("studyMinutes",Number(v))}/>}
     {step===7&&<><ChoiceButtons label="오늘 스트레스" value={String(c.stress)} options={{1:"편안해요",2:"낮아요",3:"보통",4:"높아요",5:"매우 높아요"}} onChange={v=>update("stress",Number(v))}/><ChoiceButtons label="오늘 일정의 여유" value={c.busy?"busy":"usual"} options={{usual:"평소와 비슷해요",busy:"평소보다 바빠요"}} onChange={v=>update("busy",v==="busy")}/></>}
+    {step===total-1&&c.energyKnown&&<label><input type="checkbox" checked={!!c.morning} onChange={e=>update("morning",e.target.checked)}/>기상 후 컨디션으로 기록하기</label>}
     {step===total-1&&<details className="question-help"><summary>루틴 미리보기</summary><ul>{preview(c).routines.map(r=><li key={r.id}>{r.title} · {r.minutes}분</li>)}</ul><p>완료·직접 추가한 루틴은 유지해요. 저장 후 오늘의 루틴으로 이동해요.</p></details>}
     </>}
   </QuestionFrame>;
@@ -39,13 +40,22 @@ export function paceCheckin(initial:Checkin,pace:"light"|"usual"|"more"):Checkin
 }
 export function DailyCheckin(props:Parameters<typeof DetailedCheckin>[0]){
   const [detailed,setDetailed]=useState(false),[pace,setPace]=useState<"light"|"usual"|"more">(props.initial.pace??"usual");
+  const [energy,setEnergy]=useState(""),[sleep,setSleep]=useState("unknown");
   if(detailed)return <DetailedCheckin {...props}/>;
+  const morningDraft=energy?{...paceCheckin(props.initial,pace),energy:Number(energy),energyKnown:true,
+    reported:true,morning:true,sleepKnown:sleep!=="unknown",...(sleep!=="unknown"?{sleep:Number(sleep)}:{}),
+    activityMode:Number(energy)<=2?"light" as const:props.initial.activityMode}:null;
   const draft=paceCheckin(props.initial,pace),result=props.preview(draft);
   return <Dialog title="오늘은 어느 정도로 해볼까요?" subtitle="설문 없이도 추천을 볼 수 있어요. 바꾸고 싶은 날에만 조절하세요." onClose={props.onClose}>
     <ChoiceButtons label="오늘 원하는 활동 페이스" value={pace} options={{light:"가볍게",usual:"평소대로",more:"조금 더"}} onChange={v=>setPace(v as typeof pace)}/>
     <p className="question-small">원하는 분량이에요. 수면·에너지·스트레스 측정값으로 저장하지 않아요.</p>
     <div className="pace-preview"><b>추천 미리보기 · 총 {draft.minutes}분 이내</b><ul>{result.routines.map(r=><li key={r.id}>{r.title}<span>{r.minutes}분</span></li>)}</ul><small>완료한 활동과 직접 담은 루틴은 유지해요.</small></div>
+    <details><summary>기상 후 컨디션 기록 (선택)</summary>
+      <ChoiceButtons label="일어나서 느낀 컨디션" value={energy} options={{5:"상쾌해요",4:"괜찮아요",3:"보통이에요",2:"많이 피곤해요",1:"매우 지쳐요"}} onChange={setEnergy}/>
+      <ChoiceButtons label="어젯밤 실제 수면" value={sleep} options={{unknown:"모르겠어요 · 수면 기록 참고",4:"4시간",5:"5시간",6:"6시간",7:"7시간",8:"8시간",9:"9시간"}} onChange={setSleep}/>
+      <button type="button" className="button secondary" disabled={props.busy||!morningDraft} onClick={()=>{if(morningDraft)props.onSubmit(morningDraft);}}>기상 컨디션 저장하고 추천받기</button>
+    </details>
     {props.error&&<p className="form-error" role="alert">{props.error}</p>}
-    <div className="dialog-actions"><button type="button" className="text-link" onClick={()=>setDetailed(true)}>컨디션도 자세히 알려주기 (선택)</button><button className="button primary" disabled={props.busy} onClick={()=>props.onSubmit(draft)}>이 분량으로 추천받기</button></div>
+    <div className="dialog-actions"><button type="button" className="text-link" onClick={()=>setDetailed(true)}>컨디션도 자세히 알려주기 (선택)</button><button className="button primary" disabled={props.busy} onClick={()=>props.onSubmit({...draft,morning:false,energyKnown:false})}>이 분량으로 추천받기</button></div>
   </Dialog>;
 }

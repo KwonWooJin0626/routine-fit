@@ -24,6 +24,8 @@ import { usePetCompanion } from "./use-pet-companion";
 import { PlannerCompletionDialog } from "./planner-completion-dialog";
 import { PetCelebration } from "./pet-celebration";
 import { PlannerActivityLog } from "./planner-activity-log";
+import { MorningInsights } from "./morning-insights";
+import { captureMorning,withMorning } from "@/lib/morning-insights";
 import { PetEffortPanel } from "./pet-effort-panel";
 import { petCompletionMessage } from "@/lib/pet-effort";
 import { executionMinutes } from "@/lib/pet-execution";
@@ -183,9 +185,14 @@ export default function RoutineFit({ user }: {user:{name:string;email:string}|nu
     const next:AppState={...state,version:1,consentAt:new Date().toISOString(),consentVersion:"2026-10-growth-v1",answers,schedule:s,planner:state?.planner,nutrition:state?.nutrition,growth:state?.growth,inbody:state?.inbody??[],days:d?[...(state?.days??[]).filter(x=>x.date!==today),d].slice(-90):state?.days??[]};
     await persist(next);setDraft(undefined);setModal(null);setCheckDate(today);setView(start==="planner"?"planner":"today");setToast(start==="planner"?"계획표부터 시작해요. 일정을 담으면 루틴·영양 가이드를 안내해요.":"기초 정보로 작은 루틴을 준비했어요. 계획표를 작성하면 일정 분석과 루틴 조정이 시작돼요.");
   });}
-  function generate(checkin:Checkin,mode:"core"|"full",schedule=state!.schedule,refresh=true) {void perform(async()=>{
-    if(!state)return;const d=await makeDay(state.answers,checkin,mode,schedule,state.days,state.inbody.at(-1),refresh);
-    await persist({...state,schedule,days:[...state.days.filter(x=>x.date!==today),d].sort((a,b)=>a.date.localeCompare(b.date)).slice(-90)},refresh?"컨디션을 저장하고 오늘 가능한 루틴으로 조정했어요.":"오늘 담은 루틴으로 전체 일정을 배치했어요.");setModal(null);setCheckDate(today);if(!refresh&&mode==="full")setView("planner");else setView("today");
+  function generate(checkin:Checkin,mode:"core"|"full",schedule=state!.schedule,refresh=true,saveMorning=false) {void perform(async()=>{
+    if(!state)return;
+    const morning=saveMorning?captureMorning(state,checkin,pet.result?.document??null):null;
+    const nextState=withMorning(state,morning);
+    const effectiveCheckin=morning?.sleepHours!==null&&morning?.sleepHours!==undefined&&morning.sleepHours<=14
+      ?{...checkin,sleep:morning.sleepHours,sleepKnown:true}:checkin;
+    const d=await makeDay(state.answers,effectiveCheckin,mode,schedule,state.days,state.inbody.at(-1),refresh);
+    await persist({...nextState,schedule,days:[...state.days.filter(x=>x.date!==today),d].sort((a,b)=>a.date.localeCompare(b.date)).slice(-90)},refresh?"컨디션을 저장하고 오늘 가능한 루틴으로 조정했어요.":"오늘 담은 루틴으로 전체 일정을 배치했어요.");setModal(null);setCheckDate(today);if(!refresh&&mode==="full")setView("planner");else setView("today");
   });}
   async function saveGrowth(growth:NonNullable<AppState["growth"]>){
     if(!state||saving.current)throw new Error("저장이 끝난 뒤 다시 시도해주세요.");
@@ -338,6 +345,7 @@ export default function RoutineFit({ user }: {user:{name:string;email:string}|nu
       {quickCheck&&(view==="today"||view==="planner")&&<div className="quick-check-saved" role="status"><span>✓ {quickCheck.date} · {quickCheck.title} · 체크를 저장했어요</span><button className="text-link" disabled={busy} onClick={()=>{if(quickCheck.kind==="routine"){const r=state.days.find(d=>d.date===quickCheck.date)?.routines.find(r=>r.id===quickCheck.id);if(r)routineExecution(r,"done",quickCheck.date);}else{const b=state.planner?.blocks.find(b=>b.id===quickCheck.id);if(b)void plannerExecution(b,quickCheck.date,"edit").catch(e=>setError(e.message));}setQuickCheck(null);}}>실제 시간도 기록</button><button className="text-link" disabled={busy} onClick={()=>{if(quickCheck.kind==="routine")void perform(async()=>{const targetDay=state.days.find(d=>d.date===quickCheck.date);if(!targetDay)return;const statuses={...targetDay.statuses};if(quickCheck.previous)statuses[quickCheck.id]=quickCheck.previous;else delete statuses[quickCheck.id];await saveDay({...targetDay,statuses},"완료 체크를 되돌렸어요.");setQuickCheck(null);});else{const b=state.planner?.blocks.find(b=>b.id===quickCheck.id);if(b)void savePlanner(recordOccurrence(state.planner!,b,quickCheck.date,quickCheck.previous??"done",today)).then(()=>setQuickCheck(null)).catch(e=>setError(e.message));}}}>되돌리기</button><button className="icon-button" aria-label="완료 안내 닫기" onClick={()=>setQuickCheck(null)}><X size={15}/></button></div>}
       {view==="settings"&&<details className="panel style-settings"><summary>하루를 시작하는 방식</summary><PlanningStyleChoice value={a!.planningStyle} busy={busy} onChange={setPlanningStyle}/></details>}
       {view==="today"&&<>
+        {checkDate===today&&<MorningInsights rows={state.morningRecords??[]} date={today} onCheckin={()=>open("checkin")} onPlan={planSelectedDate}/>}
         <TodayChecks app={state} date={checkDate} day={checkDay} filter={checkFilter} onFilter={setCheckFilter} store={supplements} pet={pet.result} busy={busy} onPlan={planSelectedDate} onManage={()=>go("settings")} onCheckin={()=>open("checkin")} onCustom={()=>open("custom")} onPet={()=>go("dog")} onSavePlanner={savePlanner} onRecord={(b,date)=>void plannerExecution(b,date,"done").catch(e=>setError(e.message))} onBasic={()=>generate(day?.checkin??initialCheckin(a!),"core")} checkReaction={checkReaction} onChecked={()=>setCheckReaction(crypto.randomUUID())} onManual={manualActivity}
           health={<SleepWorkspace mode="checks" date={checkDate} demo={demo} initialBed={state.schedule.bed} initialWake={state.schedule.wake} onSettings={()=>go("settings")} onPetRecord={sleepExecution} onRecordsChange={pet.updateSleep}/>}
           records={<>{activityDoc.records.filter(r=>!r.cancelled&&r.sources.some(src=>(src.kind==="manual"||src.kind==="todo")&&src.date===checkDate)).map(r=><div className="completed-routine-row" key={r.id}><Check size={16}/><span>{r.title} · 실제 {Math.round(executionMinutes(r))}분</span><button className="text-link" disabled={busy} onClick={()=>editExecution(r)}>수정</button><button className="text-link" disabled={busy} onClick={()=>void reuseActivity(r).catch(e=>setError(e.message))}>내 블록으로 저장</button></div>)}<PlannerActivityLog planner={state.planner} pet={activityDoc} date={checkDate} busy={busy} onPlan={planSelectedDate} onEdit={editExecution} onConfirm={(b,date)=>void plannerExecution(b,date,"edit")}/>{checkDay?.routines.filter(r=>checkDay.statuses[r.id]==="done"||checkDay.statuses[r.id]==="partial").map(r=><div className="completed-routine-row" key={r.id}><Check size={16}/><span>{r.title}</span><button className="text-link" disabled={busy} onClick={()=>status(r.id,checkDay.statuses[r.id] as "done"|"partial",checkDate)}>되돌리기</button><button className="text-link" disabled={busy||r.held} onClick={()=>routineExecution(r,checkDay.statuses[r.id] as "done"|"partial",checkDate)}>실제 시간</button></div>)}</>}>
@@ -405,7 +413,7 @@ export default function RoutineFit({ user }: {user:{name:string;email:string}|nu
     {modal==="onboard"&&<Onboarding initial={a} draft={draft} onDraft={setDraft} busy={busy} error={error} onComplete={completeOnboarding} onClose={close}/>}
     {modal==="refine"&&<ActivityWizard onAdd={addRoutine} state={state} onMediaSave={saveMedia} onResultsClose={()=>{close();go("today");}} onPlan={()=>{close();go("planner");}} busy={busy} error={error} onComplete={saveActivityCategory} onClose={close}/>}
     {modal==="safety"&&<SafetySurvey nutrition={state.nutrition} initial={a!} busy={busy} error={error} onComplete={answers=>saveAnswers(answers)} onClose={close}/>}
-    {modal==="checkin"&&<DailyCheckin style={a!.planningStyle} hasActivities={!!a!.activities?.profiles.some(p=>p.enabled)} onPlan={()=>{close();go("planner");}} initial={day?.checkin??initialCheckin(a!)} busy={busy} error={error} preview={c=>buildPlannedDay(a!,c,day?.mode??"core",state.schedule,state.days,state.inbody.at(-1),today,true,state.planner,{memory:recommendations.memory})} onSubmit={c=>generate(c,day?.mode??"core")} onClose={close}/>}
+    {modal==="checkin"&&<DailyCheckin style={a!.planningStyle} hasActivities={!!a!.activities?.profiles.some(p=>p.enabled)} onPlan={()=>{close();go("planner");}} initial={day?.checkin??initialCheckin(a!)} busy={busy} error={error} preview={c=>buildPlannedDay(a!,c,day?.mode??"core",state.schedule,state.days,state.inbody.at(-1),today,true,state.planner,{memory:recommendations.memory})} onSubmit={c=>generate(c,day?.mode??"core",state.schedule,true,true)} onClose={close}/>}
     {modal==="custom"&&<CustomRoutineDialog initial={editing} busy={busy} error={error} onSubmit={addRoutine} onClose={close}/>}
     {modal==="schedule"&&<ScheduleForm initial={state.schedule} busy={busy} error={error} onSubmit={s=>generate(day?.checkin??initialCheckin(a!),"full",s,false)} onClose={close}/>}
     {modal==="inbody"&&<InbodyForm demo={demo} busy={busy} error={error} onSubmit={addInbody} onClose={close}/>}

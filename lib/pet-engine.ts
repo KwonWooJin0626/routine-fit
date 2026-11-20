@@ -3,7 +3,7 @@ import { initialPetStats,PET_FULLNESS_DECAY_PER_HOUR,type EffectType,type PetDoc
 import { executionSegments } from "./pet-execution";
 
 const MINUTE=60000,DAY=86400000;
-export const petActivityRates:Record<EffectType,readonly [stamina:number,stress:number,learningXP:number,fitnessXP:number]>={study:[-3,3,10,0],work:[-4,3,0,0],exercise:[-8,2,0,5],growth:[-2,2,8,0],social:[2,-3,0,0],sleep:[8,-2,0,0],rest:[6,-4,0,0],leisure:[3,-3,0,0],none:[0,0,0,0],meal:[0,0,0,0]};
+export const petActivityRates:Record<EffectType,readonly [stamina:number,stress:number,learningXP:number,fitnessXP:number]>={study:[-3,5,10,0],work:[-4,8,0,0],exercise:[-8,5,0,5],growth:[-2,2,8,0],social:[-3,-3,0,0],sleep:[8,-5,0,0],rest:[6,-4,0,0],leisure:[3,-3,0,0],none:[0,0,0,0],meal:[0,0,0,0]};
 export const petIntensityFactors={light:.75,moderate:1,high:1.25} as const;
 const clamp=(n:number,min:number,max:number)=>Math.max(min,Math.min(max,n));
 const copy=(s:PetStats):PetStats=>({...s});

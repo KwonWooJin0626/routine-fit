@@ -6,6 +6,7 @@ import { nutritionProfileSchema } from "./nutrition-profile";
 import { basicProfileSchema } from "./basic-profile";
 import { activityPreferencesSchema, activityFeedbackSchema, domainIds } from "./activity-profile";
 import { recommendationMetaSchema } from "./recommendation-model";
+import { morningRecordSchema } from "./morning-model";
 
 export const answersSchema = z.object({
   basic: basicProfileSchema.optional(),
@@ -72,6 +73,7 @@ export const defaultAnswers: Answers = {
   safetyDetails: "", currentSupplements: "", confirmedDeficiency: "",
 };
 export const checkinSchema = z.object({
+  morning:z.boolean().optional(),energyKnown:z.boolean().optional(),
   pace:z.enum(["light","usual","more"]).optional(),
   reported:z.boolean().optional(),
   sleepKnown:z.boolean().optional(),
@@ -137,6 +139,7 @@ export const daySchema = z.object({
 });
 export type Day = z.infer<typeof daySchema>;
 export const stateSchema = z.object({
+  morningRecords:z.array(morningRecordSchema).max(90).refine(rows=>new Set(rows.map(row=>row.date)).size===rows.length,"같은 날짜의 기상 기록이 중복됐어요.").optional(),
   activityJournal:activityJournalSchema.optional(),
   media:mediaProfileSchema.optional(),
   version: z.literal(1), consentAt: z.string().datetime(), consentVersion: z.enum(["2026-10-v1","2026-10-growth-v1"]),
