@@ -42,19 +42,14 @@ export function DailyCheckin(props:Parameters<typeof DetailedCheckin>[0]){
   const [detailed,setDetailed]=useState(false),[pace,setPace]=useState<"light"|"usual"|"more">(props.initial.pace??"usual");
   const [energy,setEnergy]=useState(""),[sleep,setSleep]=useState("unknown");
   if(detailed)return <DetailedCheckin {...props}/>;
-  const morningDraft=energy?{...paceCheckin(props.initial,pace),energy:Number(energy),energyKnown:true,
-    reported:true,morning:true,sleepKnown:sleep!=="unknown",...(sleep!=="unknown"?{sleep:Number(sleep)}:{}),
-    activityMode:Number(energy)<=2?"light" as const:props.initial.activityMode}:null;
   const draft=paceCheckin(props.initial,pace),result=props.preview(draft);
   return <Dialog title="오늘은 어느 정도로 해볼까요?" subtitle="설문 없이도 추천을 볼 수 있어요. 바꾸고 싶은 날에만 조절하세요." onClose={props.onClose}>
+    <section className="morning-checkin"><h3>일어나서 느낀 컨디션은 어떤가요?</h3><p className="question-small">하나를 누르면 기상 컨디션을 저장하고 오늘의 제안을 준비해요. 실제 수면 기록은 자동으로 연결해요.</p>
+    <details><summary>수면 기록이 없다면 시간 알려주기 (선택)</summary><ChoiceButtons label="어젯밤 실제 수면" value={sleep} disabled={props.busy} options={{unknown:"모르겠어요 · 기존 수면 기록 참고",4:"4시간",5:"5시간",6:"6시간",7:"7시간",8:"8시간",9:"9시간"}} onChange={setSleep}/></details>
+    <ChoiceButtons label="기상 컨디션 · 선택하면 저장" value={energy} disabled={props.busy} options={{5:"상쾌해요",4:"괜찮아요",3:"보통이에요",2:"많이 피곤해요",1:"매우 지쳐요"}} onChange={v=>{setEnergy(v);props.onSubmit({...paceCheckin(props.initial,pace),energy:Number(v),energyKnown:true,reported:true,morning:true,sleepKnown:sleep!=="unknown",...(sleep!=="unknown"?{sleep:Number(sleep)}:{}),activityMode:Number(v)<=2?"light":"same"});}}/></section>
     <ChoiceButtons label="오늘 원하는 활동 페이스" value={pace} options={{light:"가볍게",usual:"평소대로",more:"조금 더"}} onChange={v=>setPace(v as typeof pace)}/>
     <p className="question-small">원하는 분량이에요. 수면·에너지·스트레스 측정값으로 저장하지 않아요.</p>
     <div className="pace-preview"><b>추천 미리보기 · 총 {draft.minutes}분 이내</b><ul>{result.routines.map(r=><li key={r.id}>{r.title}<span>{r.minutes}분</span></li>)}</ul><small>완료한 활동과 직접 담은 루틴은 유지해요.</small></div>
-    <details><summary>기상 후 컨디션 기록 (선택)</summary>
-      <ChoiceButtons label="일어나서 느낀 컨디션" value={energy} options={{5:"상쾌해요",4:"괜찮아요",3:"보통이에요",2:"많이 피곤해요",1:"매우 지쳐요"}} onChange={setEnergy}/>
-      <ChoiceButtons label="어젯밤 실제 수면" value={sleep} options={{unknown:"모르겠어요 · 수면 기록 참고",4:"4시간",5:"5시간",6:"6시간",7:"7시간",8:"8시간",9:"9시간"}} onChange={setSleep}/>
-      <button type="button" className="button secondary" disabled={props.busy||!morningDraft} onClick={()=>{if(morningDraft)props.onSubmit(morningDraft);}}>기상 컨디션 저장하고 추천받기</button>
-    </details>
     {props.error&&<p className="form-error" role="alert">{props.error}</p>}
     <div className="dialog-actions"><button type="button" className="text-link" onClick={()=>setDetailed(true)}>컨디션도 자세히 알려주기 (선택)</button><button className="button primary" disabled={props.busy} onClick={()=>props.onSubmit({...draft,morning:false,energyKnown:false})}>이 분량으로 추천받기</button></div>
   </Dialog>;

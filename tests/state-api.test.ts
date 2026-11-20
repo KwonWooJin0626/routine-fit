@@ -62,3 +62,14 @@ test("이전 파일 가져오기는 기존 데이터를 revision 0으로 덮어�
   assert.equal((await handlers.PUT(request({ state: replacement, revision: 0 }))).status, 409);
   assert.equal((await (await handlers.GET()).json()).state.answers.name, state.answers.name);
 });
+
+test("기상 스냅샷과 제안 피드백은 계정 API에서 저장·복원되고 이전 revision을 거절한다",async()=>{
+  const {handlers,login}=setup();login("morning-owner");
+  const {captureMorning}=await import("../lib/morning-insights");const {initialCheckin}=await import("../lib/model");
+  const now=new Date("2026-10-31T08:00:00+09:00"),row=captureMorning(state,{...initialCheckin(state.answers),reported:true,morning:true,energyKnown:true,energy:2,sleepKnown:true,sleep:6},null,now)!;
+  const next={...state,morningRecords:[row],morningFeedback:[{date:row.date,id:"rest",kind:"rest",action:"added",at:now.toISOString(),routineId:"morning-rest"}]};
+  assert.equal((await handlers.PUT(request({state:next,revision:0}))).status,200);
+  const result=await (await handlers.GET()).json();assert.deepEqual(result.state.morningRecords,[row]);assert.deepEqual(result.state.morningFeedback,next.morningFeedback);
+  assert.equal((await handlers.PUT(request({state:next,revision:0}))).status,409);
+  login("another-user");assert.equal((await (await handlers.GET()).json()).state,null);
+});

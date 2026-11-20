@@ -10,8 +10,11 @@ import type { EffectType,PetCommand,PetDocument,PetExecution,PetRequest } from "
 import { PetHome } from "../components/pet-companion";
 import { buildDay } from "../lib/engine";
 import { initialCheckin } from "../lib/model";
-import { captureMorning,withMorning,morningAdvice } from "../lib/morning-insights";
+import { captureMorning,withMorning,morningAdvice,morningSimilarity } from "../lib/morning-insights";
 import { addDate } from "../lib/planner";
+import { morningProposals,applyMorningProposal,withMorningFeedback } from "../lib/morning-proposals";
+import { plannerSchema,plannerBlockSchema } from "../lib/planner-model";
+import { occursOn } from "../lib/planner";
 import { morningRecordSchema } from "../lib/morning-model";
 
 const at=new Date("2026-10-30T00:00:00.000Z"),later=(minutes:number)=>new Date(at.getTime()+minutes*60000);
@@ -113,3 +116,64 @@ test("90일 상세 보관을 요약해도 최종 계산 결과는 유지된다",
 test("이름·보이기·동작 설정 변경은 성장 기록을 초기화하지 않는다",()=>{const d=doc();d.records=[record("growth",0,30)];const out=applyPetCommand(d,app(),request({action:"settings",name:"눈송이",visible:false,reducedMotion:true}),later(30));assert.equal(out.document.records.length,1);assert.equal(calculatePet(out.document,later(30)).stats.learningTotalXP,8);});
 test("인증·출처·입력 검증을 통과하기 전 저장소에 접근하지 않는다",async()=>{let calls=0;const repo={get:async()=>{calls++;return {document:null,view:null,revision:0,appRevision:1};},mutate:async()=>{calls++;return {document:null,view:null,revision:0,appRevision:1};}};const anonymous=createPetHandlers(async()=>null,repo);assert.equal((await anonymous.GET()).status,401);const h=createPetHandlers(async()=>"user",repo),url="https://routine.test/api/pet";assert.equal((await h.POST(new Request(url,{method:"POST",headers:{Origin:"https://bad.test"},body:"{}"}))).status,403);assert.equal((await h.POST(new Request(url,{method:"POST",headers:{Origin:"https://routine.test"},body:"{}"}))).status,400);assert.equal(calls,0);});
 test("초기 화면에서 빨간 스카프 사모예드를 발견하고 선택할 수 있다",()=>{const html=renderToStaticMarkup(<PetHome pet={null} busy={false} error="" loading={false} onCommand={async()=>{}} onRecord={()=>{}} onCheckin={()=>{}} onSettings={()=>{}}/>);assert.match(html,/사모예드와 함께 시작/);assert.match(html,/poster-idle.png/);assert.match(html,/빨간 스카프/);});
+
+const morningNow=new Date("2026-10-31T08:00:00+09:00");
+const morningRow=()=>captureMorning(app(),{...initialCheckin(defaultAnswers),reported:true,morning:true,energyKnown:true,energy:2,sleepKnown:true,sleep:6},null,morningNow)!;
+const flexible=(extra:Record<string,unknown>={})=>plannerBlockSchema.parse({id:"flex",title:"선택 과제",category:"task",location:"",task:"",start:"18:00",end:"19:00",mental:4,physical:1,shade:1,kind:"once",date:"2026-10-31",weekdays:[],adjustability:"adjustable",...extra});
+
+test("취침 직전 24시간의 실제 부담·야간 시간은 축별로 계산하고 수면 회복 이후와 구분한다",()=>{
+  const state=app(),pet=doc();
+  pet.records=[record("study",780,840,{burden:{actual:{mental:5}}}),record("exercise",840,900,{burden:{actual:{physical:4}}}),record("sleep",900,1320),record("sleep",1360,1370)];
+  const r=captureMorning(state,{...initialCheckin(defaultAnswers),reported:true,morning:true,energyKnown:true,energy:4,sleepKnown:false},pet,morningNow)!;
+  assert.equal(r.snapshotBasis,"sleep");assert.equal(r.snapshotAt,later(900).toISOString());assert.equal(r.sleepHours,7);
+  near(r.petStamina!,calculatePet(pet,later(900)).stats.stamina);
+  assert.equal(r.previousMental,5);assert.equal(r.previousPhysical,4);
+  assert.equal(r.highMentalMinutes,60);assert.equal(r.highPhysicalMinutes,60);assert.equal(r.lateMinutes,120);
+  assert.equal(r.previousActivityMinutes,120);morningRecordSchema.parse(r);
+});
+
+test("비슷한 날의 분포는 이전 14일·유사한 5일이 필요하고 수면만 있는 날은 비교하지 않는다",()=>{
+  const row={...morningRow(),previousMental:3};
+  const history=Array.from({length:14},(_,i)=>({...row,date:addDate(row.date,-i-1),energy:i<5?4:i<10?3:2}));
+  assert.equal(morningAdvice([...history.slice(0,13),row],row.date)?.distribution,null);
+  const result=morningAdvice([...history,row],row.date)!;
+  assert.deepEqual(result.distribution,{good:5,normal:5,tired:4});assert.equal(result.similarCount,14);
+  assert.equal(morningSimilarity({...row,previousMental:null}, {...row,previousMental:null}),null);
+  assert.equal(morningSimilarity({...row,sleepHours:null},row),null);
+  assert.equal(morningSimilarity(row,row),1);
+  assert.equal(morningAdvice([...history,{...row,date:addDate(row.date,1),energy:5},row],row.date)?.similarCount,14);
+});
+
+test("오늘 제안은 고정·지난 일정·실행한 일정을 보존하고 반복 일정 한 번만 줄인다",()=>{
+  const state=app();state.planner=plannerSchema.parse({setupComplete:true,templates:[],blocks:[flexible({id:"fixed",adjustability:"fixed"}),flexible({id:"past",start:"06:00",end:"07:00"}),flexible({id:"done"}),flexible({id:"repeat",kind:"fixed",date:"2026-10-24",weekdays:[6]})],records:[{blockId:"done",date:"2026-10-31",status:"done",title:"끝",start:"18:00",end:"19:00",recordedAt:morningNow.toISOString()}]});
+  const row=morningRow(),p=morningProposals(state,row,morningNow);
+  assert.deepEqual(p.filter(p=>p.blockId).map(p=>p.blockId),["repeat"]);
+  const proposal=p.find(p=>p.blockId)!;const next=applyMorningProposal(state.planner,proposal,row.date,morningNow);
+  const repeat=next.blocks.find(b=>b.id==="repeat")!;
+  assert.equal(occursOn(repeat,row.date),false);assert.equal(occursOn(repeat,addDate(row.date,7)),true);
+  assert.equal(next.blocks.find(b=>b.id!=="repeat"&&b.kind==="once"&&b.date===row.date&&b.end==="18:30")?.title,"선택 과제");
+  assert.equal(next.blocks.find(b=>b.id==="fixed")?.end,"19:00");
+  assert.throws(()=>applyMorningProposal(next,proposal,row.date,morningNow));
+  assert.equal(state.planner.blocks.find(b=>b.id==="repeat")?.excludedDates.length,0);
+});
+
+test("내일 이동은 마감·중요 할 일·겹친 시간과 반복 날짜를 보호하고 미리보기 이후 다시 검사한다",()=>{
+  const state=app(),row=morningRow(),b=flexible({adjustability:"movable"});state.planner=plannerSchema.parse({setupComplete:true,templates:[],blocks:[b]});
+  const p=morningProposals(state,row,morningNow).find(p=>p.blockId)!;assert.equal(p.targetDate,"2026-11-01");
+  const next=applyMorningProposal(state.planner,p,row.date,morningNow);assert.equal(next.blocks[0].date,"2026-11-01");
+  const occupied={...state.planner,blocks:[b,flexible({id:"tomorrow",date:"2026-11-01"})]};
+  assert.throws(()=>applyMorningProposal(occupied,p,row.date,morningNow),/다른 일정/);
+  assert.equal(morningProposals({...state,planner:occupied},row,morningNow).some(p=>p.blockId),false);
+  const deadline=plannerSchema.parse({...state.planner,blocks:[{...b,todoId:"deadline"}],todos:[{id:"deadline",title:"오늘 마감",dueDate:row.date}]});
+  assert.equal(morningProposals({...state,planner:deadline},row,morningNow).some(p=>p.blockId),false);
+  assert.throws(()=>applyMorningProposal({...state.planner!,blocks:[{...b,adjustability:"fixed"}]},p,row.date,morningNow));
+});
+
+test("제안 피드백은 계정 상태에서 왕복하며 한 날짜 중복 반영·넘긴 제안 재노출을 막는다",()=>{
+  const row={...morningRow(),previousMental:5},state=withMorning(app(),row),p=morningProposals(state,row,morningNow)[0];
+  const saved=withMorningFeedback(state,{date:row.date,id:p.id,kind:p.kind,action:"dismissed",at:morningNow.toISOString()});
+  const round=stateSchema.parse(JSON.parse(JSON.stringify(saved)));
+  assert.equal(round.morningFeedback?.length,1);
+  assert.equal(morningProposals(round,row,morningNow).some(x=>x.id===p.id),false);
+  assert.equal(withMorningFeedback(saved,saved.morningFeedback![0]).morningFeedback?.length,1);
+});
