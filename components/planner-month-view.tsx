@@ -114,7 +114,7 @@ export function PlannerMonthView({planner,selected,today,busy,onSelect,onDay,onA
         <button type="button" className="icon-button" aria-label="다음 달" onClick={()=>onSelect(moveMonth(selected,1))}><ChevronRight size={18}/></button>
         <button type="button" className="sp-today" onClick={()=>onSelect(today)}>오늘</button>
       </div>
-      <button type="button" className="button primary" disabled={busy} onClick={()=>onAdd(selected)}><Plus size={16}/>할 일 추가</button>
+      <button type="button" className="button primary" aria-label="할 일 추가" title="할 일 추가" disabled={busy} onClick={()=>onAdd(selected)}><Plus size={16}/><span className="month-add-label">할 일 추가</span></button>
     </header>
     <p className="month-range-hint" role="status">{preview?formatDay(preview.start)+(preview.start===preview.end?"":' ~ '+formatDay(preview.end))+" 선택 중 · 손을 떼면 할 일을 추가해요":"휴대폰은 날짜를 꾹 누른 뒤 드래그해 기간을 선택해요. PC는 날짜 사이를 드래그하세요."}</p>
     <div className="month-weekdays" aria-hidden="true">{weekdays.map(day=><span key={day}>{day}</span>)}</div>
