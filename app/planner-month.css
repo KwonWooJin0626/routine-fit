@@ -79,3 +79,9 @@
     border-radius: 20px 20px 0 0; padding-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* Leave panning available until the native long-press handler captures a range. */
+.month-grid { -webkit-user-select: none; -webkit-touch-callout: none; }
+.month-grid[data-range-selecting="true"] { cursor: crosshair; }
+.month-cell[data-preview="true"] { background: #ffe0dc; box-shadow: inset 0 0 0 2px var(--coral); }
+.month-range-hint { min-height: 20px; margin: 0 0 10px; color: #667080; font-size: 12px; word-break: keep-all; overflow-wrap: break-word; }

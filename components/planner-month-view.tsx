@@ -1,17 +1,29 @@
 "use client";
 
-import { useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { CalendarDays, Check, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { toTime } from "@/lib/model";
 import { occurrencesInWindow } from "@/lib/planner";
 import { plannerSwatch } from "@/lib/planner-colors";
 import { monthItems, monthWeeks, moveMonth, monthlyTodosForDate, dateUnassignedTodos, weekItems } from "@/lib/planner-month";
+import { attachMonthTouchRange } from "@/lib/month-touch-range";
 import type { Planner, PlannerBlock, PlannerTodo } from "@/lib/planner-model";
 
 const weekdays=["월","화","수","목","금","토","일"];
 const dayLabel=new Intl.DateTimeFormat("ko-KR",{month:"long",day:"numeric",weekday:"long",timeZone:"UTC"});
 const formatDay=(date:string)=>dayLabel.format(new Date(`${date}T12:00Z`));
 const range=(a:string,b:string)=>a<=b?{start:a,end:b}:{start:b,end:a};
+
+function monthDateAt(grid:HTMLDivElement,x:number,y:number){
+    const target=document.elementFromPoint(x,y);
+    if(!target||!grid.contains(target))return;
+    const direct=target.closest<HTMLElement>("[data-month-cell]");
+    if(direct)return direct.dataset.monthCell;
+    const row=target.closest(".month-week");
+    return Array.from(row?.querySelectorAll<HTMLElement>("[data-month-cell]")??[]).find(cell=>{
+      const {left,right}=cell.getBoundingClientRect();return left<=x&&x<right;
+    })?.dataset.monthCell;
+  }
 
 type Props={
   planner:Planner;selected:string;today:string;busy:boolean;
@@ -35,21 +47,17 @@ export function PlannerMonthView({planner,selected,today,busy,onSelect,onDay,onA
   const [preview,setPreview]=useState<{start:string;end:string}|null>(null);
   const drag=useRef<{pointerId:number;start:string}|null>(null);
   const ignoreClick=useRef(false);
+  const gridRef=useRef<HTMLDivElement>(null);
+  const onAddRef=useRef(onAdd);
+  useEffect(()=>{onAddRef.current=onAdd;},[onAdd]);
+  useEffect(()=>{
+    const grid=gridRef.current;if(!grid||busy)return;
+    return attachMonthTouchRange(grid,{dateAt:(x,y)=>monthDateAt(grid,x,y),onPreview:setPreview,onChoose:chosen=>{ignoreClick.current=true;onAddRef.current(chosen.start,chosen.end);}});
+  },[busy,month]);
   const dayPanel=useRef<HTMLElement>(null);
   const colors=(category:PlannerBlock["category"],shade=1)=>plannerSwatch(category,shade,planner.categoryColors);
 
-  function pickCell(event:PointerEvent<HTMLDivElement>){
-    const grid=event.currentTarget;
-    const target=document.elementFromPoint(event.clientX,event.clientY);
-    if(!target||!grid.contains(target))return;
-    const direct=target.closest<HTMLElement>("[data-month-date]");
-    if(direct)return direct.dataset.monthDate;
-    const row=target.closest(".month-week");
-    return Array.from(row?.querySelectorAll<HTMLElement>("[data-month-date]")??[]).find(cell=>{
-      const {left,right}=cell.getBoundingClientRect();
-      return left<=event.clientX&&event.clientX<right;
-    })?.dataset.monthDate;
-  }
+  function pickCell(event:PointerEvent<HTMLDivElement>){return monthDateAt(event.currentTarget,event.clientX,event.clientY);}
 
   function startRange(event:PointerEvent<HTMLDivElement>){
     ignoreClick.current=false;
@@ -108,8 +116,9 @@ export function PlannerMonthView({planner,selected,today,busy,onSelect,onDay,onA
       </div>
       <button type="button" className="button primary" disabled={busy} onClick={()=>onAdd(selected)}><Plus size={16}/>할 일 추가</button>
     </header>
+    <p className="month-range-hint" role="status">{preview?formatDay(preview.start)+(preview.start===preview.end?"":' ~ '+formatDay(preview.end))+" 선택 중 · 손을 떼면 할 일을 추가해요":"휴대폰은 날짜를 꾹 누른 뒤 드래그해 기간을 선택해요. PC는 날짜 사이를 드래그하세요."}</p>
     <div className="month-weekdays" aria-hidden="true">{weekdays.map(day=><span key={day}>{day}</span>)}</div>
-    <div className="month-grid" onPointerDown={startRange} onPointerMove={moveRange} onPointerUp={stopRange} onPointerCancel={()=>{drag.current=null;setPreview(null);}}>
+    <div ref={gridRef} className="month-grid" data-range-selecting={!!preview} onClickCapture={event=>{if(ignoreClick.current&&event.detail>0){ignoreClick.current=false;event.preventDefault();event.stopPropagation();}}} onPointerDown={startRange} onPointerMove={moveRange} onPointerUp={stopRange} onPointerCancel={event=>{if(event.pointerType!=="touch"){drag.current=null;setPreview(null);}}} onLostPointerCapture={()=>{if(drag.current){drag.current=null;setPreview(null);}}}>
       {weekData.map(({week,visible,overflow})=><div className="month-week" key={week[0]}>
         {week.map((date,index)=><div key={date} className="month-cell" data-month-cell={date}
           data-outside={date.slice(0,7)!==month} data-selected={selected===date}
