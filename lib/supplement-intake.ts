@@ -5,7 +5,7 @@ import type { SupplementLabel } from "./supplement-label";
 
 type Fact=SupplementLabel["facts"][number];
 type Column=Pick<Fact,"name"|"unit">;
-type IntakeRow={id:string;name:string;amounts:Record<string,number>;missing:boolean;doseUnknown:boolean;occurrences:number};
+type IntakeRow={id:string;name:string;amounts:Record<string,number>;missing:boolean;doseUnknown:boolean;occurrences:number;unconfirmed:boolean;knownKeys:string[]};
 export const nutrientKey=(fact:Column)=>`${fact.name}|${fact.unit}`;
 
 export function servingCount(dose:string,label:SupplementLabel){
@@ -19,13 +19,15 @@ export function supplementIntake(journal:SupplementJournal,app:AppState,date:str
   const columns=new Map<string,Column>(),rows=new Map<string,IntakeRow>();
   const totals:Record<string,number>={};
   function add(id:string,name:string,dose:string,label?:SupplementLabel){
-    const row=rows.get(id)??{id,name,amounts:{},missing:false,doseUnknown:false,occurrences:0};
+    const row=rows.get(id)??{id,name,amounts:{},missing:false,doseUnknown:false,occurrences:0,unconfirmed:false,knownKeys:[]};
     rows.set(id,row);row.occurrences++;
+    row.unconfirmed ||= !label||!!label.partial;
     const factor=label?servingCount(dose,label):null;
     if(!label||label.partial||factor===null)row.missing=true;
     if(factor===null)row.doseUnknown=true;
     for(const fact of label?.facts??[]){
       const key=nutrientKey(fact);
+      if(!row.knownKeys.includes(key))row.knownKeys.push(key);
       columns.set(key,{name:fact.name,unit:fact.unit});
       if(factor===null)continue;
       const amount=fact.amount*factor;
@@ -45,6 +47,11 @@ export function supplementIntake(journal:SupplementJournal,app:AppState,date:str
     for(const record of journal.records){
       if(record.status!=="taken"||(record.actualAt?localDate(new Date(record.actualAt)):record.date)!==date)continue;
       add(record.productId,record.snapshot.name,record.dose,record.snapshot.label);
+    }
+  }
+  if([...rows.values()].some(row=>row.unconfirmed)){
+    for(const key of Object.keys(dailyValues))if(!columns.has(key)){
+      const [name,unit]=key.split("|");columns.set(key,{name,unit:unit as Fact["unit"]});
     }
   }
   return {columns:[...columns.values()],rows:[...rows.values()],totals,

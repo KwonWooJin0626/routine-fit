@@ -10,10 +10,43 @@ import { lookupSupplementLabel,searchSupplementCatalog } from "../lib/supplement
 import { intakeStatus,servingCount,supplementIntake } from "../lib/supplement-intake";
 import { parseSupplementPhoto } from "../lib/supplement-label-photo";
 import type { SupplementStore } from "../components/use-supplement-journal";
+import { updateManualSupplementLabel } from "../lib/supplement-manual-label";
+import { SupplementIntakeTable } from "../components/supplement-intake-table";
 const date="2026-11-09",now=new Date(`${date}T20:00:00+09:00`);
 const app:AppState={version:1,consentAt:now.toISOString(),consentVersion:"2026-10-growth-v1",answers:defaultAnswers,schedule:defaultSchedule,days:[],inbody:[],planner:{setupComplete:true,blocks:[],templates:[]}};
 const product=(patch:Partial<SupplementProduct>={})=>supplementProductSchema.parse({id:"vitamin",name:"등록 제품",dose:"1캡슐",startDate:"2026-11-01",weekdays:[0,1,2,3,4,5,6],slots:[{id:"morning",anchor:"fixed",time:"09:00",offset:0}],...patch});
 const registered=()=>applySupplementCommand(emptySupplementJournal(),{action:"save",product:product()},app,now);
+
+test("확인한 성분표의 미표기와 미확인 빈 입력칸을 구분하고 복용량 누락을 미포함으로 처리하지 않는다",()=>{
+  const known=product({id:"known",name:"조회 성공",dose:"",label:{servingSize:1,servingUnit:"정",facts:[{name:"비타민 C",amount:100,unit:"mg",dailyValuePercent:null}]}});
+  const unknown=product({id:"unknown",name:"조회 실패",label:undefined});
+  const journal={products:[known,unknown],records:[]};
+  const result=supplementIntake(journal,app,date,"plan");
+  assert.equal(result.rows[0].unconfirmed,false);assert.equal(result.rows[0].doseUnknown,true);
+  assert.equal(result.rows[1].unconfirmed,true);assert.ok(result.columns.some(c=>c.name==="비타민 A"));
+  const html=renderToStaticMarkup(<SupplementIntakeTable journal={journal} app={app} onSaveProduct={async()=>{}} onEditProduct={()=>{}}/>);
+  assert.match(html,/<td[^>]*>-<\/td>/);assert.match(html,/복용량 입력/);
+  assert.match(html,/aria-label="조회 실패 비타민 C mg 직접 입력"[^>]*value=""/);
+  assert.doesNotMatch(html,/aria-label="조회 성공 비타민 A/);
+});
+
+test("직접 입력은 0과 빈칸을 구분해 저장하고 복용 개수·횟수로 합산하며 과거 성분표를 보존한다",()=>{
+  const p=product({label:undefined,dose:"2"});
+  const edited=updateManualSupplementLabel(p,{"비타민 C|mg":"100","아연|mg":"0"},"스쿱","2");
+  assert.equal(edited.label?.source,"manual");assert.equal(edited.label?.partial,true);
+  let journal=applySupplementCommand(emptySupplementJournal(),{action:"save",product:edited},app,now);
+  const result=supplementIntake(journal,app,date,"plan");assert.equal(result.totals["비타민 C|mg"],200);assert.equal(result.totals["아연|mg"],0);assert.equal(result.totals["비타민 A|μg RAE"],undefined);
+  journal=applySupplementCommand(journal,{action:"record",productId:p.id,date,slotId:p.slots[0].id,status:"taken"},app,now);
+  const snapshot=structuredClone(journal.records[0].snapshot);
+  const cleared=updateManualSupplementLabel(edited,{"비타민 C|mg":""},"정","1");
+  journal=applySupplementCommand(journal,{action:"save",product:cleared},app,now);
+  assert.deepEqual(journal.records[0].snapshot,snapshot);assert.equal(journal.products[0].label?.facts.length,1);
+  assert.equal(journal.products[0].label?.servingUnit,"스쿱");
+  for(const value of ["-1","NaN","Infinity","abc"]){assert.throws(()=>updateManualSupplementLabel(p,{"비타민 C|mg":value},"정","1"));}
+  const imported=product({label:{servingSize:1,servingUnit:"정",partial:true,facts:[{name:"비타민 C",amount:100,unit:"mg",dailyValuePercent:null}]}});
+  assert.throws(()=>updateManualSupplementLabel(imported,{"비타민 C|mg":"999"},"정","1"));
+  assert.equal(updateManualSupplementLabel(imported,{"아연|mg":"10"},"정","1").label?.facts.length,2);
+});
 test("사진 성분표는 제공량과 단위를 가져오고 확인되지 않은 행을 표시한다",()=>{
   const url="https://kr.iherb.com/pr/example/1234";
   const result=parseSupplementPhoto(`Supplement Facts

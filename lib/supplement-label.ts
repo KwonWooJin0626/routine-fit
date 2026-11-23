@@ -6,7 +6,7 @@ const unit=z.enum(supplementFactUnits);
 const fact=z.object({name:z.string().trim().min(1).max(120),amount:z.number().finite().nonnegative().max(1e15),unit,
   dailyValuePercent:z.number().finite().nonnegative().nullable(),
   rawAmount:z.number().finite().nonnegative().optional(),rawUnit:z.string().max(30).optional(),
-  evidence:z.string().max(240).optional(),sourceIndex:z.number().int().min(0).max(4).optional()});
+  evidence:z.string().max(240).optional(),sourceIndex:z.number().int().min(0).max(4).optional(),manual:z.boolean().optional()});
 export const supplementLabelSchema=z.object({
   retrievedAt:z.string().datetime().optional(),
   query:z.string().max(200).optional(),
@@ -18,7 +18,7 @@ export const supplementLabelSchema=z.object({
   servingSize:z.number().min(0.000001).max(1000000),
   servingUnit:z.enum(supplementServingUnits),
   servingsPerContainer:z.number().positive().optional(),
-  source:z.enum(["photo","dsld","web"]).optional(),
+  source:z.enum(["photo","dsld","web","manual"]).optional(),
   webSources:z.array(z.object({title:z.string().min(1).max(200),url:z.string().url().max(2000).refine(url=>url.startsWith("https://"))})).max(5).optional(),
   dsldId:z.number().int().positive().optional(),
   partial:z.boolean().optional(),
