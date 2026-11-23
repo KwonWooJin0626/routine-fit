@@ -7,6 +7,10 @@ import { PetError,sourceKey,type PetDocument,type PetExecution,type PetRequest,t
 import { executionMinutes,executionsOverlap,validExecutionBreaks } from "./pet-execution";
 
 export function relatedSources(app:AppState,source:PetSource):PetSource[]{
+  if(source.kind==="todo"){
+    const blocks=app.planner?.blocks.filter(b=>b.todoId===source.id&&occursOn(b,source.date))??[];
+    return blocks.length===1?[source,...relatedSources(app,{kind:"planner",id:blocks[0].id,date:source.date})]:[source];
+  }
   if(source.kind==="planner")return [source,...(app.days.find(d=>d.date===source.date)?.routines.filter(r=>r.activity?.linkedEvent===`plan-${source.id}-${source.date}`).map(r=>({kind:"routine" as const,id:r.id,date:source.date}))??[])];
   if(source.kind!=="routine")return [source];
   const routine=app.days.find(d=>d.date===source.date)?.routines.find(r=>r.id===source.id);
@@ -31,6 +35,13 @@ function validateSource(app:AppState,source:PetSource,type:string,sleep:SleepRec
 export function projectPetRecords(app:AppState,doc:PetDocument,cancelledIds:string[]=[]):AppState{
   const next=structuredClone(app);
   for(const record of doc.records.filter(r=>!r.cancelled||cancelledIds.includes(r.id)))for(const source of record.sources){
+    if(source.kind==="todo"&&next.planner?.todos){
+      const todo=next.planner.todos.find(t=>t.id===source.id);
+      if(todo){
+        const completed=doc.records.filter(r=>!r.cancelled&&r.status==="done"&&r.sources.some(s=>s.kind==="todo"&&s.id===source.id)).sort((a,b)=>b.end.localeCompare(a.end))[0];
+        todo.status=completed?"done":"open";todo.completedAt=completed?.end;
+      }
+    }
     if(source.kind==="routine"){
       const day=next.days.find(d=>d.date===source.date);
       if(day?.routines.some(r=>r.id===source.id)){

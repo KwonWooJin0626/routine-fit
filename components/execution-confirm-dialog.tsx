@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Dialog,Input,Select } from "./forms";
-import { effectLabels,PET_FULLNESS_DECAY_PER_HOUR,type EffectType,type PetCommand,type PetDocument,type PetExecution,type PetSource } from "@/lib/pet-model";
+import { effectLabels,PET_FULLNESS_DECAY_PER_MINUTE,type EffectType,type PetCommand,type PetDocument,type PetExecution,type PetSource } from "@/lib/pet-model";
 import { calculatePet } from "@/lib/pet-engine";
 import { inputISO,koreanInput,petTime } from "@/lib/pet-guidance";
 import { executionMinutes } from "@/lib/pet-execution";
@@ -35,13 +35,13 @@ export function ExecutionConfirmDialog({draft,document,companion=true,currentFul
     await onSave(old?{action:"edit",id:old.id,record}:{action:"record",record});onClose();
   }catch(e){setError((e as Error).message);}}
   const choices=document.records.filter(r=>!r.cancelled&&r.type===type&&r.id!==old?.id);
-  return <Dialog title={old?"실제 수행 기록 수정":"실제로 한 활동을 확인해요"} subtitle="예정 시간과 완료 체크만으로 성장 수치를 바꾸지 않아요." onClose={()=>{if(!busy)onClose();}}>
+  return <Dialog title={old?"실제 수행 기록 수정":"실제로 한 활동을 확인해요"} subtitle="활동과 실제 수행 시간을 확인하면 체력·스트레스에 반영돼요. 체크만 저장하면 반영되지 않아요." onClose={()=>{if(!busy)onClose();}}>
     <div className="pet-form"><Input label="활동 이름" value={title} onChange={setTitle}/>
     <Select label="어떤 활동이었나요?" value={type} options={effectLabels} onChange={v=>{if(!draft.fixedSleep)setType(v as EffectType);}}/>
     {draft.fixedSleep?<p className="note">직접 확인한 수면 구간: {petTime(draft.start!)} ~ {petTime(draft.end!)}. 시각 수정은 수면 체크인에서 해주세요.</p>:<>
       {type==="meal"?<>
         <fieldset><legend>실제로 먹은 식사량</legend><div className="choice-buttons">{([[30,"가볍게 · 30"],[60,"보통 · 60"],[80,"든든하게 · 80"]] as const).map(([v,label])=><button type="button" key={v} aria-pressed={fullness===v} onClick={()=>setFullness(v)}>{label}</button>)}</div></fieldset>
-        <p className="pet-rule-note">포만감은 선택한 값으로 설정되고 시간당 {PET_FULLNESS_DECAY_PER_HOUR}씩 줄어요. 저녁 6시에 가볍게 먹어도 다음 날 아침 7시까지 0으로 떨어지지 않아요. 30 이하이면 쉬는 표정이므로 ‘가볍게’는 잠깐 기뻐한 뒤 다시 쉬어요. 이 수치에 맞추려고 실제 식사량을 늘릴 필요는 없어요.</p>
+        <p className="pet-rule-note">포만감은 선택한 값으로 설정되고 분당 {PET_FULLNESS_DECAY_PER_MINUTE}씩 줄어요. 60점은 12분, 80점은 16분 뒤 0이 돼요. 30 이하이면 쉬는 표정이므로 ‘가볍게’는 잠깐 기뻐한 뒤 다시 쉬어요. 이 수치에 맞추려고 실제 식사량을 늘릴 필요는 없어요.</p>
         <Input label="실제 식사 시각 (한국 시간)" type="time" required value={mealTime} onChange={setMealTime} hint={`${mealDate} 기록`}/>
       </>:<>
         <fieldset><legend>활동한 시간</legend>

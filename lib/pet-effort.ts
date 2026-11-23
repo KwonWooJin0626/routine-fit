@@ -33,8 +33,8 @@ export function petCompletionMessage(command:PetCommand,result:PetResult){
   const effect=result.view?.changes.find(e=>e.id===record?.id),rewards=[];
   if(effect?.fitnessXP)rewards.push(`운동 +${Math.round(effect.fitnessXP*10)/10} XP`);
   if(effect?.learningXP)rewards.push(`학습 +${Math.round(effect.learningXP*10)/10} XP`);
-  if(effect&&effect.stamina>0)rewards.push(`체력 +${Math.round(effect.stamina*10)/10}`);
-  if(effect&&effect.stress<0)rewards.push(`스트레스 ${Math.round(effect.stress*10)/10}`);
+  if(effect&&effect.stamina!==0)rewards.push(`체력 ${effect.stamina>0?"+":""}${Math.round(effect.stamina*10)/10}`);
+  if(effect&&effect.stress!==0)rewards.push(`스트레스 ${effect.stress>0?"+":""}${Math.round(effect.stress*10)/10}`);
   if(command.record.type==="meal")rewards.push(`포만감 ${command.record.fullness}로 기록`);
   const praise=command.record.status==="partial"?"일부라도 해낸 시간을 쌓았어요!":command.record.type==="work"?"해야 할 일을 해냈어요! 이제 잠깐 쉬어도 좋아요.":command.record.type==="none"?"일상을 챙긴 작은 실천도 소중해요!":"작은 실천 하나를 해냈어요!";
   return [praise,...rewards].join(" · ");

@@ -1,9 +1,9 @@
 import { localDate } from "./model";
-import { initialPetStats,PET_FULLNESS_DECAY_PER_HOUR,type EffectType,type PetDocument,type PetEffect,type PetExecution,type PetStats,type PetView } from "./pet-model";
+import { initialPetStats,PET_FULLNESS_DECAY_PER_HOUR,PET_IDLE_STAMINA_PER_HOUR,PET_IDLE_STRESS_PER_HOUR,PET_IDLE_RECOVERY_MINUTES_PER_DAY,type EffectType,type PetDocument,type PetEffect,type PetExecution,type PetStats,type PetView } from "./pet-model";
 import { executionSegments } from "./pet-execution";
 
 const MINUTE=60000,DAY=86400000;
-export const petActivityRates:Record<EffectType,readonly [stamina:number,stress:number,learningXP:number,fitnessXP:number]>={study:[-3,5,10,0],work:[-4,8,0,0],exercise:[-8,5,0,5],growth:[-2,2,8,0],social:[-3,-3,0,0],sleep:[8,-5,0,0],rest:[6,-4,0,0],leisure:[3,-3,0,0],none:[0,0,0,0],meal:[0,0,0,0]};
+export const petActivityRates:Record<EffectType,readonly [stamina:number,stress:number,learningXP:number,fitnessXP:number]>={study:[-3,5,10,0],work:[-4,8,0,0],exercise:[-8,5,0,5],growth:[-2,2,8,0],social:[-3,-3,0,0],sleep:[4,-2,0,0],rest:[4,-2,0,0],leisure:[2,-1.5,0,0],none:[0,0,0,0],meal:[0,0,0,0]};
 export const petIntensityFactors={light:.75,moderate:1,high:1.25} as const;
 const clamp=(n:number,min:number,max:number)=>Math.max(min,Math.min(max,n));
 const copy=(s:PetStats):PetStats=>({...s});
@@ -22,11 +22,11 @@ export function calculatePet(doc:PetDocument,now=new Date()):PetView&{lastEviden
   for(const r of records){points.add(clamp(new Date(r.start).getTime(),begin,at));points.add(clamp(new Date(r.end).getTime(),begin,at));for(const pause of r.breaks??[]){points.add(clamp(Date.parse(pause.start),begin,at));points.add(clamp(Date.parse(pause.end),begin,at));}}
   let midnight=new Date(`${localDate(new Date(begin))}T00:00:00+09:00`).getTime()+DAY;
   while(midnight<at){points.add(midnight);midnight+=DAY;}
-  const bounds=[...points].sort((a,b)=>a-b),fitnessByDate:Record<string,number>={},sleepByDate:Record<string,number>={},effects=new Map<string,PetEffect>();
+  const bounds=[...points].sort((a,b)=>a-b),fitnessByDate:Record<string,number>={},sleepByDate:Record<string,number>={},idleByDate:Record<string,number>={},effects=new Map<string,PetEffect>();
   function effect(r:PetExecution){let e=effects.get(r.id);if(!e){e={id:r.id,title:r.title,type:r.type,end:r.end,stamina:0,stress:0,fitnessXP:0,learningXP:0,requestedFitnessXP:0};effects.set(r.id,e);}return e;}
   const appliedMeals=new Set<string>(),appliedFeelings=new Set<string>();
   function instantaneous(time:number){for(const r of records){if(new Date(r.end).getTime()!==time)continue;
-    if(r.type==="meal"&&!appliedMeals.has(r.id)){const e=effect(r),old=s.stress;s.fullness=r.fullness??60;s.stress=clamp(s.stress-4,0,100);e.stress+=s.stress-old;e.fullness=s.fullness;lastEvidence=Math.max(lastEvidence,time);appliedMeals.add(r.id);}
+    if(r.type==="meal"&&!appliedMeals.has(r.id)){const e=effect(r),old=s.stress;s.fullness=r.fullness??60;s.stress=clamp(s.stress-1,0,100);e.stress+=s.stress-old;e.fullness=s.fullness;lastEvidence=Math.max(lastEvidence,time);appliedMeals.add(r.id);}
     if(!appliedFeelings.has(r.id)&&r.feeling!=="same"){const old=s.stress;s.stress=clamp(s.stress+(r.feeling==="fresh"?-3:3),0,100);effect(r).stress+=s.stress-old;appliedFeelings.add(r.id);}
   }}
   instantaneous(begin);
@@ -50,7 +50,9 @@ export function calculatePet(doc:PetDocument,now=new Date()):PetView&{lastEviden
       addGrowth(s,fitness,learning);s.fullness=clamp(s.fullness-minutes*PET_FULLNESS_DECAY_PER_HOUR/60,0,100);lastEvidence=until;
     }else{
       const autoMinutes=Math.max(0,Math.min(until,lastEvidence+DAY)-from)/MINUTE;
-      s.stamina=clamp(s.stamina+autoMinutes*2/60,0,s.maxStamina);s.stress=clamp(s.stress-autoMinutes/60,0,100);s.fullness=clamp(s.fullness-autoMinutes*PET_FULLNESS_DECAY_PER_HOUR/60,0,100);
+      const recoveryMinutes=Math.min(autoMinutes,Math.max(0,PET_IDLE_RECOVERY_MINUTES_PER_DAY-(idleByDate[date]??0)));
+      idleByDate[date]=(idleByDate[date]??0)+recoveryMinutes;
+      s.stamina=clamp(s.stamina+recoveryMinutes*PET_IDLE_STAMINA_PER_HOUR/60,0,s.maxStamina);s.stress=clamp(s.stress-recoveryMinutes*PET_IDLE_STRESS_PER_HOUR/60,0,100);s.fullness=clamp(s.fullness-autoMinutes*PET_FULLNESS_DECAY_PER_HOUR/60,0,100);
     }
     instantaneous(until);
   }

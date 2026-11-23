@@ -3,7 +3,7 @@ import { useState,type ReactNode } from "react";
 import { ArrowRight,CalendarDays,Check,Plus,Sparkles } from "lucide-react";
 import { localDate,type AppState,type Day } from "@/lib/model";
 import { occurrencesInWindow } from "@/lib/planner";
-import { emptyPlanner,type Planner,type PlannerBlock } from "@/lib/planner-model";
+import { emptyPlanner,type Planner,type PlannerBlock,type PlannerTodo } from "@/lib/planner-model";
 import { toggleTodo,upsertTodo,todosForDate } from "@/lib/planner-todos";
 import { plannerSwatch } from "@/lib/planner-colors";
 import type { PetResult } from "@/lib/pet-model";
@@ -14,10 +14,10 @@ import { useVisibleMinute } from "./use-visible-minute";
 import { FeaturePanel } from "./feature-panel";
 
 export type CheckFilter="all"|"agenda"|"routines"|"care";
-type Props={app:AppState;date:string;day?:Day;filter:CheckFilter;onFilter:(f:CheckFilter)=>void;store:SupplementStore;pet:PetResult|null;busy:boolean;onPlan:()=>void;onManage:()=>void;onCheckin:()=>void;onCustom:()=>void;onPet:()=>void;onSavePlanner:(p:Planner)=>Promise<void>;onRecord:(b:PlannerBlock,date:string)=>void;onBasic:()=>void;onChecked:()=>void;onManual:()=>void;checkReaction?:string;children:ReactNode;health:ReactNode;records:ReactNode};
+type Props={app:AppState;date:string;day?:Day;filter:CheckFilter;onFilter:(f:CheckFilter)=>void;store:SupplementStore;pet:PetResult|null;busy:boolean;onPlan:()=>void;onManage:()=>void;onCheckin:()=>void;onCustom:()=>void;onPet:()=>void;onSavePlanner:(p:Planner)=>Promise<void>;onRecordTodo?:(todo:PlannerTodo,date:string)=>void;onRecord:(b:PlannerBlock,date:string)=>void;onBasic:()=>void;onChecked:()=>void;onManual:()=>void;checkReaction?:string;children:ReactNode;health:ReactNode;records:ReactNode};
 
 /** Planning and checking share occurrence IDs, never duplicate an activity. */
-export function TodayChecks({app,date,day,filter,onFilter,store,pet,busy,onPlan,onManage,onCheckin,onCustom,onPet,onSavePlanner,onRecord,onBasic,onChecked,onManual,checkReaction,children,health,records}:Props){
+export function TodayChecks({app,date,day,filter,onFilter,store,pet,busy,onPlan,onManage,onCheckin,onCustom,onPet,onSavePlanner,onRecord,onRecordTodo,onBasic,onChecked,onManual,checkReaction,children,health,records}:Props){
   const [expanded,setExpanded]=useState(false),[allEvents,setAllEvents]=useState(false),[allTodos,setAllTodos]=useState(false);
   const [title,setTitle]=useState(""),[error,setError]=useState(""),[lastTodo,setLastTodo]=useState<string>();
   const now=useVisibleMinute(),today=localDate(),future=date>today,isToday=date===today,planner=app.planner??emptyPlanner();
@@ -36,7 +36,7 @@ export function TodayChecks({app,date,day,filter,onFilter,store,pet,busy,onPlan,
   const regularTodos=isToday?todos.filter(t=>!t.dueDate||t.dueDate>=date):todos;
   const done=day?.routines.filter(r=>day.statuses[r.id]==="done").length??0,pending=(day?.routines.length??0)-done;
   const saveTodo=async()=>{if(!title.trim()||busy||!isToday)return;try{setError("");await onSavePlanner(upsertTodo(planner,{id:crypto.randomUUID(),title:title.trim(),status:"open",todayDate:date,location:"",notes:"",checklist:[]}));setTitle("");}catch(e){setError((e as Error).message);}};
-  const toggle=async(id:string)=>{try{setError("");await onSavePlanner(toggleTodo(planner,id));setLastTodo(id);onChecked();}catch(e){setError((e as Error).message);}};
+  const toggle=async(id:string)=>{const todo=planner.todos?.find(t=>t.id===id);if(todo&&onRecordTodo){onRecordTodo(todo,date);return;}try{setError("");await onSavePlanner(toggleTodo(planner,id));setLastTodo(id);onChecked();}catch(e){setError((e as Error).message);}};
   return <div className="today-hub">
     <button type="button" className="home-companion panel" onClick={onPet}>
       {pet?.document?.visible!==false&&<PetAnimator baseState={pet?.view?.baseState??"idle"} reducedMotion={pet?.document?.reducedMotion??false} reactionId={checkReaction??pet?.reactionId} name={pet?.document?.name??"새 친구"}/>}
