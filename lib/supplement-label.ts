@@ -11,7 +11,7 @@ export const supplementLabelSchema=z.object({
   retrievedAt:z.string().datetime().optional(),
   query:z.string().max(200).optional(),
   lookupUrl:z.string().url().max(1000).optional(),
-  extractionVersion:z.literal("live-label-v1").optional(),
+  extractionVersion:z.enum(["live-label-v1","raw-label-v2"]).optional(),
   productId:z.string().regex(/^\d+$/).optional(),
   productCode:z.string().max(60).optional(),
   upc:z.string().regex(/^(?:\d{8}|\d{12,14})$/).optional(),

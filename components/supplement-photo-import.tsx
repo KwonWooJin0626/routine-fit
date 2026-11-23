@@ -2,7 +2,8 @@
 
 import { useEffect,useRef,useState } from "react";
 import { parseSupplementPhoto } from "@/lib/supplement-label-photo";
-import { iherbProductId,supplementLabelSchema,type SupplementLabel } from "@/lib/supplement-label";
+import { supplementLabelSchema,type SupplementLabel } from "@/lib/supplement-label";
+import { supplementSourceUrl } from "@/lib/supplement-source-url";
 import { supplementNihQuery } from "@/lib/supplement-query";
 
 export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string;onApply:(label:SupplementLabel,name?:string)=>void}){
@@ -11,9 +12,8 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
   const [working,setWorking]=useState<"photo"|"barcode"|"web"|null>(null);
   const [message,setMessage]=useState("");
   const [upc,setUpc]=useState("");
-  const [searchEntry,setSearchEntry]=useState("");
   const [matches,setMatches]=useState<{name:string;pack?:string;label:SupplementLabel}[]>([]);
-  useEffect(()=>{run.current++;setResult(null);setMatches([]);setMessage("");setSearchEntry("");setWorking(null);},[name,url]);
+  useEffect(()=>{run.current++;setResult(null);setMatches([]);setMessage("");setWorking(null);},[name,url]);
   useEffect(()=>()=>{run.current++;},[]);
 
   async function findNihMatches(query:string,id:number){
@@ -33,7 +33,7 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
 
   async function findOnWeb(skipNih=false){
     const id=++run.current;
-    setSearchEntry("");
+
     setResult(null);
     setMatches([]);
     setMessage("");
@@ -46,17 +46,16 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
       if(run.current!==id)return;
       const response=await fetch("/api/supplement-web-search",{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({name,url:url||undefined}),signal:AbortSignal.timeout(38000)});
-      const {product,error,entry,reason}=await response.json();
+      const {product,error,reason}=await response.json();
       if(run.current!==id)return;
-      if(typeof entry==="string")setSearchEntry(entry);
       const label=supplementLabelSchema.safeParse(product?.label);
       if(!response.ok||!label.success||typeof product?.name!=="string"){
-        setMessage(typeof error==="string"?error:reason==="NO_CITATIONS"?"조회 자료의 원본 출처를 확인하지 못했어요. 저장하지 않고 조회를 마쳤어요.":"확인 가능한 성분표를 찾지 못했어요. 브랜드·제형·맛·용량을 포함해 찾아보세요.");
+        setMessage(typeof error==="string"?error:reason==="NO_CITATIONS"?"조회 자료의 원본 출처를 확인하지 못했어요. 저장하지 않고 조회를 마쳤어요.":"원문과 일치하는 성분표를 확인하지 못했어요. 정확한 제품의 제조사 상품 링크로 다시 조회해 주세요.");
         return;
       }
       setResult({label:label.data,name:product.name});
     }catch{
-      if(run.current===id)setMessage("웹 검색에 연결하지 못했어요. 바코드로도 조회할 수 있어요.");
+      if(run.current===id)setMessage("상품 페이지 분석에 연결하지 못했어요. NIH 바코드 조회도 사용할 수 있어요.");
     }finally{
       if(run.current===id)setWorking(null);
     }
@@ -117,9 +116,9 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
 
   return <section className="dose-product-details" aria-label="성분표 가져오기">
     <p className="muted">조회한 결과는 이 창에서만 임시로 보여요. ‘내 영양제에 등록’을 누르면 선택한 성분표와 복용 설정을 저장해요.</p>
-    <button type="button" className="button secondary" disabled={!!working||(name.trim().length<2&&!iherbProductId(url))} onClick={()=>void findOnWeb()}>제품명·링크로 실시간 조회</button>
-    {searchEntry&&<iframe title="Google 추천 검색" sandbox="allow-popups allow-popups-to-escape-sandbox" width="100%" height="105"
-      srcDoc={'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'">'+searchEntry}/>}
+    <p className="muted">NIH를 먼저 조회하고, 없으면 상품 링크의 텍스트 성분표를 분석해요. 지원: iHerb · Life Extension · NOW · Solgar · Thorne · Nature Made. Google 검색은 사용하지 않아요.</p>
+    <button type="button" className="button secondary" disabled={!!working||(name.trim().length<2&&!supplementSourceUrl(url))} onClick={()=>void findOnWeb()}>제품명·링크로 실시간 조회</button>
+
     <details>
       <summary>바코드 번호로 성분표 찾기</summary>
       <label className="field"><span>바코드 아래 숫자</span>
@@ -143,7 +142,7 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
           {match.name}{match.pack?` · ${match.pack}`:""}{match.label.upc?` · ${match.label.upc}`:""}
         </button>
       </li>)}
-    </ul><button type="button" className="text-link" disabled={!!working} onClick={()=>void findOnWeb(true)}>이 목록에 없어요 · 웹에서 더 찾기</button></>}
+    </ul><button type="button" className="text-link" disabled={!!working} onClick={()=>void findOnWeb(true)}>이 목록에 없어요 · 상품 페이지 분석</button></>}
     {result&&<div>
       <p className="status-message">조회 완료 · 아직 내 영양제에 등록되지 않았어요.</p>
       {result.name&&<h3>{result.name}</h3>}

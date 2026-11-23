@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { iherbProductId } from "./supplement-label";
+import { supplementSourceUrl } from "./supplement-source-url";
 import { LiveSearchError,type LiveQuery } from "./supplement-live-search";
 
 const input=z.object({name:z.string().trim().max(200).default(""),url:z.string().max(1000).optional()})
   .refine(v=>v.name.length>=2||!!v.url,"제품명이나 상품 링크를 입력해 주세요.")
-  .refine(v=>!v.url||!!iherbProductId(v.url),"iHerb 상품 상세 페이지 링크를 입력해 주세요.");
+  .refine(v=>!v.url||!!supplementSourceUrl(v.url),"iHerb 또는 지원하는 제조사 상품 상세 페이지 링크를 입력해 주세요.");
 const reply=(body:unknown,status=200)=>Response.json(body,{status,headers:{"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
 
 export function createSupplementSearchHandler(identity:()=>Promise<string|null>,search:(query:LiveQuery)=>Promise<unknown>,clock=()=>Date.now()){

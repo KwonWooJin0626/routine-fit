@@ -1,3 +1,4 @@
+import { supplementSourceUrl } from "./supplement-source-url";
 import { z } from "zod";
 import { localDate,toMinutes,toTime,type AppState } from "./model";
 import { addDate,weekday,occurrencesInWindow } from "./planner";
@@ -7,7 +8,7 @@ import { plannedSupplementDose } from "./supplement-serving";
 
 export class SupplementInputError extends Error {}
 const id=z.string().regex(/^[a-zA-Z0-9_-]+$/).min(1).max(60),time=z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-export const iherbUrlSchema=z.string().max(1000).refine(value=>{if(!value)return true;try{const u=new URL(value);return u.protocol==="https:"&&(u.hostname==="iherb.com"||u.hostname.endsWith(".iherb.com"))&&!u.username&&!u.password&&!u.port;}catch{return false;}},"https 형식의 iHerb 주소만 입력해주세요.");
+export const iherbUrlSchema=z.string().max(1000).refine(value=>!value||!!supplementSourceUrl(value),"지원하는 iHerb·제조사 상품의 https 주소를 입력해주세요.");
 export const supplementProductSchema=z.object({
   label:supplementLabelSchema.optional(),
   id,name:z.string().trim().min(1,"제품명을 입력해주세요.").max(100),ingredients:z.array(z.string().trim().min(1).max(60)).max(24).default([]),

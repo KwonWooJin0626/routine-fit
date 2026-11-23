@@ -6,6 +6,8 @@ import { applySupplementCommand,emptySupplementJournal,supplementProductSchema }
 import { defaultAnswers,defaultSchedule,type AppState } from "../lib/model";
 import { servingCount,supplementIntake } from "../lib/supplement-intake";
 import { createDsldLookup } from "../lib/supplement-dsld";
+import { fetchSupplementPage } from "../lib/supplement-page";
+import { supplementSourceUrl } from "../lib/supplement-source-url";
 import { supplementNihQuery } from "../lib/supplement-query";
 
 const now=new Date("2026-11-23T10:00:00+09:00");
@@ -16,9 +18,9 @@ const payload=():ExtractedLabel=>({status:"exact",name:"Exact brand product",ser
     {name:"Vitamin D3",amount:1000,unit:"IU",evidence:"Vitamin D3 1,000 IU",sourceIndex:0},
     {name:"Magnesium",amount:.1,unit:"g",evidence:"Magnesium 0.1 g",sourceIndex:0},
     {name:"Zinc",amount:0,unit:"mg",evidence:"Zinc 0 mg",sourceIndex:0}]});
-function first(){return {candidates:[{finishReason:"STOP",content:{parts:[{text:report}]},groundingMetadata:{webSearchQueries:["exact label"],groundingChunks:[{web:{uri:sources[0].url,title:sources[0].title}}],groundingSupports:[{groundingChunkIndices:[0]}]}}]};}
 const second=(data:unknown=payload())=>({candidates:[{finishReason:"STOP",content:{parts:[{text:JSON.stringify(data)}]}}]});
-const query={name:"Exact brand product"};
+const query={name:"Exact brand product",url:"https://www.solgar.com/products/exact-brand-product"};
+const page=()=>new Response("<title>Exact brand product</title><div>"+report.replaceAll("\n","<br>")+"</div>",{headers:{"content-type":"text/html"}});
 
 test("iHerb 링크가 있어도 무료 NIH 후보 조회용 영문 검색어를 만들며 동일 제품으로 자동 확정하지 않는다",()=>{
   const name="California Gold Nutrition (캘리포니아골드뉴트리션), 루테인, 금잔화 추출물 유래 제아잔틴 함유, 베지 소프트젤 60정";
@@ -28,16 +30,18 @@ test("iHerb 링크가 있어도 무료 NIH 후보 조회용 영문 검색어를 
   assert.equal(supplementNihQuery("정확한 제품명","https://example.com/pr/other-product/95888"),"정확한 제품명");
 });
 
-test("검색과 정형 추출은 별도 요청이며 재조회마다 실시간으로 가져오고 DB 쓰기가 없다",async()=>{
-  const calls:{url:string;body:Record<string,unknown>}[]=[];
-  const fetcher=(async(url,options)=>{const body=JSON.parse(String(options?.body));calls.push({url:String(url),body});assert.equal(options?.cache,"no-store");return Response.json(calls.length%2?first():second());}) as typeof fetch;
+test("실제 페이지 원문을 매번 읽고 도구 없는 단일 Gemini 요청만 보내며 출처와 수치를 보존한다",async()=>{
+  const calls:{url:string;body?:Record<string,unknown>}[]=[];
+  const fetcher=(async(url,options)=>{const body=options?.body?JSON.parse(String(options.body)):undefined;calls.push({url:String(url),body});assert.equal(options?.cache,"no-store");return body?Response.json(second()):page();}) as typeof fetch;
   const one=await lookupLiveSupplement(query,"test-key",fetcher,now),two=await lookupLiveSupplement(query,"test-key",fetcher,now);
-  assert.equal(calls.length,4);assert.ok(calls.every(c=>c.url.includes(LIVE_SUPPLEMENT_MODEL)));
-  assert.ok(calls[0].body.tools);assert.equal((calls[0].body.generationConfig as Record<string,unknown>).responseSchema,undefined);
-  assert.equal(calls[1].body.tools,undefined);assert.ok((calls[1].body.generationConfig as Record<string,unknown>).responseSchema);
+  assert.equal(calls.length,4);assert.equal(calls[0].url,query.url);
+  const requests=calls.filter(c=>c.body);assert.equal(requests.length,2);
+  assert.ok(requests.every(c=>c.url.includes(LIVE_SUPPLEMENT_MODEL)&&c.body?.tools===undefined));
+  assert.ok((requests[0].body?.generationConfig as Record<string,unknown>).responseSchema);
+  assert.ok(JSON.stringify(requests[0].body).includes("Vitamin C 1,000 mg"));
   assert.deepEqual(one.product,two.product);assert.equal(one.product?.label.retrievedAt,now.toISOString());
+  assert.equal(one.product?.label.webSources?.[0].url,query.url);
   assert.deepEqual(one.product?.label.facts.map(f=>[f.name,f.amount,f.unit]),[["비타민 C",1000,"mg"],["비타민 D3",25,"μg"],["마그네슘",100,"mg"],["아연",0,"mg"]]);
-  assert.equal(one.product?.label.facts[1].rawAmount,1000);assert.equal(one.product?.label.facts[1].rawUnit,"IU");
 });
 
 test("미확인 함량은 0으로 만들지 않으며 원문 없는 수치·단위·출처와 다른 제공량을 거절한다",()=>{
@@ -51,19 +55,26 @@ test("미확인 함량은 0으로 만들지 않으며 원문 없는 수치·단�
 
 test("무료 모델의 한도·권한·지원 오류에서 유료 모델이나 다른 모델로 재시도하지 않는다",async()=>{
   for(const [status,code] of [[429,"QUOTA_EXHAUSTED"],[404,"MODEL_UNAVAILABLE"],[403,"KEY_PERMISSION"]] as const){
-    let calls=0;await assert.rejects(()=>lookupLiveSupplement(query,"test-key",(async()=>{calls++;return Response.json({}, {status});}) as typeof fetch),e=>e instanceof LiveSearchError&&e.code===code);
+    let calls=0;await assert.rejects(()=>lookupLiveSupplement(query,"test-key",(async(_url,options)=>{if(!options?.body)return page();calls++;return Response.json({}, {status});}) as typeof fetch),e=>e instanceof LiveSearchError&&e.code===code);
     assert.equal(calls,1);
   }
   let calls=0;await assert.rejects(()=>lookupLiveSupplement(query,"",(async()=>{calls++;return Response.json({});}) as typeof fetch));assert.equal(calls,0);
 });
 
-test("검색 출처나 완료 응답이 없으면 성분표를 확정하지 않는다",async()=>{
-  let calls=0;const missing=first();missing.candidates[0].groundingMetadata.groundingSupports=[];
-  const result=await lookupLiveSupplement(query,"test-key",(async()=>{calls++;return Response.json(missing);}) as typeof fetch);
-  assert.equal(result.product,null);assert.equal(calls,1);
-  calls=0;const truncated=second();truncated.candidates[0].finishReason="MAX_TOKENS";
-  const result2=await lookupLiveSupplement(query,"test-key",(async()=>Response.json(++calls===1?first():truncated)) as typeof fetch);
-  assert.equal(result2.product,null);
+test("차단·이미지 전용 페이지와 지원하지 않는 주소는 Gemini 호출 없이 중단한다",async()=>{
+  for(const source of [new Response("blocked",{status:403}),new Response("<p>Image label only</p>",{headers:{"content-type":"text/html"}})]){
+    let modelCalls=0;await assert.rejects(()=>lookupLiveSupplement(query,"test-key",(async(_url,options)=>{if(options?.body)modelCalls++;return source;}) as typeof fetch),e=>e instanceof LiveSearchError&&["SOURCE_BLOCKED","NO_TEXT_LABEL"].includes(e.code));assert.equal(modelCalls,0);
+  }
+  await assert.rejects(()=>lookupLiveSupplement({name:query.name},"test-key"),e=>e instanceof LiveSearchError&&e.code==="NEED_PRODUCT_URL");
+  for(const url of ["https://127.0.0.1/private","https://www.solgar.com.evil.example/label","http://www.solgar.com/label","https://user:password@www.solgar.com/label"]){assert.equal(supplementSourceUrl(url),null);}
+  await assert.rejects(()=>fetchSupplementPage(query.url,(async()=>new Response(null,{status:302,headers:{location:"https://127.0.0.1/private"}})) as typeof fetch));
+  await assert.rejects(()=>fetchSupplementPage(query.url,(async()=>new Response("x",{headers:{"content-type":"text/html","content-length":"800001"}})) as typeof fetch));
+});
+test("잘린 모델 응답이나 원문과 다른 성분 이름은 확정하지 않는다",async()=>{
+  const truncated=second();truncated.candidates[0].finishReason="MAX_TOKENS";
+  const result=await lookupLiveSupplement(query,"test-key",(async(_url,options)=>options?.body?Response.json(truncated):page()) as typeof fetch);
+  assert.equal(result.product,null);
+  const p=payload();p.facts=[{...p.facts[0],name:"Iron"}];assert.equal(validateLiveLabel(p,report,sources,query,now),null);
 });
 
 const request=(body:unknown,origin="https://test.example")=>new Request("https://test.example/api/supplement-web-search",{method:"POST",headers:{origin},body:JSON.stringify(body)});
