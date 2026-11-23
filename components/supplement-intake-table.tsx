@@ -35,7 +35,7 @@ export function SupplementIntakeTable({journal,app}:{journal:SupplementJournal;a
             <th scope="row">{row.name}<small>{row.occurrences}회{row.missing?" · 확인 필요":""}</small></th>
             {columns.length?columns.map(column=>{
               const key=nutrientKey(column),amount=row.amounts[key];
-              return <td key={key}>{amount===undefined?(row.missing?"미확인":"—"):`${format.format(amount)}${row.missing?" 이상":""}`}</td>;
+              return <td key={key}>{amount===undefined?(row.missing?"미확인":"—"):`${format.format(amount)}${row.doseUnknown?" 이상":""}`}</td>;
             }):<td>확인 필요</td>}
           </tr>)}
         </tbody>

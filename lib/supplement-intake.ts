@@ -5,7 +5,7 @@ import type { SupplementLabel } from "./supplement-label";
 
 type Fact=SupplementLabel["facts"][number];
 type Column=Pick<Fact,"name"|"unit">;
-type IntakeRow={id:string;name:string;amounts:Record<string,number>;missing:boolean;occurrences:number};
+type IntakeRow={id:string;name:string;amounts:Record<string,number>;missing:boolean;doseUnknown:boolean;occurrences:number};
 export const nutrientKey=(fact:Column)=>`${fact.name}|${fact.unit}`;
 
 export function servingCount(dose:string,label:SupplementLabel){
@@ -19,10 +19,11 @@ export function supplementIntake(journal:SupplementJournal,app:AppState,date:str
   const columns=new Map<string,Column>(),rows=new Map<string,IntakeRow>();
   const totals:Record<string,number>={};
   function add(id:string,name:string,dose:string,label?:SupplementLabel){
-    const row=rows.get(id)??{id,name,amounts:{},missing:false,occurrences:0};
+    const row=rows.get(id)??{id,name,amounts:{},missing:false,doseUnknown:false,occurrences:0};
     rows.set(id,row);row.occurrences++;
     const factor=label?servingCount(dose,label):null;
     if(!label||label.partial||factor===null)row.missing=true;
+    if(factor===null)row.doseUnknown=true;
     for(const fact of label?.facts??[]){
       const key=nutrientKey(fact);
       columns.set(key,{name:fact.name,unit:fact.unit});

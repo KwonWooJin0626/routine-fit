@@ -4,7 +4,7 @@ import { lookupLiveSupplement,validateLiveLabel,LiveSearchError,LIVE_SUPPLEMENT_
 import { createSupplementSearchHandler } from "../lib/supplement-search-api";
 import { applySupplementCommand,emptySupplementJournal,supplementProductSchema } from "../lib/supplement-journal";
 import { defaultAnswers,defaultSchedule,type AppState } from "../lib/model";
-import { servingCount } from "../lib/supplement-intake";
+import { servingCount,supplementIntake } from "../lib/supplement-intake";
 import { createDsldLookup } from "../lib/supplement-dsld";
 
 const now=new Date("2026-11-23T10:00:00+09:00");
@@ -77,6 +77,7 @@ test("제품 등록 명령 전에는 목록이 비어 있고 등록 이후 조�
   const saved=supplementProductSchema.parse({id:"live",name:product.name,label:product.label,dose:"1",url:"",startDate:"2026-11-23",weekdays:[1],slots:[{id:"morning",anchor:"fixed",time:"09:00",offset:0}]});
   journal=applySupplementCommand(journal,{action:"save",product:saved},app,now);
   assert.equal(journal.products[0].label?.retrievedAt,now.toISOString());assert.equal(servingCount("1",journal.products[0].label!),.5);
+  const partial=structuredClone(journal);partial.products[0].label!.partial=true;const row=supplementIntake(partial,app,"2026-11-23","plan").rows[0];assert.equal(row.missing,true);assert.equal(row.doseUnknown,false);assert.equal(row.amounts["비타민 C|mg"],500);
   journal=applySupplementCommand(journal,{action:"record",productId:"live",date:"2026-11-23",slotId:"morning",status:"taken"},app,now);
   const snapshot=structuredClone(journal.records[0].snapshot);
   journal=applySupplementCommand(journal,{action:"save",product:{...saved,label:{...product.label,retrievedAt:new Date(now.getTime()+60000).toISOString(),facts:[{name:"비타민 C",unit:"mg",amount:500,dailyValuePercent:null}]}}},app,now);
