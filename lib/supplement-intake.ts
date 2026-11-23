@@ -64,15 +64,18 @@ const dailyValues:Record<string,number>={
   "티아민(B1)|mg":1.2,"리보플라빈(B2)|mg":1.3,"나이아신(B3)|mg NE":16,"비타민 B6|mg":1.7,
   "엽산(B9)|μg DFE":400,"비타민 B12|μg":2.4,"비오틴(B7)|μg":30,"판토텐산(B5)|mg":5,
   "요오드|μg":150,"마그네슘|mg":420,"아연|mg":11,"셀레늄|μg":55,"망간|mg":2.3,"크로뮴|μg":35,"몰리브데넘|μg":45,
+  "칼슘|mg":1300,"철분|mg":18,"칼륨|mg":4700,"구리|mg":0.9,"인|mg":1250,"콜린|mg":550,"비타민 K|μg":120,"단백질|g":50,
 };
 export function intakeStatus(column:Column,total:number|undefined,incomplete:boolean){
-  const key=nutrientKey(column),reference=dailyValues[key];
+  const aliases:Record<string,string>={"비타민 d":"비타민 D3",calcium:"칼슘",iron:"철분",potassium:"칼륨",copper:"구리",phosphorus:"인",choline:"콜린",protein:"단백질"};
+  const key=nutrientKey({name:aliases[column.name.toLowerCase()]??column.name,unit:column.unit}),reference=dailyValues[key],percent=reference&&total!==undefined?total/reference*100:undefined;
   // NIH vitamin D upper limit for ages 9 and older. Known amount alone can exceed it.
-  if(key==="비타민 D3|μg"&&total!==undefined&&total>100)return {level:"high",label:"상한 초과",reference};
-  if(incomplete||total===undefined)return {level:"unknown",label:"판정 보류",reference};
-  if(!reference)return {level:"unknown",label:"비교 기준 없음",reference};
-  const ratio=total/reference;
-  if(ratio<0.5)return {level:"low",label:"기준 대비 낮음",reference};
-  if(ratio>1)return {level:"above",label:"비교 기준 초과",reference};
-  return {level:"within",label:"비교 기준 범위",reference};
+  if(key==="비타민 D3|μg"&&total!==undefined&&total>100)return {level:"high",label:"⚠ 상한 기준 초과",reference,percent};
+  if(incomplete||total===undefined)return {level:"unknown",label:"일부 미확인",reference,percent};
+  if(!reference)return {level:"unknown",label:"비교 기준 없음",reference,percent};
+  if(percent!<50)return {level:"verylow",label:"기준 대비 50% 미만",reference,percent};
+  if(percent!<70)return {level:"low",label:"기준 대비 50~70%",reference,percent};
+  if(percent!<90)return {level:"within",label:"기준 대비 70~90%",reference,percent};
+  if(percent!<95)return {level:"near",label:"기준에 근접",reference,percent};
+  return {level:"above",label:"기준 대비 95% 이상",reference,percent};
 }

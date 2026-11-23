@@ -3,6 +3,7 @@ import { localDate,toMinutes,toTime,type AppState } from "./model";
 import { addDate,weekday,occurrencesInWindow } from "./planner";
 import { plannerDateSchema } from "./planner-model";
 import { iherbProductId,supplementLabelSchema } from "./supplement-label";
+import { plannedSupplementDose } from "./supplement-serving";
 
 export class SupplementInputError extends Error {}
 const id=z.string().regex(/^[a-zA-Z0-9_-]+$/).min(1).max(60),time=z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
@@ -57,7 +58,8 @@ export function supplementPlannedAt(p:SupplementProduct,s:SupplementProduct["slo
 export type SupplementOccurrence={id:string;product:SupplementProduct;slot:SupplementProduct["slots"][number];plannedAt:string;record?:SupplementRecord};
 export function supplementOccurrences(j:SupplementJournal,date:string,app?:AppState):SupplementOccurrence[]{
   const result:SupplementOccurrence[]=[];
-  for(const p of j.products){
+  for(const savedProduct of j.products){
+    const p={...savedProduct,dose:plannedSupplementDose(savedProduct)};
     if(!p.active||date<p.startDate||p.endDate&&date>p.endDate||!p.weekdays.includes(weekday(date)))continue;
     for(const slot of p.slots){const key=supplementOccurrenceId(p.id,date,slot.id),record=j.records.find(r=>r.id===key);result.push({id:key,product:p,slot,plannedAt:record?.snapshot.plannedAt??supplementPlannedAt(p,slot,date,app),record});}
   }

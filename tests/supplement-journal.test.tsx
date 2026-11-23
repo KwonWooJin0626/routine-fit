@@ -12,20 +12,21 @@ import { parseSupplementPhoto } from "../lib/supplement-label-photo";
 import type { SupplementStore } from "../components/use-supplement-journal";
 import { updateManualSupplementLabel } from "../lib/supplement-manual-label";
 import { SupplementIntakeTable } from "../components/supplement-intake-table";
+import { parseDailyLabelUse,labelDefaultDose } from "../lib/supplement-serving";
 const date="2026-11-09",now=new Date(`${date}T20:00:00+09:00`);
 const app:AppState={version:1,consentAt:now.toISOString(),consentVersion:"2026-10-growth-v1",answers:defaultAnswers,schedule:defaultSchedule,days:[],inbody:[],planner:{setupComplete:true,blocks:[],templates:[]}};
 const product=(patch:Partial<SupplementProduct>={})=>supplementProductSchema.parse({id:"vitamin",name:"등록 제품",dose:"1캡슐",startDate:"2026-11-01",weekdays:[0,1,2,3,4,5,6],slots:[{id:"morning",anchor:"fixed",time:"09:00",offset:0}],...patch});
 const registered=()=>applySupplementCommand(emptySupplementJournal(),{action:"save",product:product()},app,now);
 
-test("확인한 성분표의 미표기와 미확인 빈 입력칸을 구분하고 복용량 누락을 미포함으로 처리하지 않는다",()=>{
+test("확인한 성분표는 표시량을 기본 적용하고 미표기와 미확인 빈 입력칸을 구분한다",()=>{
   const known=product({id:"known",name:"조회 성공",dose:"",label:{servingSize:1,servingUnit:"정",facts:[{name:"비타민 C",amount:100,unit:"mg",dailyValuePercent:null}]}});
   const unknown=product({id:"unknown",name:"조회 실패",label:undefined});
   const journal={products:[known,unknown],records:[]};
   const result=supplementIntake(journal,app,date,"plan");
-  assert.equal(result.rows[0].unconfirmed,false);assert.equal(result.rows[0].doseUnknown,true);
+  assert.equal(result.rows[0].unconfirmed,false);assert.equal(result.rows[0].doseUnknown,false);assert.equal(result.rows[0].amounts["비타민 C|mg"],100);
   assert.equal(result.rows[1].unconfirmed,true);assert.ok(result.columns.some(c=>c.name==="비타민 A"));
   const html=renderToStaticMarkup(<SupplementIntakeTable journal={journal} app={app} onSaveProduct={async()=>{}} onEditProduct={()=>{}}/>);
-  assert.match(html,/<td[^>]*>-<\/td>/);assert.match(html,/복용량 입력/);
+  assert.match(html,/<td[^>]*>-<\/td>/);
   assert.match(html,/aria-label="조회 실패 비타민 C mg 직접 입력"[^>]*value=""/);
   assert.doesNotMatch(html,/aria-label="조회 성공 비타민 A/);
 });
@@ -86,8 +87,8 @@ test("1일 섭취표는 제공량을 환산하고 계획과 실제 복용을 구
   assert.equal(supplementIntake(journal,app,date,"plan").totals["마그네슘|mg"],130);
   journal=applySupplementCommand(journal,{action:"save",product:{...p,dose:""}},app,now);
   const planned=supplementIntake(journal,app,date,"plan");
-  assert.equal(planned.totals["마그네슘|mg"],30);
-  assert.equal(planned.missingCount,1);
+  assert.equal(planned.totals["마그네슘|mg"],230);
+  assert.equal(planned.missingCount,0);
   assert.equal(supplementIntake(journal,app,date,"actual").totals["마그네슘|mg"],50);
   assert.equal(intakeStatus({name:"마그네슘",unit:"mg"},30,true).level,"unknown");
   assert.equal(intakeStatus({name:"비타민 D3",unit:"μg"},101,false).level,"high");
@@ -171,3 +172,23 @@ test("오늘 체크는 미래에 복용을 기록할 수 없고 등록·추천�
   const html=renderToStaticMarkup(<SupplementChecks app={app} store={store} date="2099-11-09"/>);
   assert.match(html,/미리보기/);assert.match(html,/disabled=""/);assert.match(html,/0\/1/);
 });
+
+ test("미국 DV 비율은 경계값별 색상을 구분하고 95%를 상한 초과로 판정하지 않는다",()=>{
+  for(const [percent,level] of [[0,"verylow"],[49.9,"verylow"],[50,"low"],[69.9,"low"],[70,"within"],[89.9,"within"],[90,"near"],[94.9,"near"],[95,"above"],[100,"above"],[200,"above"]] as const){
+    const status=intakeStatus({name:"비타민 C",unit:"mg"},90*percent/100,false);assert.equal(status.level,level,String(percent));assert.ok(Math.abs(status.percent!-percent)<.00001);
+  }
+  assert.equal(intakeStatus({name:"비타민 C",unit:"mg"},63,true).level,"unknown");
+  assert.equal(intakeStatus({name:"비타민 C",unit:"mg"},63,true).percent,70);
+  assert.equal(intakeStatus({name:"Lutein",unit:"mg"},20,false).percent,undefined);
+  assert.equal(intakeStatus({name:"비타민 D",unit:"μg"},101,false).level,"high");
+  assert.equal(intakeStatus({name:"Calcium",unit:"mg"},650,false).percent,50);
+ });
+ test("하루 안내와 제공량을 구분하고 고정 안내만 기본값으로 적용하며 분할할 수 없는 정제를 나누지 않는다",()=>{
+  assert.equal(parseDailyLabelUse("Suggested Usage: Take 1 softgel daily, with food.","소프트젤"),1);
+  for(const text of ["Take 1 or 2 softgels daily", "Take 1 softgel twice daily", "Take 1 softgel daily or as directed", "Children: Take 1 softgel daily", "Take 1 softgel daily. Take 2 softgels daily."])assert.equal(parseDailyLabelUse(text,"소프트젤"),undefined);
+  const label={servingSize:2,servingUnit:"정" as const,facts:[{name:"비타민 C",amount:90,unit:"mg" as const,dailyValuePercent:null}]};
+  assert.equal(labelDefaultDose(label),"2");assert.equal(labelDefaultDose({...label,dailyUnits:1}),"1");
+  assert.equal(labelDefaultDose({...label,dailyUnits:1},2),"");assert.equal(labelDefaultDose({...label,dailyUnits:4},2),"2");
+  const html=renderToStaticMarkup(<SupplementProductDialog product={product({dose:"",label})} busy={false} onSave={async()=>{}} onClose={()=>{}}/>);
+  assert.match(html,/2정 · 시간대당/);assert.match(html,/표시량 변경/);assert.doesNotMatch(html,/계획한 1회 복용량/);
+ });

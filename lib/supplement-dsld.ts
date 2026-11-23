@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { supplementLabelSchema } from "./supplement-label";
 import { labelFactName,labelFactUnit,labelServingUnit } from "./supplement-label-photo";
+import { parseDailyLabelUse } from "./supplement-serving";
 
 export function createDsldLookup(fetcher:typeof fetch=fetch){
 const base="https://api.ods.od.nih.gov/dsld/v9/";
@@ -9,6 +10,7 @@ const searchSchema=z.object({hits:z.array(z.object({_id:z.string().regex(/^\d+$/
 const labelSchema=z.object({
   id:z.number().int().positive(),fullName:z.string(),brandName:z.string(),upcSku:z.string(),offMarket:z.number(),
   servingsPerContainer:z.string(),netContents:z.array(z.object({display:z.string()})).optional(),
+  statements:z.array(z.object({type:z.string(),notes:z.string()})).optional(),
   servingSizes:z.array(z.object({order:z.number(),minQuantity:z.number(),maxQuantity:z.number(),unit:z.string(),inSFB:z.boolean()})),
   ingredientRows:z.array(z.object({name:z.string(),nestedRows:z.array(z.unknown()),quantity:z.array(z.object({
     servingSizeOrder:z.number(),operator:z.string().nullable(),quantity:z.number().nullable(),unit:z.string(),
@@ -35,8 +37,9 @@ function toProduct(record:z.infer<typeof labelSchema>,upc?:string){
     return [{name:labelFactName(row.name),unit,amount:amount.quantity,dailyValuePercent:dv?.length===1?dv[0].percent:null}];
   });
   const servingsPerContainer=Number(record.servingsPerContainer)||undefined;
+  const dailyUseText=record.statements?.filter(s=>s.type==="Suggested/Recommended/Usage/Directions").map(s=>s.notes).join("\n").slice(0,2000)||undefined;
   const result=supplementLabelSchema.safeParse({upc,source:"dsld",dsldId:record.id,retrievedAt:new Date().toISOString(),webSources:[{title:"NIH 원본 성분표",url:`https://dsld.od.nih.gov/label/${record.id}`}],
-    servingSize:serving.minQuantity,servingUnit,servingsPerContainer,facts,
+    servingSize:serving.minQuantity,servingUnit,servingsPerContainer,facts,dailyUseText,dailyUnits:servingUnit&&dailyUseText?parseDailyLabelUse(dailyUseText,servingUnit):undefined,
     partial:facts.length!==record.ingredientRows.length||record.ingredientRows.some(row=>row.nestedRows.length>0)});
   return result.success?{name:`${record.brandName} ${record.fullName}`.trim().slice(0,100),label:result.data}:null;
 }

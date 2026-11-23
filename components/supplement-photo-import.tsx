@@ -151,6 +151,8 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
       {result.label.webSources?.map((source,index)=><p key={index}><a href={source.url} target="_blank" rel="noopener noreferrer">{source.title}</a></p>)}
       {result.label.retrievedAt&&<p className="muted">조회 시각 {new Date(result.label.retrievedAt).toLocaleString("ko-KR",{timeZone:"Asia/Seoul"})}</p>}
       <p>{result.label.servingSize}{result.label.servingUnit} 기준 · 성분 {result.label.facts.length}개</p>
+      <p className="muted">{result.label.dailyUnits!==undefined?`제품에 표시된 하루 섭취 안내: ${result.label.dailyUnits}${result.label.servingUnit}`:"하루 섭취 안내는 확인되지 않았어요. 라벨 1회 제공량을 계산 기준으로 제시해요."}</p>
+      {result.label.dailyUseText&&<details><summary>제품 섭취 안내 원문</summary><p>{result.label.dailyUseText}</p></details>}
       <p className="muted">{result.label.partial?"함량을 확인할 수 있는 항목만 표시했어요. 제품 라벨과 대조해 주세요.":"보유한 제품 라벨의 제공량과 성분별 숫자·단위가 일치하는지 확인해 주세요."}</p>
       <div className="record-table"><table><thead><tr><th scope="col">성분</th><th scope="col">함량</th></tr></thead>
         <tbody>{result.label.facts.map(fact=><tr key={fact.name+"|"+fact.unit}><th scope="row">{fact.name}</th><td>{fact.amount} {fact.unit}</td></tr>)}</tbody>

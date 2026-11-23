@@ -17,6 +17,8 @@ export const supplementLabelSchema=z.object({
   upc:z.string().regex(/^(?:\d{8}|\d{12,14})$/).optional(),
   servingSize:z.number().min(0.000001).max(1000000),
   servingUnit:z.enum(supplementServingUnits),
+  dailyUseText:z.string().max(2000).optional(),
+  dailyUnits:z.number().positive().max(1000000).optional(),
   servingsPerContainer:z.number().positive().optional(),
   source:z.enum(["photo","dsld","web","manual"]).optional(),
   webSources:z.array(z.object({title:z.string().min(1).max(200),url:z.string().url().max(2000).refine(url=>url.startsWith("https://"))})).max(5).optional(),
