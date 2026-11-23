@@ -3,6 +3,7 @@
 import { useEffect,useRef,useState } from "react";
 import { parseSupplementPhoto } from "@/lib/supplement-label-photo";
 import { iherbProductId,supplementLabelSchema,type SupplementLabel } from "@/lib/supplement-label";
+import { supplementNihQuery } from "@/lib/supplement-query";
 
 export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string;onApply:(label:SupplementLabel,name?:string)=>void}){
   const run=useRef(0);
@@ -38,8 +39,8 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
     setMessage("");
     setWorking("web");
     try{
-      if(!skipNih&&!iherbProductId(url)&&await findNihMatches(name,id)){
-        if(run.current===id)setMessage("성분표 후보를 찾았어요. 같은 제품과 용량을 골라 주세요.");
+      if(!skipNih&&await findNihMatches(supplementNihQuery(name,url),id)){
+        if(run.current===id)setMessage("NIH 성분표 후보를 찾았어요. 입력한 상품과 브랜드·함량·제형·포장 수량이 같은 제품을 골라 주세요. 링크와 자동으로 일치 판정한 결과는 아니에요.");
         return;
       }
       if(run.current!==id)return;

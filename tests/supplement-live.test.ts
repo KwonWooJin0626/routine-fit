@@ -6,6 +6,7 @@ import { applySupplementCommand,emptySupplementJournal,supplementProductSchema }
 import { defaultAnswers,defaultSchedule,type AppState } from "../lib/model";
 import { servingCount,supplementIntake } from "../lib/supplement-intake";
 import { createDsldLookup } from "../lib/supplement-dsld";
+import { supplementNihQuery } from "../lib/supplement-query";
 
 const now=new Date("2026-11-23T10:00:00+09:00");
 const sources=[{title:"Manufacturer label",url:"https://example.com/label"}];
@@ -18,6 +19,14 @@ const payload=():ExtractedLabel=>({status:"exact",name:"Exact brand product",ser
 function first(){return {candidates:[{finishReason:"STOP",content:{parts:[{text:report}]},groundingMetadata:{webSearchQueries:["exact label"],groundingChunks:[{web:{uri:sources[0].url,title:sources[0].title}}],groundingSupports:[{groundingChunkIndices:[0]}]}}]};}
 const second=(data:unknown=payload())=>({candidates:[{finishReason:"STOP",content:{parts:[{text:JSON.stringify(data)}]}}]});
 const query={name:"Exact brand product"};
+
+test("iHerb 링크가 있어도 무료 NIH 후보 조회용 영문 검색어를 만들며 동일 제품으로 자동 확정하지 않는다",()=>{
+  const name="California Gold Nutrition (캘리포니아골드뉴트리션), 루테인, 금잔화 추출물 유래 제아잔틴 함유, 베지 소프트젤 60정";
+  assert.equal(supplementNihQuery(name,"https://kr.iherb.com/pr/california-gold-nutrition-lutein-with-zeaxanthin-from-marigold-extract-60-veggie-softgels/95888"),"california gold nutrition lutein");
+  assert.equal(supplementNihQuery("한국어 제품명","https://kr.iherb.com/pr/life-extension-two-per-day-multivitamin-120-tablets/137715"),"life extension two per day multivitamin");
+  assert.equal(supplementNihQuery("Solgar Vitamin C",""),"Solgar Vitamin C");
+  assert.equal(supplementNihQuery("정확한 제품명","https://example.com/pr/other-product/95888"),"정확한 제품명");
+});
 
 test("검색과 정형 추출은 별도 요청이며 재조회마다 실시간으로 가져오고 DB 쓰기가 없다",async()=>{
   const calls:{url:string;body:Record<string,unknown>}[]=[];

@@ -73,7 +73,9 @@ export async function lookupLiveSupplement(query:LiveQuery,key:string,fetcher:ty
       method:"POST",cache:"no-store",signal,headers:{"Content-Type":"application/json","x-goog-api-key":key},body:JSON.stringify(body)});
     if(response.status===429)throw new LiveSearchError("QUOTA_EXHAUSTED","현재 무료 검색을 이용할 수 없어요. 잠시 후 다시 시도해 주세요.",429);
     if(!response.ok){
-      if(response.status===404)throw new LiveSearchError("MODEL_UNAVAILABLE","이 프로젝트에서 무료 검색 모델을 사용할 수 없어요. 등록한 제품과 복용 기록은 그대로 사용할 수 있어요.",503);
+      // Deliberately exclude query, response text and API key from runtime logs.
+      console.warn("supplement-search-provider",{model:LIVE_SUPPLEMENT_MODEL,httpStatus:response.status});
+      if(response.status===404)throw new LiveSearchError("MODEL_UNAVAILABLE","Google이 이 프로젝트의 Gemini 2.5 Flash-Lite 요청을 지원하지 않아요. 신규 프로젝트의 기존 모델 접근 제한일 수 있어요. 무료 사용 설정을 유지하기 위해 다른 모델로 자동 전환하지 않았어요. 제품명·링크로 NIH 후보를 먼저 조회하거나 바코드로 찾아보세요.",503);
       if(response.status===401||response.status===403)throw new LiveSearchError("KEY_PERMISSION","검색 API 키 또는 프로젝트 권한을 확인해 주세요.",503);
       throw new LiveSearchError("UPSTREAM_ERROR","검색 서비스가 응답하지 않아요. 잠시 후 다시 시도해 주세요.");
     }
