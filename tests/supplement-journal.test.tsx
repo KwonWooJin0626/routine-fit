@@ -7,7 +7,7 @@ import { applySupplementCommand,emptySupplementJournal,supplementProductSchema,s
 import { createSupplementHandlers,type SupplementRepository } from "../lib/supplement-api";
 import { SupplementChecks,SupplementProductDialog } from "../components/supplement-workspace";
 import { lookupSupplementLabel,searchSupplementCatalog } from "../lib/supplement-label";
-import { intakeStatus,servingCount,supplementIntake } from "../lib/supplement-intake";
+import { intakeStatus,intakeColumnIncomplete,servingCount,supplementIntake } from "../lib/supplement-intake";
 import { parseSupplementPhoto } from "../lib/supplement-label-photo";
 import type { SupplementStore } from "../components/use-supplement-journal";
 import { updateManualSupplementLabel } from "../lib/supplement-manual-label";
@@ -191,4 +191,12 @@ test("오늘 체크는 미래에 복용을 기록할 수 없고 등록·추천�
   assert.equal(labelDefaultDose({...label,dailyUnits:1},2),"");assert.equal(labelDefaultDose({...label,dailyUnits:4},2),"2");
   const html=renderToStaticMarkup(<SupplementProductDialog product={product({dose:"",label})} busy={false} onSave={async()=>{}} onClose={()=>{}}/>);
   assert.match(html,/2정 · 시간대당/);assert.match(html,/표시량 변경/);assert.doesNotMatch(html,/계획한 1회 복용량/);
+ });
+
+ test("일부 누락 라벨도 확인된 성분의 비율은 표시하고 다른 미확인 제품이 있으면 그 성분의 합계만 보류한다",()=>{
+  const column={name:"마그네슘",unit:"mg" as const};
+  const p=product({dose:"",label:{servingSize:2,servingUnit:"소프트젤",partial:true,facts:[{name:"마그네슘",amount:250,unit:"mg",dailyValuePercent:null}]}});
+  const one=supplementIntake({products:[p],records:[]},app,date,"plan");
+  assert.equal(intakeColumnIncomplete(one.rows,column),false);assert.equal(intakeStatus(column,one.totals["마그네슘|mg"],intakeColumnIncomplete(one.rows,column)).level,"low");
+  const two=supplementIntake({products:[p,product({id:"unknown",label:undefined})],records:[]},app,date,"plan");assert.equal(intakeColumnIncomplete(two.rows,column),true);
  });

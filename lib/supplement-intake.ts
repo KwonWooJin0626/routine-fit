@@ -7,6 +7,10 @@ type Fact=SupplementLabel["facts"][number];
 type Column=Pick<Fact,"name"|"unit">;
 type IntakeRow={id:string;name:string;amounts:Record<string,number>;missing:boolean;doseUnknown:boolean;occurrences:number;unconfirmed:boolean;knownKeys:string[]};
 export const nutrientKey=(fact:Column)=>`${fact.name}|${fact.unit}`;
+export function intakeColumnIncomplete(rows:IntakeRow[],column:Column){
+  const key=nutrientKey(column);
+  return rows.some(row=>row.knownKeys.includes(key)?row.doseUnknown:row.unconfirmed);
+}
 
 export function servingCount(dose:string,label:SupplementLabel){
   const match=dose.trim().match(/^(\d+(?:\.\d+)?)(?:\s*(정|캡슐|스쿱|mL|g|포|방울|소프트젤))?$/i);

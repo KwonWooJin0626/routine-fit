@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { localDate,type AppState } from "@/lib/model";
-import { intakeStatus,nutrientKey,supplementIntake } from "@/lib/supplement-intake";
+import { intakeStatus,intakeColumnIncomplete,nutrientKey,supplementIntake } from "@/lib/supplement-intake";
 import type { SupplementJournal,SupplementProduct } from "@/lib/supplement-journal";
 import { supplementServingUnits,type SupplementLabel } from "@/lib/supplement-label";
 import { updateManualSupplementLabel } from "@/lib/supplement-manual-label";
@@ -41,7 +41,7 @@ export function SupplementIntakeTable({journal,app,onSaveProduct,onEditProduct,b
         <thead><tr><th scope="col">영양제</th>{columns.length?columns.map(column=><th key={nutrientKey(column)} scope="col">{column.name}<small>{column.unit}</small></th>):<th scope="col">성분표</th>}</tr></thead>
         <tbody>
           <tr><th scope="row">1일 확인 합계</th>{columns.length?columns.map(column=>{
-            const key=nutrientKey(column),value=totals[key],status=intakeStatus(column,value,missingCount>0);
+            const key=nutrientKey(column),value=totals[key],status=intakeStatus(column,value,intakeColumnIncomplete(rows,column));
             return <td key={key} className={styles[status.level]} title={status.reference?`미국 라벨 기준치 ${status.reference} ${column.unit}`:undefined}>
               <b>{value===undefined?"—":format.format(value)}</b>{status.percent!==undefined&&<small>기준 대비 {format.format(status.percent)}%</small>}<small>{status.label}</small>
             </td>;
