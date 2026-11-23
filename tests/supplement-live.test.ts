@@ -8,7 +8,7 @@ import { servingCount,supplementIntake } from "../lib/supplement-intake";
 import { createDsldLookup } from "../lib/supplement-dsld";
 import { fetchSupplementPage } from "../lib/supplement-page";
 import { supplementSourceUrl } from "../lib/supplement-source-url";
-import { supplementNihQuery } from "../lib/supplement-query";
+import { supplementNihQuery,iherbEnglishName } from "../lib/supplement-query";
 
 const now=new Date("2026-11-23T10:00:00+09:00");
 const sources=[{title:"Manufacturer label",url:"https://example.com/label"}];
@@ -124,4 +124,25 @@ test("NIH의 다른 브랜드·품절 라벨·일치하지 않는 바코드는 �
   const lookup=createDsldLookup((async()=>Response.json({hits:[],stats:{count:0}})) as typeof fetch);
   assert.equal(await lookup.byBarcode("123456789012"),null);
   assert.deepEqual(await lookup.byName("Missing brand"),[]);
+});
+
+const wheyName="California Gold Nutrition, Sport, Whey Protein Isolate, Dark Chocolate , 2 lb (907 g)";
+const wheyUrl="https://www.iherb.com/pr/california-gold-nutrition-sport-whey-protein-isolate-dark-chocolate-2-lb-907-g/82696";
+test("한국어 iHerb 붙여넣기는 영문 링크 이름을 사용하고 포장 무게는 맛·제형 검색 조건과 분리한다",()=>{
+  const english=iherbEnglishName("# 캘리포니아 골드 뉴트리션, 다크 초콜릿 단백질 907g",wheyUrl);
+  assert.equal(english,"California Gold Nutrition Sport Whey Protein Isolate Dark Chocolate 2 Lb 907 G");
+  assert.equal(iherbEnglishName("한국어 제품명",""),"한국어 제품명");
+  assert.equal(iherbEnglishName("# Solgar Vitamin C\n", ""),"Solgar Vitamin C");
+  assert.equal(supplementNihQuery(wheyName,wheyUrl),"california gold nutrition sport whey protein isolate dark chocolate");
+  assert.equal(supplementNihQuery(wheyName,""),"California Gold Nutrition, Sport, Whey Protein Isolate, Dark Chocolate");
+  assert.equal(supplementNihQuery("Solgar Vitamin C 1000 mg",""),"Solgar Vitamin C 1000 mg");
+});
+test("NIH 분말의 Gram(s)·Calorie(s)와 하위 영양성분을 보존하고 명시된 1스쿱 단위로 제공한다",async()=>{
+  const row=(name:string,amount:number,unit:string,nestedRows:unknown[]=[])=>({name,nestedRows,quantity:[{servingSizeOrder:1,operator:"=",quantity:amount,unit,dailyValueTargetGroup:[]}]});
+  const raw={id:275357,brandName:"California Gold Nutrition SPORT",fullName:"Whey Protein Isolate Dark Chocolate",upcSku:"898220012022",offMarket:0,servingsPerContainer:"23",netContents:[{display:"2 lb(s)"},{display:"907 Gram(s)"}],servingSizes:[{order:1,minQuantity:40,maxQuantity:40,unit:"Gram(s)",notes:"1 Scoop",inSFB:true}],ingredientRows:[row("Calories",150,"Calorie(s)"),row("Protein",27,"Gram(s)"),row("Total Sugars",6,"Gram(s)",[row("Added Sugars",6,"Gram(s)")]),row("Vitamin D",0,"mcg")]};
+  const lookup=createDsldLookup((async url=>String(url).includes("search-filter")?Response.json({hits:[{_id:"275357"}]}):Response.json(raw)) as typeof fetch);
+  const products=await lookup.byName(wheyName);assert.equal(products.length,1);
+  const label=products[0].label;assert.equal(label.servingSize,1);assert.equal(label.servingUnit,"스쿱");assert.equal(label.partial,false);
+  assert.deepEqual(label.facts.map(f=>[f.name,f.amount,f.unit]),[["Calories",150,"kcal"],["Protein",27,"g"],["Total Sugars",6,"g"],["Added Sugars",6,"g"],["비타민 D",0,"μg"]]);
+  raw.fullName="Whey Protein Isolate Vanilla";assert.equal((await lookup.byName(wheyName)).length,0);
 });

@@ -19,8 +19,9 @@ const amountPattern="(?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d+)?";
 const rowPattern=new RegExp(`^(.+?)\\s+(${amountPattern})\\s*(${unitPattern})(?:\\s+(${amountPattern})\\s*%|\\s*[*†‡]+)?$`,"i");
 const servingPattern=/^(?:serving size|1회 제공량|1회 섭취량)\s*[:：]?\s*\(?(\d+(?:\.\d+)?)\s*(?:level |rounded |vegetarian )?(tablets?|caplets?|capsules?|scoops?|soft\s?gels?|packets?|sachets?|drops?|ml|g|정|캡슐|스쿱|스푼|팩|포|방울|소프트젤)(?=$|\s|[()])/i;
 const normalizedAmount=(raw:string)=>Number(raw.replaceAll(",",""));
-export const labelServingUnit=(text:string)=>servingUnits[text.toLowerCase().replace(/\(s\)$/,"").replace(/s$/,"").replace(/^(?:vegetable|vegetarian|veggie|veg)\s+/,"").replaceAll(" ","")];
-export const labelFactUnit=(text:string)=>units[text.normalize("NFKC").trim().toLowerCase()];
+const nihUnit=(text:string)=>text.normalize("NFKC").trim().toLowerCase().replace(/\(s\)$/,"").replace(/^(?:grams?)$/,"g").replace(/^(?:milligrams?)$/,"mg").replace(/^(?:micrograms?)$/,"mcg").replace(/^(?:calories?)$/,"kcal");
+export const labelServingUnit=(text:string)=>servingUnits[nihUnit(text).replace(/s$/,"").replace(/^(?:vegetable|vegetarian|veggie|veg)\s+/,"").replaceAll(" ","")];
+export const labelFactUnit=(text:string)=>units[nihUnit(text)];
 export function labelFactName(text:string){
   const candidate=text.trim().split(" (")[0].toLowerCase();
   return Object.hasOwn(names,candidate)?names[candidate]:text.trim();

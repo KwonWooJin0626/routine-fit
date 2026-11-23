@@ -19,7 +19,7 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
   async function findNihMatches(query:string,id:number){
     try{
       const response=await fetch("/api/supplement-label?"+new URLSearchParams({name:query,live:"1"}),{cache:"no-store",signal:AbortSignal.timeout(13000)});
-      if(!response.ok)return false;
+      if(!response.ok)return null;
       const {products}=await response.json();
       if(run.current!==id||!Array.isArray(products))return false;
       const found=products.flatMap(product=>{
@@ -28,7 +28,7 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
       });
       setMatches(found);
       return found.length>0;
-    }catch{return false;}
+    }catch{return null;}
   }
 
   async function findOnWeb(skipNih=false){
@@ -39,9 +39,11 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
     setMessage("");
     setWorking("web");
     try{
-      if(!skipNih&&await findNihMatches(supplementNihQuery(name,url),id)){
-        if(run.current===id)setMessage("NIH 성분표 후보를 찾았어요. 입력한 상품과 브랜드·함량·제형·포장 수량이 같은 제품을 골라 주세요. 링크와 자동으로 일치 판정한 결과는 아니에요.");
-        return;
+      if(!skipNih){
+        const nih=await findNihMatches(supplementNihQuery(name,url),id);
+        if(run.current!==id)return;
+        if(nih===null){setMessage("NIH 조회에 연결하지 못했어요. 제품이 없다는 의미는 아니에요. 잠시 후 다시 조회해 주세요.");return;}
+        if(nih){setMessage("NIH 성분표 후보를 찾았어요. 입력한 상품과 브랜드·함량·제형·포장 수량이 같은 제품을 골라 주세요. 링크와 자동으로 일치 판정한 결과는 아니에요.");return;}
       }
       if(run.current!==id)return;
       const response=await fetch("/api/supplement-web-search",{method:"POST",headers:{"Content-Type":"application/json"},
