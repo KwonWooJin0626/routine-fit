@@ -67,7 +67,7 @@ test("확인된 iHerb 상품의 라벨 25개를 채우고 이름이 같은 다�
   assert.equal(imported.label.facts.find(row=>row.name==="비오틴(B7)")?.unit,"μg");
   const saved=applySupplementCommand(emptySupplementJournal(),{action:"save",product:product({url,label:imported.label})},app,now);
   assert.deepEqual(saved.products[0].label,imported.label);
-  assert.match(renderToStaticMarkup(<SupplementProductDialog product={product({url})} busy={false} onSave={async()=>{}} onClose={()=>{}}/>),/성분표 25개 가져옴/);
+  assert.match(renderToStaticMarkup(<SupplementProductDialog product={product({url,label:imported.label})} busy={false} onSave={async()=>{}} onClose={()=>{}}/>),/성분표 25개 가져옴/);
   assert.equal(lookupSupplementLabel(url.replace("137715","86454")),null);
   const [goldC]=searchSupplementCatalog("Gold C 1000mg 240캡슐");
   assert.equal(goldC.label.servingUnit,"캡슐");

@@ -8,7 +8,7 @@ const units:Record<string,SupplementLabel["facts"][number]["unit"]>={
   g:"g",mg:"mg",mcg:"μg","μg":"μg","mcg rae":"μg RAE","μg rae":"μg RAE","mcg dfe":"μg DFE","μg dfe":"μg DFE","mg ne":"mg NE",iu:"IU",cfu:"CFU",kcal:"kcal",
 };
 const names:Record<string,string>={
-  "vitamin a":"비타민 A","vitamin c":"비타민 C","vitamin d3":"비타민 D3","vitamin e":"비타민 E",
+  "vitamin a":"비타민 A","vitamin c":"비타민 C","vitamin d":"비타민 D","vitamin d3":"비타민 D3","vitamin e":"비타민 E",
   thiamin:"티아민(B1)",thiamine:"티아민(B1)",riboflavin:"리보플라빈(B2)",niacin:"나이아신(B3)",
   "vitamin b6":"비타민 B6",folate:"엽산(B9)","vitamin b12":"비타민 B12",biotin:"비오틴(B7)",
   "pantothenic acid":"판토텐산(B5)",iodine:"요오드",magnesium:"마그네슘",zinc:"아연",
@@ -19,7 +19,7 @@ const amountPattern="(?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d+)?";
 const rowPattern=new RegExp(`^(.+?)\\s+(${amountPattern})\\s*(${unitPattern})(?:\\s+(${amountPattern})\\s*%|\\s*[*†‡]+)?$`,"i");
 const servingPattern=/^(?:serving size|1회 제공량|1회 섭취량)\s*[:：]?\s*\(?(\d+(?:\.\d+)?)\s*(?:level |rounded |vegetarian )?(tablets?|caplets?|capsules?|scoops?|soft\s?gels?|packets?|sachets?|drops?|ml|g|정|캡슐|스쿱|스푼|팩|포|방울|소프트젤)(?=$|\s|[()])/i;
 const normalizedAmount=(raw:string)=>Number(raw.replaceAll(",",""));
-export const labelServingUnit=(text:string)=>servingUnits[text.toLowerCase().replace(/\(s\)$/,"").replace(/s$/,"").replace(" ","")];
+export const labelServingUnit=(text:string)=>servingUnits[text.toLowerCase().replace(/\(s\)$/,"").replace(/s$/,"").replace(/^(?:vegetable|vegetarian|veggie|veg)\s+/,"").replaceAll(" ","")];
 export const labelFactUnit=(text:string)=>units[text.normalize("NFKC").trim().toLowerCase()];
 export function labelFactName(text:string){
   const candidate=text.trim().split(" (")[0].toLowerCase();

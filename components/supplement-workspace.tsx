@@ -5,7 +5,7 @@ import { localDate,type AppState } from "@/lib/model";
 import { addDate,mondayOf,weekdayNames } from "@/lib/planner";
 import { ingredients } from "@/lib/nutrition";
 import { supplementProductSchema,supplementOccurrences,supplementSearch,supplementAnchors,supplementStatus,type SupplementProduct,type SupplementOccurrence } from "@/lib/supplement-journal";
-import { iherbProductId,lookupSupplementLabel } from "@/lib/supplement-label";
+import { iherbProductId } from "@/lib/supplement-label";
 import type { SupplementStore } from "./use-supplement-journal";
 import { Dialog,Input,Select } from "./forms";
 import { SupplementIntakeTable } from "./supplement-intake-table";
@@ -40,21 +40,21 @@ export function SupplementManager({store,app,initialIngredient,onRegistered,sett
 }
 export function SupplementProductDialog({product,ingredient,busy,onSave,onClose}:{product?:SupplementProduct;ingredient?:string;busy:boolean;onSave:(p:SupplementProduct)=>Promise<void>;onClose:()=>void}){
   const [p,set]=useState<SupplementProduct>(()=>product
-    ? {...product,label:product.label??lookupSupplementLabel(product.url)?.label}
+    ? {...product}
     : {id:crypto.randomUUID(),name:"",ingredients:ingredient?[ingredient]:[],dose:"",url:"",notes:"",active:true,startDate:localDate(),weekdays:[0,1,2,3,4,5,6],slots:[{id:crypto.randomUUID(),anchor:"fixed",time:"09:00",offset:0}]});
   const [error,setError]=useState("");const change=<K extends keyof SupplementProduct>(k:K,v:SupplementProduct[K])=>set(old=>({...old,[k]:v}));
   const updateUrl=(raw:string)=>{
-    const url=raw.trim().slice(0,1000),found=lookupSupplementLabel(url);
+    const url=raw.trim().slice(0,1000);
     set(old=>{
       const currentId=iherbProductId(url);
       const sameProduct=currentId!==null&&iherbProductId(old.url)===currentId;
-      return {...old,url,name:found&&(!sameProduct||!old.name)?found.name:old.name,label:found?.label??(sameProduct||url===old.url?old.label:undefined)};
+      return {...old,url,label:sameProduct||url===old.url?old.label:undefined};
     });
   };
-  return <Dialog title={product?"복용 계획 수정":"복용할 제품 등록"} subtitle="제품 라벨이나 확인한 안내를 기준으로 직접 설정해요." onClose={()=>{if(!busy)onClose();}} wide><form onSubmit={e=>{e.preventDefault();const result=supplementProductSchema.safeParse(p);if(!result.success){setError(result.error.issues[0].message);return;}setError("");void onSave(result.data).catch(e=>setError(e.message));}}><div className="form-grid"><div className="form-span">
+  return <Dialog title={product?"복용 계획 수정":"복용할 제품 등록"} subtitle="실시간으로 제품을 조회하고 선택한 성분표·복용 설정을 등록해요." onClose={()=>{if(!busy)onClose();}} wide><form onSubmit={e=>{e.preventDefault();const result=supplementProductSchema.safeParse(p);if(!result.success){setError(result.error.issues[0].message);return;}setError("");void onSave(result.data).catch(e=>setError(e.message));}}><div className="form-grid"><div className="form-span">
       <Input label="iHerb 상품 링크 (선택)" value={p.url} onChange={updateUrl} placeholder="https://kr.iherb.com/pr/…"
-        hint="지원되는 상품의 링크를 붙여넣으면 제품명과 성분표가 채워져요."/>
-      {p.url&&!p.label&&<p className="muted" role="status">{iherbProductId(p.url)?"이 상품의 라벨은 사진으로 가져올 수 있어요.":"장바구니나 검색 주소 대신 iHerb 상품 상세 페이지 링크를 붙여넣으세요."}</p>}
+        hint="상품 링크 또는 아래 제품명을 입력하고 실시간 조회를 눌러 주세요."/>
+      {p.url&&!p.label&&<p className="muted" role="status">{iherbProductId(p.url)?"아래 실시간 조회로 이 상품의 성분표를 찾아보세요.":"장바구니나 검색 주소 대신 iHerb 상품 상세 페이지 링크를 붙여넣으세요."}</p>}
       {p.label&&<details className="dose-product-details">
         <summary>성분표 {p.label.facts.length}개 {p.label.source==="photo"?"사진에서 가져옴":p.label.source==="dsld"?"NIH에서 가져옴":p.label.source==="web"?"웹에서 가져옴":p.label.productCode?"가져옴":"입력됨"} · {p.label.servingSize}{p.label.servingUnit} 기준</summary>
         {p.label.productCode&&<p>제품 코드 {p.label.productCode} · UPC {p.label.upc} · 약 {p.label.servingsPerContainer}회분</p>}
@@ -65,13 +65,14 @@ export function SupplementProductDialog({product,ingredient,busy,onSave,onClose}
           <tbody>{p.label.facts.map(row=><tr key={row.name}><th scope="row">{row.name}</th><td>{row.amount} {row.unit}</td><td>{row.dailyValuePercent===null?"미설정":row.dailyValuePercent+"%"}</td></tr>)}</tbody>
         </table></div>
         {iherbProductId(p.url)&&<a className="text-link" href={p.url} target="_blank" rel="noopener noreferrer">iHerb 원본 성분표 확인</a>}
+        {p.label.retrievedAt&&<p className="muted">성분표 조회일 {new Date(p.label.retrievedAt).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"})} · 등록한 정보를 보관해요.</p>}
         <p className="muted">보유한 제품의 라벨과 값이 같은지 확인해 주세요.</p>
       </details>}
-    </div><div className="form-span"><Input label="정확한 제품명" value={p.name} required onChange={v=>change("name",v.slice(0,100))} placeholder="구매했거나 복용 중인 제품명"/></div>{!p.label?.productCode&&<div className="form-span"><SupplementPhotoImport key={iherbProductId(p.url)??"photo"} url={p.url} name={p.name} onApply={(label,name)=>set(old=>({...old,label,name:name??old.name}))}/></div>}<Input label="계획한 1회 복용량 (선택)" value={p.dose} onChange={v=>change("dose",v.slice(0,80))} placeholder="예: 1" hint={doseHint(p.label?.servingUnit)}/><Input label="복용 시작일" type="date" value={p.startDate} onChange={v=>change("startDate",v)}/></div>
+    </div><div className="form-span"><Input label="정확한 제품명" value={p.name} required onChange={v=>set(old=>({...old,name:v.slice(0,100),label:v===old.name?old.label:undefined}))} placeholder="구매했거나 복용 중인 제품명"/></div>{<div className="form-span"><SupplementPhotoImport key={iherbProductId(p.url)??"photo"} url={p.url} name={p.name} onApply={(label,name)=>set(old=>({...old,label,name:name??old.name}))}/></div>}<Input label="계획한 1회 복용량 (선택)" value={p.dose} onChange={v=>change("dose",v.slice(0,80))} placeholder="예: 1" hint={doseHint(p.label?.servingUnit)}/><Input label="복용 시작일" type="date" value={p.startDate} onChange={v=>change("startDate",v)}/></div>
     <fieldset className="dose-weekdays"><legend>반복 요일</legend>{weekdayNames.map((label,day)=><label key={day}><input type="checkbox" checked={p.weekdays.includes(day)} onChange={e=>change("weekdays",e.target.checked?[...p.weekdays,day]:p.weekdays.filter(d=>d!==day))}/>{label}</label>)}</fieldset>
     <section className="dose-slots"><h3>복용 시간</h3>{p.slots.map((slot,index)=><div className="dose-slot" key={slot.id}><Select label={`시간 ${index+1} 기준`} value={slot.anchor} options={supplementAnchors} onChange={v=>change("slots",p.slots.map(s=>s.id===slot.id?{...s,anchor:v as typeof slot.anchor}:s))}/><Input label={slot.anchor==="fixed"?`시간 ${index+1}`:`일정이 없을 때 사용할 시각 ${index+1}`} type="time" value={slot.time} required onChange={v=>change("slots",p.slots.map(s=>s.id===slot.id?{...s,time:v}:s))}/>{slot.anchor!=="fixed"&&<Input label={`일정 기준 간격 ${index+1} (분)`} type="number" min={-180} max={180} value={slot.offset} onChange={v=>change("slots",p.slots.map(s=>s.id===slot.id?{...s,offset:Number(v)}:s))}/>}<button type="button" className="text-link" disabled={busy||p.slots.length===1} onClick={()=>change("slots",p.slots.filter(s=>s.id!==slot.id))}>시간 삭제</button></div>)}<button type="button" className="text-link" disabled={busy||p.slots.length>=6} onClick={()=>change("slots",[...p.slots,{id:crypto.randomUUID(),anchor:"fixed",time:"18:00",offset:0}])}>+ 복용 시간 추가</button><p className="muted">식사·운동에 연결하면 시간표 변경을 따라가요. 실제 복용 기록은 변경하지 않아요.</p></section>
     <details className="dose-product-details"><summary>성분·제품 주소·메모·종료일</summary><fieldset className="dose-ingredients"><legend>포함 성분 (중복 선택·선택 사항)</legend>{ingredients.map(i=><label key={i.id}><input type="checkbox" checked={p.ingredients.includes(i.id)} onChange={e=>change("ingredients",e.target.checked?[...p.ingredients,i.id]:p.ingredients.filter(x=>x!==i.id))}/>{i.name}</label>)}</fieldset><Input label="복용 종료일 (선택)" type="date" value={p.endDate??""} onChange={v=>change("endDate",v||undefined)}/><Input label="메모 (선택)" value={p.notes} onChange={v=>change("notes",v.slice(0,400))}/></details>
-    <p className="muted">모르는 복용량은 비워두세요. 추천·등록·구매는 실제 복용 기록과 별개예요. 등록은 개인별 병용 안전성 확인을 뜻하지 않아요.</p>{error&&<p className="form-error" role="alert">{error}</p>}<div className="dialog-actions"><button type="button" className="button secondary" disabled={busy} onClick={onClose}>취소</button><button className="button primary" disabled={busy}>{busy?"저장 중…":"복용 계획 저장"}</button></div></form></Dialog>;
+    <p className="muted">모르는 복용량은 비워두세요. 추천·등록·구매는 실제 복용 기록과 별개예요. 등록은 개인별 병용 안전성 확인을 뜻하지 않아요.</p>{error&&<p className="form-error" role="alert">{error}</p>}<div className="dialog-actions"><button type="button" className="button secondary" disabled={busy} onClick={onClose}>취소</button><button className="button primary" disabled={busy}>{busy?"저장 중…":product?"복용 계획 저장":"내 영양제에 등록"}</button></div></form></Dialog>;
 }
 export function SupplementHistory({store}:{store:SupplementStore}){
   return <div className="dose-history">{[...store.journal.records].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt)).map(r=><div key={r.id}><div><b>{r.snapshot.name}</b><small>{r.date} · {r.actualAt?clock(r.actualAt):clock(r.snapshot.plannedAt)} · {r.dose||"복용량 미입력"}</small></div><span>{supplementStatus[r.status]}</span></div>)}{!store.journal.records.length&&<p className="muted">아직 복용 기록이 없어요. 미기록을 미복용으로 처리하지 않아요.</p>}</div>;

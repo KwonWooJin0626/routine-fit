@@ -167,3 +167,9 @@ node --env-file=.env.local scripts/verify-integration.mjs
 - 불편한 동작 답변의 저장 차단 해소. 답변 저장과 운동 실행 추천을 분리하고 제외·보류 이유/준비 활동을 안내.
 - 분야별 저장 → 즉시 결과 → 홈으로 나가기 → 다음 분야 이어하기. 새로고침 후에도 완료 분야·진행 순서 복원, 미완성 다음 분야는 저장하지 않음.
 - 검증: 자동 테스트 130개, 타입 검사·배포용 빌드, 개발 DB 체크포인트 왕복/CAS, 브라우저에서 제한 응답 이후 저장·분야 결과·나갔다 이어하기 확인.
+
+### Live supplement lookup and personal registration
+
+Product-name and iHerb-link lookups return an unsaved preview. NIH queries use live on-market search; Gemini uses a grounded search request followed by a separate structured extraction request, both pinned to gemini-2.5-flash-lite with no model fallback. Product lookup endpoints do not write a product catalogue. Only the existing personal supplement save command persists a selected label, its source URLs/retrieval timestamp and the user's dose/schedule. Actual dose records retain their original label snapshot after later product edits.
+
+The request guard is instance-local, not a project-wide billing cap. Free use depends on the Google project's billing configuration, current model availability and provider quota; the variable name does not establish a free billing tier. Cached/static labels remain available to legacy code but are not used by the live lookup UI.
