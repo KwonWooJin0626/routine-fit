@@ -12,6 +12,7 @@ import { parseSupplementPhoto } from "../lib/supplement-label-photo";
 import type { SupplementStore } from "../components/use-supplement-journal";
 import { updateManualSupplementLabel } from "../lib/supplement-manual-label";
 import { SupplementIntakeTable } from "../components/supplement-intake-table";
+import { canonicalNutrientKey,normalizedNutrient } from "../lib/supplement-nutrients";
 import { parseDailyLabelUse,labelDefaultDose } from "../lib/supplement-serving";
 const date="2026-11-09",now=new Date(`${date}T20:00:00+09:00`);
 const app:AppState={version:1,consentAt:now.toISOString(),consentVersion:"2026-10-growth-v1",answers:defaultAnswers,schedule:defaultSchedule,days:[],inbody:[],planner:{setupComplete:true,blocks:[],templates:[]}};
@@ -23,7 +24,7 @@ test("확인한 성분표는 표시량을 기본 적용하고 조회 모드에�
   const unknown=product({id:"unknown",name:"조회 실패",label:undefined});
   const journal={products:[known,unknown],records:[]};
   const result=supplementIntake(journal,app,date,"plan");
-  assert.equal(result.rows[0].unconfirmed,false);assert.equal(result.rows[0].doseUnknown,false);assert.equal(result.rows[0].amounts["비타민 C|mg"],100);
+  assert.equal(result.rows[0].unconfirmed,false);assert.equal(result.rows[0].doseUnknown,false);assert.equal(result.rows[0].amounts["vitamin_c|mg"],100);
   assert.equal(result.rows[1].unconfirmed,true);assert.ok(result.columns.some(c=>c.name==="비타민 A"));
   const html=renderToStaticMarkup(<SupplementIntakeTable journal={journal} app={app} onSaveProduct={async()=>{}} onEditProduct={()=>{}}/>);
   assert.match(html,/<td[^>]*>-<\/td>/);
@@ -38,7 +39,7 @@ test("직접 입력은 0과 빈칸을 구분해 저장하고 복용 개수·횟�
   const edited=updateManualSupplementLabel(p,{"비타민 C|mg":"100","아연|mg":"0"},"스쿱","2");
   assert.equal(edited.label?.source,"manual");assert.equal(edited.label?.partial,true);
   let journal=applySupplementCommand(emptySupplementJournal(),{action:"save",product:edited},app,now);
-  const result=supplementIntake(journal,app,date,"plan");assert.equal(result.totals["비타민 C|mg"],200);assert.equal(result.totals["아연|mg"],0);assert.equal(result.totals["비타민 A|μg RAE"],undefined);
+  const result=supplementIntake(journal,app,date,"plan");assert.equal(result.totals["vitamin_c|mg"],200);assert.equal(result.totals["zinc|mg"],0);assert.equal(result.totals["vitamin_a|μg RAE"],undefined);
   journal=applySupplementCommand(journal,{action:"record",productId:p.id,date,slotId:p.slots[0].id,status:"taken"},app,now);
   const snapshot=structuredClone(journal.records[0].snapshot);
   const cleared=updateManualSupplementLabel(edited,{"비타민 C|mg":""},"정","1");
@@ -82,16 +83,16 @@ test("1일 섭취표는 제공량을 환산하고 계획과 실제 복용을 구
   let journal=applySupplementCommand(emptySupplementJournal(),{action:"save",product:p},app,now);
   journal=applySupplementCommand(journal,{action:"record",productId:p.id,date,slotId:"morning",status:"taken"},app,now);
   journal=applySupplementCommand(journal,{action:"record",productId:p.id,date,slotId:"evening",status:"skipped"},app,now);
-  assert.equal(supplementIntake(journal,app,date,"plan").totals["마그네슘|mg"],100);
-  assert.equal(supplementIntake(journal,app,date,"actual").totals["마그네슘|mg"],50);
+  assert.equal(supplementIntake(journal,app,date,"plan").totals["magnesium|mg"],100);
+  assert.equal(supplementIntake(journal,app,date,"actual").totals["magnesium|mg"],50);
   const manual=product({id:"manual",dose:"1정",label:{servingSize:1,servingUnit:"정",facts:[{name:"마그네슘",amount:30,unit:"mg",dailyValuePercent:null}]}});
   journal=applySupplementCommand(journal,{action:"save",product:manual},app,now);
-  assert.equal(supplementIntake(journal,app,date,"plan").totals["마그네슘|mg"],130);
+  assert.equal(supplementIntake(journal,app,date,"plan").totals["magnesium|mg"],130);
   journal=applySupplementCommand(journal,{action:"save",product:{...p,dose:""}},app,now);
   const planned=supplementIntake(journal,app,date,"plan");
-  assert.equal(planned.totals["마그네슘|mg"],230);
+  assert.equal(planned.totals["magnesium|mg"],230);
   assert.equal(planned.missingCount,0);
-  assert.equal(supplementIntake(journal,app,date,"actual").totals["마그네슘|mg"],50);
+  assert.equal(supplementIntake(journal,app,date,"actual").totals["magnesium|mg"],50);
   assert.equal(intakeStatus({name:"마그네슘",unit:"mg"},30,true).level,"unknown");
   assert.equal(intakeStatus({name:"비타민 D3",unit:"μg"},101,false).level,"high");
 });
@@ -199,6 +200,40 @@ test("오늘 체크는 미래에 복용을 기록할 수 없고 등록·추천�
   const column={name:"마그네슘",unit:"mg" as const};
   const p=product({dose:"",label:{servingSize:2,servingUnit:"소프트젤",partial:true,facts:[{name:"마그네슘",amount:250,unit:"mg",dailyValuePercent:null}]}});
   const one=supplementIntake({products:[p],records:[]},app,date,"plan");
-  assert.equal(intakeColumnIncomplete(one.rows,column),false);assert.equal(intakeStatus(column,one.totals["마그네슘|mg"],intakeColumnIncomplete(one.rows,column)).level,"low");
+  assert.equal(intakeColumnIncomplete(one.rows,column),false);assert.equal(intakeStatus(column,one.totals["magnesium|mg"],intakeColumnIncomplete(one.rows,column)).level,"low");
   const two=supplementIntake({products:[p,product({id:"unknown",label:undefined})],records:[]},app,date,"plan");assert.equal(intakeColumnIncomplete(two.rows,column),true);
  });
+
+test("영문·한국어 기존 기록은 성분 ID와 환산 단위 기준으로 한 컬럼에 합산하며 원본을 보존한다",()=>{
+  const a=product({id:"english",name:"영문 제품",dose:"1",label:{source:"dsld",servingSize:1,servingUnit:"스쿱",facts:[{name:"Protein",amount:27,unit:"g",dailyValuePercent:null},{name:"Calcium",amount:.13,unit:"g",dailyValuePercent:null}]}});
+  const b=product({id:"korean",name:"한국어 제품",dose:"1",label:{servingSize:1,servingUnit:"정",facts:[{name:"단백질",amount:10,unit:"g",dailyValuePercent:null},{name:"칼슘",amount:100,unit:"mg",dailyValuePercent:null}]}});
+  const journal={products:[a,b,product({id:"unknown-label",label:undefined})],records:[]},original=structuredClone(journal);
+  const result=supplementIntake(journal,app,date,"plan");
+  assert.equal(result.columns.filter(c=>c.name==="단백질").length,1);assert.equal(result.columns.filter(c=>c.name==="칼슘").length,1);
+  assert.equal(result.totals["protein|g"],37);assert.equal(result.totals["calcium|mg"],230);assert.deepEqual(journal,original);
+  const html=renderToStaticMarkup(<SupplementIntakeTable journal={journal} app={app}/>);
+  assert.match(html,/단백질/);assert.doesNotMatch(html,/>Protein<|>Calcium</);
+  assert.equal(canonicalNutrientKey({name:"Thiamine",unit:"mg"}),canonicalNutrientKey({name:"티아민(B1)",unit:"mg"}));
+});
+test("같은 제품 안의 별칭 중복은 두 번 더하지 않고 미확인으로 남기며 다른 영양 형태는 분리한다",()=>{
+  const duplicate=product({dose:"1",label:{servingSize:1,servingUnit:"정",facts:[{name:"Calcium",unit:"mg",amount:100,dailyValuePercent:null},{name:"칼슘",unit:"mg",amount:100,dailyValuePercent:null}]}});
+  const result=supplementIntake({products:[duplicate],records:[]},app,date,"plan");assert.equal(result.totals["calcium|mg"],undefined);assert.equal(result.rows[0].missing,true);
+  assert.notEqual(canonicalNutrientKey({name:"Total Sugars",unit:"g"}),canonicalNutrientKey({name:"Added Sugars",unit:"g"}));
+  assert.notEqual(canonicalNutrientKey({name:"Vitamin A",unit:"μg"}),canonicalNutrientKey({name:"Vitamin A",unit:"μg RAE"}));
+  assert.notEqual(canonicalNutrientKey({name:"Folate",unit:"μg DFE"}),canonicalNutrientKey({name:"Folic Acid",unit:"μg"}));
+  assert.equal(normalizedNutrient({name:"Vitamin D3",unit:"IU",amount:1000}).unit,"IU");
+});
+test("수동 수정은 기존 영어 항목과 환산 단위를 찾아 갱신하고 가져온 값은 별칭으로 덮어쓰지 않는다",()=>{
+  const p=product({dose:"1",label:{source:"manual",partial:true,servingSize:1,servingUnit:"정",facts:[{name:"Calcium",unit:"g",amount:.1,dailyValuePercent:null,manual:true}]}});
+  const edited=updateManualSupplementLabel(p,{"calcium|mg":"150"},"정","1");assert.equal(edited.label?.facts.length,1);assert.equal(edited.label?.facts[0].amount,150);assert.equal(edited.label?.facts[0].unit,"mg");
+  const imported=structuredClone(p);imported.label!.facts[0].manual=false;
+  assert.throws(()=>updateManualSupplementLabel(imported,{"calcium|mg":"200"},"정","1"));
+  const unknown=updateManualSupplementLabel(product({dose:"1"}),{[canonicalNutrientKey({name:"Example compound",unit:"mg"})]:"2"},"정","1");
+  assert.equal(canonicalNutrientKey(unknown.label!.facts[0]),canonicalNutrientKey({name:"Example compound",unit:"mg"}));
+});
+test("과거 실제 복용의 영문·한국어 스냅샷도 통합 표시하되 원본 스냅샷은 변경하지 않는다",()=>{
+  let journal=registered();journal.products[0]=product({dose:"1",label:{servingSize:1,servingUnit:"정",facts:[{name:"Protein",amount:27,unit:"g",dailyValuePercent:null}]}});
+  journal=applySupplementCommand(journal,{action:"record",productId:"vitamin",date,slotId:"morning",status:"taken"},app,now);
+  const snapshot=structuredClone(journal.records);
+  const result=supplementIntake(journal,app,date,"actual");assert.equal(result.totals["protein|g"],27);assert.equal(result.columns[0].name,"단백질");assert.deepEqual(journal.records,snapshot);
+});

@@ -1,3 +1,4 @@
+import { nutrientIdentity } from "./supplement-nutrients";
 import { z } from "zod";
 import { fetchSupplementPage,SupplementPageError } from "./supplement-page";
 import { supplementLabelSchema,supplementServingUnits,type SupplementLabel } from "./supplement-label";
@@ -51,7 +52,7 @@ export function validateLiveLabel(input:unknown,report:string,sources:{url:strin
     const target=massUnit[name],scale:Record<string,number>={g:1000000,mg:1000,"μg":1};
     if(target&&scale[unit]){amount=amount*scale[unit]/scale[target];unit=target;}
     const key=name+"|"+unit;if(facts.some(f=>f.name+"|"+f.unit===key)){omitted++;continue;}
-    facts.push({name,amount,unit,dailyValuePercent:null,rawAmount:fact.amount,rawUnit:fact.unit,evidence:fact.evidence,sourceIndex:fact.sourceIndex});
+    facts.push({name,rawName:fact.name,nutrientId:nutrientIdentity(fact.name),amount,unit,dailyValuePercent:null,rawAmount:fact.amount,rawUnit:fact.unit,evidence:fact.evidence,sourceIndex:fact.sourceIndex});
   }
   if(!facts.length)return null;
   const label=supplementLabelSchema.safeParse({source:"web",retrievedAt:now.toISOString(),query:query.name||undefined,

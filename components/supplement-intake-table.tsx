@@ -1,4 +1,5 @@
 "use client";
+import { nutrientDisplayName,normalizedNutrient } from "@/lib/supplement-nutrients";
 import { useState } from "react";
 import { localDate,type AppState } from "@/lib/model";
 import { intakeStatus,intakeColumnIncomplete,nutrientKey,supplementIntake } from "@/lib/supplement-intake";
@@ -39,7 +40,7 @@ export function SupplementIntakeTable({journal,app,onSaveProduct,onEditProduct,b
     {notice&&<p role="status">{notice}</p>}
     {rows.length>0?<div className={styles.scroll} role="region" aria-label="제품별 영양소 섭취량" tabIndex={0}>
       <table>
-        <thead><tr><th scope="col">영양제</th>{columns.length?columns.map(column=><th key={nutrientKey(column)} scope="col">{column.name}<small>{column.unit}</small></th>):<th scope="col">성분표</th>}</tr></thead>
+        <thead><tr><th scope="col">영양제</th>{columns.length?columns.map(column=><th key={nutrientKey(column)} scope="col">{nutrientDisplayName(column.name)}<small>{column.unit}</small></th>):<th scope="col">성분표</th>}</tr></thead>
         <tbody>
           <tr><th scope="row">1일 확인 합계</th>{columns.length?columns.map(column=>{
             const key=nutrientKey(column),value=totals[key],status=intakeStatus(column,value,intakeColumnIncomplete(rows,column));
@@ -50,6 +51,7 @@ export function SupplementIntakeTable({journal,app,onSaveProduct,onEditProduct,b
           {rows.map(row=><tr key={row.id}>
             <th scope="row">{row.name}<small>{row.occurrences}회{row.missing?" · 확인 필요":""}</small>{mode==="plan"&&row.unconfirmed&&onSaveProduct&&(()=>{
               const product=journal.products.find(p=>p.id===row.id);if(!product)return null;
+              if(row.uncertainKeys.length)return <button type="button" className="text-link" disabled={busy||!onEditProduct} onClick={()=>onEditProduct?.(row.id)}>중복 성분 확인</button>;
               if(!drafts[row.id])return <button type="button" className="text-link" disabled={busy} aria-label={`${row.name} 영양소 수정`} onClick={()=>{setNotice("");change(row.id,{values:{}});}}>수정</button>;
               return <div className={styles.editor}><small>직접 입력 · {product.label?.servingSize??1}{product.label?.servingUnit??drafts[row.id]?.unit??"정"}당</small>
                 {!product.label&&<label>단위<select aria-label={`${row.name} 제공량 단위`} value={drafts[row.id]?.unit??"정"} disabled={busy} onChange={e=>change(row.id,{unit:e.target.value as SupplementLabel["servingUnit"]})}>{supplementServingUnits.map(unit=><option key={unit}>{unit}</option>)}</select></label>}
@@ -63,7 +65,7 @@ export function SupplementIntakeTable({journal,app,onSaveProduct,onEditProduct,b
               const product=journal.products.find(p=>p.id===row.id),fact=product?.label?.facts.find(f=>nutrientKey(f)===key);
               const editable=mode==="plan"&&onSaveProduct&&row.unconfirmed&&!!drafts[row.id]&&(!row.knownKeys.includes(key)||fact?.manual);
               if(editable)return <td key={key}><input className={styles.amountInput} type="text" inputMode="decimal" aria-label={`${row.name} ${column.name} ${column.unit} 직접 입력`} disabled={busy}
-                value={drafts[row.id]?.values[key]??(fact?.manual?String(fact.amount):"")} onChange={e=>change(row.id,{values:{...drafts[row.id]?.values,[key]:e.target.value}})}/></td>;
+                value={drafts[row.id]?.values[key]??(fact?.manual?String(normalizedNutrient(fact).amount):"")} onChange={e=>change(row.id,{values:{...drafts[row.id]?.values,[key]:e.target.value}})}/></td>;
               return <td key={key}>{amount!==undefined?`${format.format(amount)}${row.doseUnknown?" 이상":""}`:row.knownKeys.includes(key)?<button type="button" className="text-link" disabled={mode!=="plan"||!onEditProduct||busy} onClick={()=>onEditProduct?.(row.id)}>복용량 입력</button>:"-"}</td>;
             }):<td>확인 필요</td>}
           </tr>)}

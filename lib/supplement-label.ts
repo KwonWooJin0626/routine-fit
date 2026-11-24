@@ -5,6 +5,7 @@ export const supplementServingUnits=["정","캡슐","스쿱","mL","g","포","방
 const unit=z.enum(supplementFactUnits);
 const fact=z.object({name:z.string().trim().min(1).max(120),amount:z.number().finite().nonnegative().max(1e15),unit,
   dailyValuePercent:z.number().finite().nonnegative().nullable(),
+  nutrientId:z.string().max(80).optional(),rawName:z.string().max(120).optional(),
   rawAmount:z.number().finite().nonnegative().optional(),rawUnit:z.string().max(30).optional(),
   evidence:z.string().max(240).optional(),sourceIndex:z.number().int().min(0).max(4).optional(),manual:z.boolean().optional()});
 export const supplementLabelSchema=z.object({

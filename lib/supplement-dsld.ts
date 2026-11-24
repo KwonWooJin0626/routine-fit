@@ -1,3 +1,4 @@
+import { nutrientIdentity } from "./supplement-nutrients";
 import { z } from "zod";
 import { supplementLabelSchema } from "./supplement-label";
 import { labelFactName,labelFactUnit,labelServingUnit } from "./supplement-label-photo";
@@ -46,7 +47,7 @@ function toProduct(record:z.infer<typeof labelSchema>,upc?:string){
     const amount=amounts[0],unit=labelFactUnit(amount.unit);
     if(!unit||amount.quantity===null||amount.operator!=="=")return [];
     const dv=amount.dailyValueTargetGroup;
-    return [{name:labelFactName(row.name),unit,amount:amount.quantity,dailyValuePercent:dv?.length===1?dv[0].percent:null}];
+    return [{name:labelFactName(row.name),rawName:row.name,rawAmount:amount.quantity,rawUnit:amount.unit,nutrientId:nutrientIdentity(row.name),unit,amount:amount.quantity,dailyValuePercent:dv?.length===1?dv[0].percent:null}];
   });
   const servingsPerContainer=Number(record.servingsPerContainer)||undefined;
   const dailyUseText=record.statements?.filter(s=>s.type==="Suggested/Recommended/Usage/Directions").map(s=>s.notes).join("\n").slice(0,2000)||undefined;

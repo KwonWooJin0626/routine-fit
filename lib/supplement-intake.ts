@@ -1,3 +1,4 @@
+import { canonicalNutrientKey,normalizedNutrient,nutrientOrder } from "./supplement-nutrients";
 import { localDate,type AppState } from "./model";
 import { addDate } from "./planner";
 import { supplementOccurrences,type SupplementJournal } from "./supplement-journal";
@@ -5,11 +6,11 @@ import type { SupplementLabel } from "./supplement-label";
 
 type Fact=SupplementLabel["facts"][number];
 type Column=Pick<Fact,"name"|"unit">;
-type IntakeRow={id:string;name:string;amounts:Record<string,number>;missing:boolean;doseUnknown:boolean;occurrences:number;unconfirmed:boolean;knownKeys:string[]};
-export const nutrientKey=(fact:Column)=>`${fact.name}|${fact.unit}`;
+type IntakeRow={id:string;name:string;amounts:Record<string,number>;missing:boolean;doseUnknown:boolean;occurrences:number;unconfirmed:boolean;knownKeys:string[];uncertainKeys:string[]};
+export const nutrientKey=canonicalNutrientKey;
 export function intakeColumnIncomplete(rows:IntakeRow[],column:Column){
   const key=nutrientKey(column);
-  return rows.some(row=>row.knownKeys.includes(key)?row.doseUnknown:row.unconfirmed);
+  return rows.some(row=>row.uncertainKeys.includes(key)||(row.knownKeys.includes(key)?row.doseUnknown:row.unconfirmed));
 }
 
 export function servingCount(dose:string,label:SupplementLabel){
@@ -23,18 +24,22 @@ export function supplementIntake(journal:SupplementJournal,app:AppState,date:str
   const columns=new Map<string,Column>(),rows=new Map<string,IntakeRow>();
   const totals:Record<string,number>={};
   function add(id:string,name:string,dose:string,label?:SupplementLabel){
-    const row=rows.get(id)??{id,name,amounts:{},missing:false,doseUnknown:false,occurrences:0,unconfirmed:false,knownKeys:[]};
+    const row=rows.get(id)??{id,name,amounts:{},missing:false,doseUnknown:false,occurrences:0,unconfirmed:false,knownKeys:[],uncertainKeys:[]};
     rows.set(id,row);row.occurrences++;
     row.unconfirmed ||= !label||!!label.partial;
     const factor=label?servingCount(dose,label):null;
     if(!label||label.partial||factor===null)row.missing=true;
     if(factor===null)row.doseUnknown=true;
-    for(const fact of label?.facts??[]){
-      const key=nutrientKey(fact);
+    const grouped=new Map<string,Fact[]>();
+    for(const fact of label?.facts??[]){const key=nutrientKey(fact);grouped.set(key,[...(grouped.get(key)??[]),fact]);}
+    for(const [key,group] of grouped){
+      const fact=normalizedNutrient(group[0]);
+      columns.set(key,{name:fact.name,unit:fact.unit as Fact["unit"]});
+      // Two aliases inside one label may describe the same row twice. Never double-count.
+      if(group.length>1){row.missing=true;row.unconfirmed=true;if(!row.uncertainKeys.includes(key))row.uncertainKeys.push(key);continue;}
       if(!row.knownKeys.includes(key))row.knownKeys.push(key);
-      columns.set(key,{name:fact.name,unit:fact.unit});
       if(factor===null)continue;
-      const amount=fact.amount*factor;
+      const amount=fact.amount!*factor;
       row.amounts[key]=(row.amounts[key]??0)+amount;
       totals[key]=(totals[key]??0)+amount;
     }
@@ -54,11 +59,11 @@ export function supplementIntake(journal:SupplementJournal,app:AppState,date:str
     }
   }
   if([...rows.values()].some(row=>row.unconfirmed)){
-    for(const key of Object.keys(dailyValues))if(!columns.has(key)){
-      const [name,unit]=key.split("|");columns.set(key,{name,unit:unit as Fact["unit"]});
+    for(const legacy of Object.keys(dailyValues)){
+      const [name,unit]=legacy.split("|"),column=normalizedNutrient({name,unit});const key=nutrientKey(column);if(!columns.has(key))columns.set(key,{name:column.name,unit:column.unit as Fact["unit"]});
     }
   }
-  return {columns:[...columns.values()],rows:[...rows.values()],totals,
+  return {columns:[...columns.values()].sort((a,b)=>nutrientOrder(a.name)-nutrientOrder(b.name)||a.unit.localeCompare(b.unit)||a.name.localeCompare(b.name)),rows:[...rows.values()],totals,
     missingCount:[...rows.values()].filter(row=>row.missing).length};
 }
 
@@ -71,10 +76,9 @@ const dailyValues:Record<string,number>={
   "칼슘|mg":1300,"철분|mg":18,"칼륨|mg":4700,"구리|mg":0.9,"인|mg":1250,"콜린|mg":550,"비타민 K|μg":120,"단백질|g":50,
 };
 export function intakeStatus(column:Column,total:number|undefined,incomplete:boolean){
-  const aliases:Record<string,string>={"비타민 d":"비타민 D3",calcium:"칼슘",iron:"철분",potassium:"칼륨",copper:"구리",phosphorus:"인",choline:"콜린",protein:"단백질"};
-  const key=nutrientKey({name:aliases[column.name.toLowerCase()]??column.name,unit:column.unit}),reference=dailyValues[key],percent=reference&&total!==undefined?total/reference*100:undefined;
+  const key=nutrientKey(column),reference=Object.entries(dailyValues).find(([legacy])=>{const [name,unit]=legacy.split("|");return nutrientKey({name,unit})===key;})?.[1],percent=reference&&total!==undefined?total/reference*100:undefined;
   // NIH vitamin D upper limit for ages 9 and older. Known amount alone can exceed it.
-  if(key==="비타민 D3|μg"&&total!==undefined&&total>100)return {level:"high",label:"⚠ 상한 기준 초과",reference,percent};
+  if(key==="vitamin_d|μg"&&total!==undefined&&total>100)return {level:"high",label:"⚠ 상한 기준 초과",reference,percent};
   if(incomplete||total===undefined)return {level:"unknown",label:"일부 미확인",reference,percent};
   if(!reference)return {level:"unknown",label:"비교 기준 없음",reference,percent};
   if(percent!<50)return {level:"verylow",label:"기준 대비 50% 미만",reference,percent};

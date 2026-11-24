@@ -1,3 +1,4 @@
+import { nutrientIdentity } from "./supplement-nutrients";
 import { iherbProductId,supplementLabelSchema,type SupplementLabel } from "./supplement-label";
 
 const servingUnits:Record<string,SupplementLabel["servingUnit"]>={
@@ -43,7 +44,7 @@ export function parseSupplementPhoto(text:string,url:string){
       omitted++;
       continue;
     }
-    facts.push({name:labelFactName(row[1]),amount:normalizedAmount(row[2]),unit:labelFactUnit(row[3]),
+    facts.push({name:labelFactName(row[1]),rawName:row[1],nutrientId:nutrientIdentity(row[1]),amount:normalizedAmount(row[2]),unit:labelFactUnit(row[3]),
       dailyValuePercent:row[4]?normalizedAmount(row[4]):null});
   }
   const label=supplementLabelSchema.safeParse({productId:iherbProductId(url)??undefined,source:"photo",

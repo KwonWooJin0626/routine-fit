@@ -1,4 +1,6 @@
 "use client";
+import { SupplementLabelOriginal } from "./supplement-label-original";
+import { nutrientDisplayName } from "@/lib/supplement-nutrients";
 import { iherbEnglishName } from "@/lib/supplement-query";
 import { useState } from "react";
 import { ArrowUpRight,Check,ChevronRight,Pill,Plus } from "lucide-react";
@@ -66,6 +68,7 @@ export function SupplementProductDialog({product,ingredient,busy,onSave,onClose}
           <thead><tr><th scope="col">성분</th><th scope="col">1회 제공량당 함량</th><th scope="col">라벨 %DV</th></tr></thead>
           <tbody>{p.label.facts.map(row=><tr key={row.name}><th scope="row">{row.name}</th><td>{row.amount} {row.unit}</td><td>{row.dailyValuePercent===null?"미설정":row.dailyValuePercent+"%"}</td></tr>)}</tbody>
         </table></div>
+        <SupplementLabelOriginal label={p.label}/>
         {iherbProductId(p.url)&&<a className="text-link" href={p.url} target="_blank" rel="noopener noreferrer">iHerb 원본 성분표 확인</a>}
         {p.label.retrievedAt&&<p className="muted">성분표 조회일 {new Date(p.label.retrievedAt).toLocaleDateString("ko-KR",{timeZone:"Asia/Seoul"})} · 등록한 정보를 보관해요.</p>}
         <p className="muted">보유한 제품의 라벨과 값이 같은지 확인해 주세요.</p>

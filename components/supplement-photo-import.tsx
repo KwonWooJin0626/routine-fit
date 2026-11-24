@@ -1,4 +1,6 @@
 "use client";
+import { SupplementLabelOriginal } from "./supplement-label-original";
+import { nutrientDisplayName } from "@/lib/supplement-nutrients";
 
 import { useEffect,useRef,useState } from "react";
 import { parseSupplementPhoto } from "@/lib/supplement-label-photo";
@@ -156,8 +158,9 @@ export function SupplementPhotoImport({url,name,onApply}:{url:string;name:string
       {result.label.dailyUseText&&<details><summary>제품 섭취 안내 원문</summary><p>{result.label.dailyUseText}</p></details>}
       <p className="muted">{result.label.partial?"함량을 확인할 수 있는 항목만 표시했어요. 제품 라벨과 대조해 주세요.":"보유한 제품 라벨의 제공량과 성분별 숫자·단위가 일치하는지 확인해 주세요."}</p>
       <div className="record-table"><table><thead><tr><th scope="col">성분</th><th scope="col">함량</th></tr></thead>
-        <tbody>{result.label.facts.map(fact=><tr key={fact.name+"|"+fact.unit}><th scope="row">{fact.name}</th><td>{fact.amount} {fact.unit}</td></tr>)}</tbody>
+        <tbody>{result.label.facts.map(fact=><tr key={fact.name+"|"+fact.unit}><th scope="row">{nutrientDisplayName(fact.name)}</th><td>{fact.amount} {fact.unit}</td></tr>)}</tbody>
       </table></div>
+      <SupplementLabelOriginal label={result.label}/>
       <button type="button" className="button secondary" onClick={()=>{
         onApply(result.label,result.name);
         setResult(null);
