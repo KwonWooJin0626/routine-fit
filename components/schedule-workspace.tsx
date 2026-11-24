@@ -1,7 +1,6 @@
 "use client";
 import type { RecommendationMemory } from "@/lib/recommendation-model";
 import { useVisibleMinute } from "./use-visible-minute";
-import { FeaturePanel } from "./feature-panel";
 import { useEffect,useRef,useState,type ReactNode } from "react";
 import { CalendarDays,ChevronLeft,ChevronRight,Plus,GripVertical,MapPin,Brain,Activity,ArrowRight,Repeat2,Clock3,Trash2,Check,Link2,Palette,Folder,HelpCircle } from "lucide-react";
 import { type AppState,type Schedule,localDate,toMinutes,toTime } from "@/lib/model";
@@ -39,7 +38,7 @@ const plannerViews={month:"월간",week:"주간",day:"하루"} as const;
 type PlannerView=keyof typeof plannerViews;
 const dateTitle=(date:string)=>new Intl.DateTimeFormat("ko-KR",{month:"long",day:"numeric",weekday:"long",timeZone:"UTC"}).format(new Date(`${date}T12:00Z`));
 
-export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRecord,onRecordTodo,onTodoChecked,recommendationMemory,nutritionGuide,dialogOpen=false,initialDate,onChecks}:{state:AppState;initialDate?:string;onChecks?:(date:string)=>void;dialogOpen?:boolean;nutritionGuide?:(date:string)=>ReactNode;recommendationMemory?:RecommendationMemory;busy:boolean;onTodoChecked?:()=>void;onRecordTodo?:(todo:PlannerTodo,date:string)=>void;onRecord?:(b:PlannerBlock,date:string,status:PlannerMark)=>Promise<void>;onSave:(p:Planner,change?:PlannerChange)=>Promise<void>;onGenerate:()=>void;onSettings:()=>void}){
+export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRecord,onRecordTodo,onTodoChecked,recommendationMemory,dialogOpen=false,initialDate,onChecks}:{state:AppState;initialDate?:string;onChecks?:(date:string)=>void;dialogOpen?:boolean;nutritionGuide?:(date:string)=>ReactNode;recommendationMemory?:RecommendationMemory;busy:boolean;onTodoChecked?:()=>void;onRecordTodo?:(todo:PlannerTodo,date:string)=>void;onRecord?:(b:PlannerBlock,date:string,status:PlannerMark)=>Promise<void>;onSave:(p:Planner,change?:PlannerChange)=>Promise<void>;onGenerate:()=>void;onSettings:()=>void}){
   const planner=state.planner??emptyPlanner(),today=localDate(),now=useVisibleMinute();
   const minute=now?(now.getUTCHours()*60+now.getUTCMinutes()+540)%1440:null;
   const [fullTime,setFullTime]=useState(false);
@@ -188,7 +187,6 @@ export function ScheduleWorkspace({state,busy,onSave,onGenerate,onSettings,onRec
       <PlannerRoutineAction selected={selected} today={today} busy={busy} onGoToday={()=>setSelected(today)} onGenerate={onGenerate} onPreview={()=>setPreviewDate(selected)}/>
       <button className="text-link" onClick={onSettings}>기상·식사·이동시간 및 기존 고정 일정 설정 <ChevronRight size={15}/></button>{state.schedule.events.length>0&&<p className="sp-legacy">기존 하루 설정의 고정 일정 {state.schedule.events.length}개도 루틴 배치 시 유지합니다. 주간 일정과 중복된다면 위 설정에서 정리해주세요.</p>}
     </section>}
-    {nutritionGuide&&<FeaturePanel title="영양 정보 · iHerb 보기" caption="일정에 맞춘 성분·제품 검색" emoji="💊" unavailable={dialogOpen||!!todoEditor||!!seed||!!editing||!!removal||!!previewDate}>{nutritionGuide(selected)}</FeaturePanel>}
     {overlapMemo&&<OverlapDialog segment={calendarSegments(planner,overlapMemo.date).find(s=>s.from===overlapMemo.segment.from&&s.until===overlapMemo.segment.until)??overlapMemo.segment} date={overlapMemo.date} today={today} planner={planner} busy={busy} onClose={()=>setOverlapMemo(null)} onEdit={(b,d)=>{setOverlapMemo(null);openBlock(b,d);}} onMark={(b,d,status)=>{setOverlapMemo(null);void mark(b,d,status);}} onCompleteTodo={completeTodo}/>}
     {showColors&&<PlannerCategoryColors planner={planner} busy={busy} onClose={()=>setShowColors(false)} onSave={async colors=>{await commit({...planner,categoryColors:colors});setUndo({planner});}}/>}
     {previewDate&&<RoutinePreviewDialog key={previewDate} recommendationMemory={recommendationMemory} state={state} date={previewDate} today={today} onClose={()=>setPreviewDate(null)}/>}
