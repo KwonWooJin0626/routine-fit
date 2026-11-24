@@ -55,13 +55,16 @@ test("개인 컨디션 범위는 이전 날짜만 참고하며 충분한 실제 
   assert.equal(morningAdvice(history,current.date),null);
 });
 
-test("포만감은 매분 5씩 감소하고 0 아래로 내려가지 않으며 식사·활동·자정을 반영한다",()=>{
-  for(const type of ["none","study","exercise","sleep"] as const){
-    const d=doc();d.records=[record(type,0,60)];
-    near(calculatePet(d,later(1)).stats.fullness,55);near(calculatePet(d,later(6)).stats.fullness,30);near(calculatePet(d,later(12)).stats.fullness,0);
-    d.records.push(record("meal",20,20,{fullness:80}));near(calculatePet(d,later(21)).stats.fullness,75);near(calculatePet(d,later(36)).stats.fullness,0);
-  }
-  const d=doc();d.records=[record("meal",895,895,{fullness:60})];near(calculatePet(d,later(901)).stats.fullness,30);
+test("포만감은 깨어 있을 때 분당 0.25, 실제 수면에는 0.1 감소한다",()=>{
+ for(const type of ["none","study","exercise","sleep"] as const){
+  const d=doc();d.records=[record(type,0,60)];const rate=type==="sleep"?.1:.25;
+  near(calculatePet(d,later(1)).stats.fullness,60-rate);
+  near(calculatePet(d,later(60)).stats.fullness,60-60*rate);
+ }
+ const d=doc();d.records=[record("sleep",0,60),record("study",60,90)];near(calculatePet(d,later(90)).stats.fullness,46.5);
+ d.records[0].cancelled=true;near(calculatePet(d,later(90)).stats.fullness,37.5);
+ d.records.push(record("meal",90,90,{fullness:80}));near(calculatePet(d,later(91)).stats.fullness,79.75);
+ near(calculatePet(d,later(500)).stats.fullness,0);
 });
 
 test("활동 없는 시간의 회복은 하루 6시간으로 제한되어 스트레스와 체력이 포화되지 않는다",()=>{
@@ -73,28 +76,28 @@ test("활동 없는 시간의 회복은 하루 6시간으로 제한되어 스트
 });
 
 test("사모예드는 상태 경계 30/80을 사용하고 가벼운 식사 30은 정상으로 조작하지 않는다",()=>{assert.equal(petBaseState(30,79),"tired");assert.equal(petBaseState(31,80),"tired");assert.equal(petBaseState(31,79),"idle");const d=doc();d.records=[record("meal",10,10,{fullness:30})];const v=calculatePet(d,later(10));assert.equal(v.stats.fullness,30);assert.equal(v.baseState,"tired");near(v.stats.stress,30-10/60*.1-1);});
-test("실제 활동과 경과 시간을 구분하여 체력·스트레스·성장을 계산한다",()=>{const d=doc();d.records=[record("exercise",0,30)];const v=calculatePet(d,later(30));near(v.stats.stamina,72);near(v.stats.stress,35);near(v.stats.fullness,0);near(v.stats.fitnessTotalXP,5);const v2=calculatePet(d,later(60));near(v2.stats.stamina,72.25);near(v2.stats.stress,34.95);near(v2.stats.fitnessTotalXP,5);});
-test("운동 XP는 한국 날짜마다 30까지, 최대 체력 성장은 현재 체력을 즉시 채우지 않는다",()=>{const d=doc();d.seed.stats.fitnessXP=45;d.records=[record("exercise",0,240)];const v=calculatePet(d,later(240));assert.equal(v.stats.maxStamina,105);assert.equal(v.stats.fitnessXP,25);assert.equal(v.stats.fitnessTotalXP,30);assert.equal(v.stats.stamina,16);assert.equal(v.changes[0].requestedFitnessXP,40);});
+test("실제 활동과 경과 시간을 구분하여 체력·스트레스·성장을 계산한다",()=>{const d=doc();d.records=[record("exercise",0,30)];const v=calculatePet(d,later(30));near(v.stats.stamina,72);near(v.stats.stress,35);near(v.stats.fullness,52.5);near(v.stats.fitnessTotalXP,6);const v2=calculatePet(d,later(60));near(v2.stats.stamina,72.25);near(v2.stats.stress,34.95);near(v2.stats.fitnessTotalXP,6);});
+test("운동 XP는 한국 날짜마다 30까지, 최대 체력 성장은 현재 체력을 즉시 채우지 않는다",()=>{const d=doc();d.seed.stats.fitnessXP=45;d.records=[record("exercise",0,240)];const v=calculatePet(d,later(240));assert.equal(v.stats.maxStamina,105);assert.equal(v.stats.fitnessXP,25);assert.equal(v.stats.fitnessTotalXP,30);assert.equal(v.stats.stamina,16);assert.equal(v.changes[0].requestedFitnessXP,30);});
 test("실제 부담을 우선 적용하고 확인된 항목만 강도를 대체한다",()=>{
   const d=doc();
   d.records=[record("exercise",0,60,{intensity:"high",burden:{planned:{mental:2,physical:5},actual:{physical:3}}})];
   const v=calculatePet(d,later(60));
   near(v.stats.stamina,64);
   near(v.stats.stress,38);
-  near(v.stats.fitnessTotalXP,10);
-  near(v.stats.fullness,0);
+  near(v.stats.fitnessTotalXP,12);
+  near(v.stats.fullness,45);
 });
-test("한국 자정 전후 운동은 서로 다른 하루 상한을 사용한다",()=>{const d=doc();d.records=[record("exercise",600,1080)];const v=calculatePet(d,later(1080));assert.equal(v.stats.fitnessTotalXP,60);});
+test("한국 자정 전후 운동은 서로 다른 하루 상한을 사용한다",()=>{const d=doc();d.records=[record("exercise",600,1080)];const v=calculatePet(d,later(1080));assert.equal(v.stats.fitnessTotalXP,48);});
 test("실제 수면 회복은 하루 9시간까지만 적용하며 포만감 감소는 계속된다",()=>{const d=doc();d.seed.stats.stamina=0;d.seed.stats.stress=100;d.records=[record("sleep",0,600)];const v=calculatePet(d,later(600));assert.equal(v.stats.stamina,72);assert.equal(v.stats.stress,64);near(v.stats.fullness,0);});
 test("24시간 미기록 이후 자동 변화가 멈추고 새로고침으로 다시 시작하지 않는다",()=>{const d=doc();const a=calculatePet(d,later(1440)),b=calculatePet(d,later(4000));assert.deepEqual(a.stats,b.stats);assert.equal(b.pausedByGap,true);});
-test("과거 식사 수정과 운동 취소는 후속 상태와 하루 XP 배분을 재계산한다",()=>{let d=doc();const a=record("exercise",0,240),b=record("exercise",300,360);d.records=[a,b];assert.equal(calculatePet(d,later(360)).stats.fitnessTotalXP,30);d=applyPetCommand(d,app(),request({action:"cancel",id:a.id}),later(360)).document;assert.equal(calculatePet(d,later(360)).stats.fitnessTotalXP,10);});
+test("과거 식사 수정과 운동 취소는 후속 상태와 하루 XP 배분을 재계산한다",()=>{let d=doc();const a=record("exercise",0,240),b=record("exercise",300,360);d.records=[a,b];assert.equal(calculatePet(d,later(360)).stats.fitnessTotalXP,30);d=applyPetCommand(d,app(),request({action:"cancel",id:a.id}),later(360)).document;assert.equal(calculatePet(d,later(360)).stats.fitnessTotalXP,12);});
 test("실제 시각 없는 계획은 보상에 반영하지 않고 겹친 수행·미래 수행은 거절한다",()=>{const d=doc();assert.equal(calculatePet(d,at).stats.fitnessTotalXP,0);const r=record("exercise",0,30);const next=command(d,r);assert.throws(()=>command(next,record("study",10,40)),/겹쳐/);assert.throws(()=>command(next,record("study",2000,2030)),/실제 시각/);});
 test("같은 요청의 중복 저장과 요청 ID 재사용을 구분한다",()=>{const input=request({action:"adopt",name:"솜이"});const next=applyPetCommand(null,app(),input,at);assert.equal(commandAlreadyApplied(next.document,input),true);assert.throws(()=>commandAlreadyApplied(next.document,{...input,command:{action:"adopt",name:"변경"}}),/요청 ID/);});
-test("같은 실제 활동에 출처만 연결하면 XP가 늘지 않는다",()=>{const d=doc(),r=record("study",0,30),next=command(d,r);const result=applyPetCommand(next,app(),request({action:"record",record:{title:"동일",type:"study",start:r.start,end:r.end,intensity:"moderate",status:"done",source:{kind:"manual",id:"second",date:"2026-10-30"},linkTo:next.records[0].id}}),later(30));assert.equal(result.document.records.length,1);assert.equal(result.document.records[0].sources.length,2);assert.equal(calculatePet(result.document,later(30)).stats.learningTotalXP,10);});
+test("같은 실제 활동에 출처만 연결하면 XP가 늘지 않는다",()=>{const d=doc(),r=record("study",0,30),next=command(d,r);const result=applyPetCommand(next,app(),request({action:"record",record:{title:"동일",type:"study",start:r.start,end:r.end,intensity:"moderate",status:"done",source:{kind:"manual",id:"second",date:"2026-10-30"},linkTo:next.records[0].id}}),later(30));assert.equal(result.document.records.length,1);assert.equal(result.document.records[0].sources.length,2);assert.equal(calculatePet(result.document,later(30)).stats.learningTotalXP,5);});
 test("수면은 실제 취침·기상 시각과 정확히 일치해야 연결한다",()=>{const d=doc(),r=record("sleep",0,60);assert.throws(()=>applyPetCommand(d,app(),request({action:"record",record:{...r,source:{kind:"sleep",id:"session",date:"2026-10-30"}} as never}),later(60)),/실제 시각/);});
 test("완료·실제 시간 투영을 기존 전체 상태 PUT이 덮어쓰지 못한다",()=>{const a=app(),day=buildDay(defaultAnswers,initialCheckin(defaultAnswers),"core",defaultSchedule,[],undefined,"2026-10-30");a.days=[day];const r=record("rest",0,30),source={kind:"routine" as const,id:day.routines[0].id,date:day.date};const result=applyPetCommand(doc(),a,request({action:"record",record:{title:r.title,type:r.type,start:r.start,end:r.end,intensity:"moderate",source,status:"done"}}),later(30));assert.equal(result.app.days[0].statuses[source.id],"done");assert.equal(result.app.days[0].activityFeedback?.[source.id]?.actualMinutes,30);assert.equal(stateSchema.safeParse(result.app).success,true,JSON.stringify(stateSchema.safeParse(result.app)));const stale=structuredClone(result.app);delete stale.days[0].statuses[source.id];assert.equal(protectsPetRecords(result.app,stale,result.document),false);});
 test("90일 상세 보관을 요약해도 최종 계산 결과는 유지된다",()=>{const d=doc();d.records=[record("study",0,60),record("meal",90,90,{fullness:60})];const now=later(92*1440),expected=calculatePet(d,now),compacted=compactPet(d,now);assert.equal(compacted.records.length,0);assert.equal(compacted.archivedCount,2);assert.deepEqual(calculatePet(compacted,now).stats,expected.stats);});
-test("이름·보이기·동작 설정 변경은 성장 기록을 초기화하지 않는다",()=>{const d=doc();d.records=[record("growth",0,30)];const out=applyPetCommand(d,app(),request({action:"settings",name:"눈송이",visible:false,reducedMotion:true}),later(30));assert.equal(out.document.records.length,1);assert.equal(calculatePet(out.document,later(30)).stats.learningTotalXP,8);});
+test("이름·보이기·동작 설정 변경은 성장 기록을 초기화하지 않는다",()=>{const d=doc();d.records=[record("growth",0,30)];const out=applyPetCommand(d,app(),request({action:"settings",name:"눈송이",visible:false,reducedMotion:true}),later(30));assert.equal(out.document.records.length,1);assert.equal(calculatePet(out.document,later(30)).stats.learningTotalXP,4);});
 test("인증·출처·입력 검증을 통과하기 전 저장소에 접근하지 않는다",async()=>{let calls=0;const repo={get:async()=>{calls++;return {document:null,view:null,revision:0,appRevision:1};},mutate:async()=>{calls++;return {document:null,view:null,revision:0,appRevision:1};}};const anonymous=createPetHandlers(async()=>null,repo);assert.equal((await anonymous.GET()).status,401);const h=createPetHandlers(async()=>"user",repo),url="https://routine.test/api/pet";assert.equal((await h.POST(new Request(url,{method:"POST",headers:{Origin:"https://bad.test"},body:"{}"}))).status,403);assert.equal((await h.POST(new Request(url,{method:"POST",headers:{Origin:"https://routine.test"},body:"{}"}))).status,400);assert.equal(calls,0);});
 test("초기 화면에서 빨간 스카프 사모예드를 발견하고 선택할 수 있다",()=>{const html=renderToStaticMarkup(<PetHome pet={null} busy={false} error="" loading={false} onCommand={async()=>{}} onRecord={()=>{}} onCheckin={()=>{}} onSettings={()=>{}}/>);assert.match(html,/사모예드와 함께 시작/);assert.match(html,/poster-idle.png/);assert.match(html,/빨간 스카프/);});
 
@@ -166,6 +169,14 @@ test("제안 피드백은 계정 상태에서 왕복하며 한 날짜 중복 반
   assert.equal(saved.app.planner?.todos?.[0].status,"done");near(calculatePet(saved.document,later(30)).stats.stress,37);near(calculatePet(saved.document,later(30)).stats.stamina,76.4);
   const cancelled=applyPetCommand(saved.document,saved.app,request({action:"cancel",id:saved.document.records[0].id}),later(30));assert.equal(cancelled.app.planner?.todos?.[0].status,"open");near(calculatePet(cancelled.document,later(30)).stats.stress,29.95);
   state.planner!.blocks=[plannerBlockSchema.parse({id:"linked",title:"연결 과제",category:"task",kind:"once",date:"2026-10-30",start:"09:00",end:"09:30",weekdays:[],todoId:"todo",location:"",task:"",mental:3,physical:3,shade:1})];
-  const linked=applyPetCommand(doc(),state,request({action:"record",record:input}),later(30));assert.equal(linked.document.records.length,1);assert.equal(linked.document.records[0].sources.length,2);assert.equal(linked.app.planner?.records?.[0].status,"done");near(calculatePet(linked.document,later(30)).stats.learningTotalXP,10);
+  const linked=applyPetCommand(doc(),state,request({action:"record",record:input}),later(30));assert.equal(linked.document.records.length,1);assert.equal(linked.document.records[0].sources.length,2);assert.equal(linked.app.planner?.records?.[0].status,"done");near(calculatePet(linked.document,later(30)).stats.learningTotalXP,6);
 
  });
+
+test("반짝 지혜와 튼튼 파워는 활동·실제 시간으로 성장하고 부담 강도로 XP를 부풀리지 않는다",()=>{
+ for(const [type,extra,learning,fitness] of [["study",{},5,0],["study",{growthKind:"task"},6,0],["leisure",{growthKind:"reading"},4,0],["work",{},4,0],["work",{burden:{actual:{physical:3}}},4,3],["exercise",{growthKind:"walk"},0,2],["exercise",{growthKind:"cardio"},0,5],["exercise",{},0,6]] as const){
+  const d=doc();d.records=[record(type,0,30,extra)];const stats=calculatePet(d,later(30)).stats;near(stats.learningTotalXP,learning);near(stats.fitnessTotalXP,fitness);
+ }
+ const d=doc();d.records=[record("study",0,120)];near(calculatePet(d,later(120)).stats.learningTotalXP,15);
+ const before=calculatePet(d,later(120));d.records[0].cancelled=true;near(calculatePet(d,later(120)).stats.learningTotalXP,0);assert.equal(before.stats.learningTotalXP,15);
+});

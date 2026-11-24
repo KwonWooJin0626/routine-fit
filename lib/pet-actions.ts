@@ -116,7 +116,12 @@ export function applyPetCommand(old:PetDocument|null,app:AppState,input:PetReque
         const planned=oldRecord?oldRecord.burden?.planned:mental!==undefined||physical!==undefined?{mental,physical}:undefined;
         const actual=v.burden?.actual??oldRecord?.burden?.actual;
         const burden=planned||actual?{planned,actual}:undefined;
-        const record:PetExecution={id:oldRecord?.id??input.key,title:v.title,type:v.type,start:v.start,end:v.end,intensity:v.intensity,burden,fullness:v.type==="meal"?v.fullness:undefined,breaks:v.breaks,status:v.status,sources:oldRecord?.sources??sources,cancelled:false,feeling:oldRecord?.feeling??"same",updatedAt:at};
+        const routineSource=sources.find(s=>s.kind==="routine");
+        const routine=app.days.find(d=>d.date===routineSource?.date)?.routines.find(r=>r.id===routineSource?.id);
+        const growthKind:PetExecution["growthKind"]=v.type==="study"&&(block?.category==="task"||todo?.category==="task")?"task":
+          (v.type==="leisure"||v.type==="growth"||v.type==="study")&&routine?.activity?.domain==="reading"?"reading":v.type==="exercise"&&/산책|걷기|walk/i.test(v.title)?"walk":
+          v.type==="exercise"&&/유산소|달리기|러닝|자전거|수영|cardio|running/i.test(v.title)?"cardio":undefined;
+        const record:PetExecution={growthKind,id:oldRecord?.id??input.key,title:v.title,type:v.type,start:v.start,end:v.end,intensity:v.intensity,burden,fullness:v.type==="meal"?v.fullness:undefined,breaks:v.breaks,status:v.status,sources:oldRecord?.sources??sources,cancelled:false,feeling:oldRecord?.feeling??"same",updatedAt:at};
         doc.records=doc.records.filter(r=>r.id!==record.id);doc.records.push(record);changedId=record.id;
       }
     }

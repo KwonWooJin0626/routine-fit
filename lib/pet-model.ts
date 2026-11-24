@@ -3,7 +3,8 @@ import { z } from "zod";
 export const effectTypes=["study","work","exercise","growth","social","sleep","rest","leisure","none","meal"] as const;
 export const effectLabels:Record<EffectType,string>={study:"학업·공부",work:"업무",exercise:"운동",growth:"자기계발",social:"교류",sleep:"수면",rest:"휴식",leisure:"여가",none:"준비·생활 기록",meal:"식사"};
 export type EffectType=typeof effectTypes[number];
-export const PET_FULLNESS_DECAY_PER_MINUTE=5;
+export const PET_FULLNESS_DECAY_PER_MINUTE=.25;
+export const PET_SLEEP_FULLNESS_DECAY_PER_MINUTE=.1;
 export const PET_FULLNESS_DECAY_PER_HOUR=PET_FULLNESS_DECAY_PER_MINUTE*60;
 export const PET_IDLE_STAMINA_PER_HOUR=.5;
 export const PET_IDLE_STRESS_PER_HOUR=.1;
@@ -22,7 +23,7 @@ export const executionInputSchema=z.object({
   source:petSourceSchema,status:z.enum(["done","partial"]).default("done"),linkTo:z.string().max(100).optional(),
 }).strict();
 export type ExecutionInput=z.infer<typeof executionInputSchema>;
-export type PetExecution=Omit<ExecutionInput,"source"|"linkTo">&{id:string;sources:PetSource[];cancelled:boolean;cancelledStatus?:"skipped";feeling:"fresh"|"same"|"tired";updatedAt:string};
+export type PetExecution=Omit<ExecutionInput,"source"|"linkTo">&{growthKind?:"task"|"reading"|"walk"|"cardio";id:string;sources:PetSource[];cancelled:boolean;cancelledStatus?:"skipped";feeling:"fresh"|"same"|"tired";updatedAt:string};
 export type PetStats={stamina:number;maxStamina:number;stress:number;fullness:number;fitnessXP:number;fitnessTotalXP:number;learningXP:number;learningTotalXP:number;learningLevel:number};
 export const initialPetStats=():PetStats=>({stamina:80,maxStamina:100,stress:30,fullness:60,fitnessXP:0,fitnessTotalXP:0,learningXP:0,learningTotalXP:0,learningLevel:1});
 export type PetSeed={at:string;lastEvidenceAt:string;stats:PetStats};

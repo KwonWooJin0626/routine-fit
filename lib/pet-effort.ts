@@ -31,8 +31,8 @@ export function petCompletionMessage(command:PetCommand,result:PetResult){
   if(command.record.linkTo)return "같은 실제 활동으로 연결했어요. 시간과 성장은 한 번만 반영해요.";
   const record=result.document?.records.find(r=>r.sources.some(s=>s.kind===command.record.source.kind&&s.id===command.record.source.id&&s.date===command.record.source.date)&&!r.cancelled);
   const effect=result.view?.changes.find(e=>e.id===record?.id),rewards=[];
-  if(effect?.fitnessXP)rewards.push(`운동 +${Math.round(effect.fitnessXP*10)/10} XP`);
-  if(effect?.learningXP)rewards.push(`학습 +${Math.round(effect.learningXP*10)/10} XP`);
+  if(effect?.fitnessXP)rewards.push(`튼튼 파워 +${Math.round(effect.fitnessXP*10)/10} XP`);
+  if(effect?.learningXP)rewards.push(`반짝 지혜 +${Math.round(effect.learningXP*10)/10} XP`);
   if(effect&&effect.stamina!==0)rewards.push(`체력 ${effect.stamina>0?"+":""}${Math.round(effect.stamina*10)/10}`);
   if(effect&&effect.stress!==0)rewards.push(`스트레스 ${effect.stress>0?"+":""}${Math.round(effect.stress*10)/10}`);
   if(command.record.type==="meal")rewards.push(`포만감 ${command.record.fullness}로 기록`);

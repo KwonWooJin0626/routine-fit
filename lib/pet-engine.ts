@@ -1,9 +1,19 @@
 import { localDate } from "./model";
-import { initialPetStats,PET_FULLNESS_DECAY_PER_HOUR,PET_IDLE_STAMINA_PER_HOUR,PET_IDLE_STRESS_PER_HOUR,PET_IDLE_RECOVERY_MINUTES_PER_DAY,type EffectType,type PetDocument,type PetEffect,type PetExecution,type PetStats,type PetView } from "./pet-model";
+import { initialPetStats,PET_SLEEP_FULLNESS_DECAY_PER_MINUTE,PET_FULLNESS_DECAY_PER_HOUR,PET_IDLE_STAMINA_PER_HOUR,PET_IDLE_STRESS_PER_HOUR,PET_IDLE_RECOVERY_MINUTES_PER_DAY,type EffectType,type PetDocument,type PetEffect,type PetExecution,type PetStats,type PetView } from "./pet-model";
 import { executionSegments } from "./pet-execution";
 
 const MINUTE=60000,DAY=86400000;
-export const petActivityRates:Record<EffectType,readonly [stamina:number,stress:number,learningXP:number,fitnessXP:number]>={study:[-3,5,10,0],work:[-4,8,0,0],exercise:[-8,5,0,5],growth:[-2,2,8,0],social:[-3,-3,0,0],sleep:[4,-2,0,0],rest:[4,-2,0,0],leisure:[2,-1.5,0,0],none:[0,0,0,0],meal:[0,0,0,0]};
+export const petActivityRates:Record<EffectType,readonly [stamina:number,stress:number,learningXP:number,fitnessXP:number]>={study:[-3,5,5,0],work:[-4,8,4,0],exercise:[-8,5,0,6],growth:[-2,2,4,0],social:[-3,-3,0,0],sleep:[4,-2,0,0],rest:[4,-2,0,0],leisure:[2,-1.5,0,0],none:[0,0,0,0],meal:[0,0,0,0]};
+export function petGrowthRates(r:PetExecution):[number,number]{
+  if(r.growthKind==="task")return [6,0];
+  if(r.growthKind==="reading")return [4,0];
+  if(r.growthKind==="walk")return [0,2];
+  if(r.growthKind==="cardio")return [0,5];
+  const rates=petActivityRates[r.type];
+  const physical=r.burden?.actual?.physical??r.burden?.planned?.physical;
+  // Only physically active work contributes; high mental burden never boosts XP.
+  return [rates[2],r.type==="work"&&physical!==undefined&&physical>=3?3:rates[3]];
+}
 export const petIntensityFactors={light:.75,moderate:1,high:1.25} as const;
 const clamp=(n:number,min:number,max:number)=>Math.max(min,Math.min(max,n));
 const copy=(s:PetStats):PetStats=>({...s});
@@ -22,7 +32,7 @@ export function calculatePet(doc:PetDocument,now=new Date()):PetView&{lastEviden
   for(const r of records){points.add(clamp(new Date(r.start).getTime(),begin,at));points.add(clamp(new Date(r.end).getTime(),begin,at));for(const pause of r.breaks??[]){points.add(clamp(Date.parse(pause.start),begin,at));points.add(clamp(Date.parse(pause.end),begin,at));}}
   let midnight=new Date(`${localDate(new Date(begin))}T00:00:00+09:00`).getTime()+DAY;
   while(midnight<at){points.add(midnight);midnight+=DAY;}
-  const bounds=[...points].sort((a,b)=>a-b),fitnessByDate:Record<string,number>={},sleepByDate:Record<string,number>={},idleByDate:Record<string,number>={},effects=new Map<string,PetEffect>();
+  const bounds=[...points].sort((a,b)=>a-b),fitnessByDate:Record<string,number>={},learningByDate:Record<string,number>={},growthMinutes=new Map<string,number>(),sleepByDate:Record<string,number>={},idleByDate:Record<string,number>={},effects=new Map<string,PetEffect>();
   function effect(r:PetExecution){let e=effects.get(r.id);if(!e){e={id:r.id,title:r.title,type:r.type,end:r.end,stamina:0,stress:0,fitnessXP:0,learningXP:0,requestedFitnessXP:0};effects.set(r.id,e);}return e;}
   const appliedMeals=new Set<string>(),appliedFeelings=new Set<string>();
   function instantaneous(time:number){for(const r of records){if(new Date(r.end).getTime()!==time)continue;
@@ -45,9 +55,13 @@ export function calculatePet(doc:PetDocument,now=new Date()):PetView&{lastEviden
       s.stamina=clamp(s.stamina+rate[0]*effective/30*(rate[0]<0?burdenFactor("physical"):1),0,s.maxStamina);
       s.stress=clamp(s.stress+rate[1]*effective/30*(rate[1]>0?burdenFactor("mental"):1),0,100);
       e.stamina+=s.stamina-staminaBefore;e.stress+=s.stress-stressBefore;
-      const requested=rate[3]*minutes/30,fitness=Math.min(requested,Math.max(0,30-(fitnessByDate[date]??0))),learning=rate[2]*effective/30;
+      const [learningRate,fitnessRate]=petGrowthRates(active),prior=growthMinutes.get(active.id)??0;
+      const weighted=(m:number)=>Math.min(m,60)+Math.max(0,m-60)*.5;
+      const growthTime=weighted(prior+minutes)-weighted(prior);growthMinutes.set(active.id,prior+minutes);
+      const requested=fitnessRate*growthTime/30,fitness=Math.min(requested,Math.max(0,30-(fitnessByDate[date]??0))),learning=Math.min(learningRate*growthTime/30,Math.max(0,60-(learningByDate[date]??0)));
+      learningByDate[date]=(learningByDate[date]??0)+learning;
       fitnessByDate[date]=(fitnessByDate[date]??0)+fitness;e.requestedFitnessXP+=requested;e.fitnessXP+=fitness;e.learningXP+=learning;
-      addGrowth(s,fitness,learning);s.fullness=clamp(s.fullness-minutes*PET_FULLNESS_DECAY_PER_HOUR/60,0,100);lastEvidence=until;
+      addGrowth(s,fitness,learning);s.fullness=clamp(s.fullness-minutes*(active.type==="sleep"?PET_SLEEP_FULLNESS_DECAY_PER_MINUTE:PET_FULLNESS_DECAY_PER_HOUR/60),0,100);lastEvidence=until;
     }else{
       const autoMinutes=Math.max(0,Math.min(until,lastEvidence+DAY)-from)/MINUTE;
       const recoveryMinutes=Math.min(autoMinutes,Math.max(0,PET_IDLE_RECOVERY_MINUTES_PER_DAY-(idleByDate[date]??0)));

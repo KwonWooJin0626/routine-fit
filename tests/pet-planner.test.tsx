@@ -91,7 +91,7 @@ test("일정과 연결된 루틴은 한 실제 수행만 만들고 취소·미�
   const first=complete(pet(),app,b),id=first.document.records[0].id;
   assert.equal(first.document.records[0].sources.length,2);assert.equal(first.app.days[0].statuses[day.routines[0].id],"done");
   assert.equal(first.app.days[0].activityFeedback?.[day.routines[0].id]?.actualMinutes,30);
-  near(calculatePet(first.document,now).stats.fitnessTotalXP,5);
+  near(calculatePet(first.document,now).stats.fitnessTotalXP,6);
   assert.throws(()=>complete(first.document,first.app,b),/이미 반영/);
   assert.equal(first.app.planner?.records?.some(r=>r.date==="2026-11-08"),false);
   const cancelled=apply(first.document,first.app,{action:"cancel",id,replacementStatus:"skipped"});
@@ -102,7 +102,7 @@ test("일정과 연결된 루틴은 한 실제 수행만 만들고 취소·미�
   const later=apply(cancelled.document,changed,{action:"settings",name:"솜이",visible:true,reducedMotion:false});
   assert.equal(later.app.planner?.records?.length,0);assert.equal(later.app.days[0].statuses[day.routines[0].id],undefined);
   const restored=complete(cancelled.document,cancelled.app,b);assert.equal(restored.document.records.filter(r=>!r.cancelled).length,1);
-  near(calculatePet(restored.document,now).stats.fitnessTotalXP,5);
+  near(calculatePet(restored.document,now).stats.fitnessTotalXP,6);
   const undone=apply(restored.document,restored.app,{action:"cancel",id:restored.document.records.at(-1)!.id});
   assert.equal(undone.app.planner?.records?.length,0);assert.equal(undone.app.days[0].statuses[day.routines[0].id],undefined);
 });
@@ -110,10 +110,10 @@ test("일정과 연결된 루틴은 한 실제 수행만 만들고 취소·미�
 test("쉬는 시간을 뺀 긴 일정과 그 안의 별도 활동을 중복 시간 없이 계산한다",()=>{
   const b=block({start:"09:00",end:"18:00",breakStart:"12:00",breakEnd:"13:00"}),app=state(b);
   const result=complete(pet(),app,b);near(executionMinutes(result.document.records[0]),480);
-  near(calculatePet(result.document,now).stats.learningTotalXP,160);
+  near(calculatePet(result.document,now).stats.learningTotalXP,45);
   const activity={title:"점심 산책",type:"exercise" as const,start:new Date(`${date}T12:10:00+09:00`).toISOString(),end:new Date(`${date}T12:40:00+09:00`).toISOString(),intensity:"moderate" as const,status:"done" as const,source:{kind:"manual" as const,id:randomUUID(),date}};
   const withBreakActivity=apply(result.document,result.app,{action:"record",record:activity});
-  near(calculatePet(withBreakActivity.document,now).stats.fitnessTotalXP,5);
+  near(calculatePet(withBreakActivity.document,now).stats.fitnessTotalXP,2);
   assert.throws(()=>apply(result.document,result.app,{action:"record",record:{...activity,start:new Date(`${date}T11:50:00+09:00`).toISOString()}}),/겹쳐/);
   assert.throws(()=>apply(pet(),app,{action:"record",record:{...activity,breaks:[{start:activity.start,end:activity.end}]}}),/쉬는 시간/);
 });
