@@ -59,7 +59,7 @@ export function supplementIntake(journal:SupplementJournal,app:AppState,date:str
     }
   }
   if([...rows.values()].some(row=>row.unconfirmed)){
-    for(const legacy of Object.keys(dailyValues)){
+    for(const legacy of defaultColumns){
       const [name,unit]=legacy.split("|"),column=normalizedNutrient({name,unit});const key=nutrientKey(column);if(!columns.has(key))columns.set(key,{name:column.name,unit:column.unit as Fact["unit"]});
     }
   }
@@ -67,24 +67,12 @@ export function supplementIntake(journal:SupplementJournal,app:AppState,date:str
     missingCount:[...rows.values()].filter(row=>row.missing).length};
 }
 
-// U.S. FDA label Daily Values. Keep different forms and units separate.
-const dailyValues:Record<string,number>={
-  "비타민 A|μg RAE":900,"비타민 C|mg":90,"비타민 D3|μg":20,"비타민 E|mg":15,
-  "티아민(B1)|mg":1.2,"리보플라빈(B2)|mg":1.3,"나이아신(B3)|mg NE":16,"비타민 B6|mg":1.7,
-  "엽산(B9)|μg DFE":400,"비타민 B12|μg":2.4,"비오틴(B7)|μg":30,"판토텐산(B5)|mg":5,
-  "요오드|μg":150,"마그네슘|mg":420,"아연|mg":11,"셀레늄|μg":55,"망간|mg":2.3,"크로뮴|μg":35,"몰리브데넘|μg":45,
-  "칼슘|mg":1300,"철분|mg":18,"칼륨|mg":4700,"구리|mg":0.9,"인|mg":1250,"콜린|mg":550,"비타민 K|μg":120,"단백질|g":50,
-};
-export function intakeStatus(column:Column,total:number|undefined,incomplete:boolean){
-  const key=nutrientKey(column),reference=Object.entries(dailyValues).find(([legacy])=>{const [name,unit]=legacy.split("|");return nutrientKey({name,unit})===key;})?.[1],percent=reference&&total!==undefined?total/reference*100:undefined;
-  const status=(level:string,label:string)=>({level,label,reference,percent,incomplete});
-  // Completeness is a separate dimension: known amounts still have a DV color.
-  if(key==="vitamin_d|μg"&&total!==undefined&&total>100)return status("high","⚠ 상한 기준 초과");
-  if(total===undefined)return status("unknown","확인된 양 없음");
-  if(!reference)return status("unknown","비교 기준 없음");
-  if(percent!<50)return status("verylow","기준 대비 50% 미만");
-  if(percent!<70)return status("low","기준 대비 50~70%");
-  if(percent!<90)return status("within","기준 대비 70~90%");
-  if(percent!<95)return status("near","기준에 근접");
-  return status("above","기준 대비 95% 이상");
-}
+// Fallback column vocabulary only. Numeric DV data is not used for comparison.
+const defaultColumns=[
+  "비타민 A|μg RAE","비타민 C|mg","비타민 D|μg","비타민 E|mg",
+  "비타민 B1|mg","비타민 B2|mg","비타민 B3|mg NE","비타민 B6|mg",
+  "엽산|μg DFE","비타민 B12|μg","비오틴|μg","판토텐산|mg",
+  "요오드|μg","마그네슘|mg","아연|mg","셀레늄|μg","망간|mg","크로뮴|μg","몰리브데넘|μg",
+  "칼슘|mg","철분|mg","칼륨|mg","구리|mg","인|mg","콜린|mg","비타민 K|μg","단백질|g",
+];
+export { upperIntakeStatus as intakeStatus } from "./supplement-upper-limits";

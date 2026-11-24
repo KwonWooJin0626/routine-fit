@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const supplementFactUnits=["g","mg","μg","μg RAE","μg DFE","mg NE","IU","CFU","kcal"] as const;
+export const supplementFactUnits=["g","mg","μg","μg RAE","μg DFE","mg NE","mg α-TE","IU","CFU","kcal"] as const;
 export const supplementServingUnits=["정","캡슐","스쿱","mL","g","포","방울","소프트젤"] as const;
 const unit=z.enum(supplementFactUnits);
 const fact=z.object({name:z.string().trim().min(1).max(120),amount:z.number().finite().nonnegative().max(1e15),unit,

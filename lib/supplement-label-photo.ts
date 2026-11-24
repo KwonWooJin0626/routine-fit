@@ -6,7 +6,7 @@ const servingUnits:Record<string,SupplementLabel["servingUnit"]>={
   정:"정",캡슐:"캡슐",스쿱:"스쿱",포:"포",방울:"방울",소프트젤:"소프트젤",
 };
 const units:Record<string,SupplementLabel["facts"][number]["unit"]>={
-  g:"g",mg:"mg",mcg:"μg","μg":"μg","mcg rae":"μg RAE","μg rae":"μg RAE","mcg dfe":"μg DFE","μg dfe":"μg DFE","mg ne":"mg NE",iu:"IU",cfu:"CFU",kcal:"kcal",
+  g:"g",mg:"mg",mcg:"μg","μg":"μg","mcg rae":"μg RAE","μg rae":"μg RAE","mcg dfe":"μg DFE","μg dfe":"μg DFE","mg ne":"mg NE","mg α-te":"mg α-TE",iu:"IU",cfu:"CFU",kcal:"kcal",
 };
 const names:Record<string,string>={
   "vitamin a":"비타민 A","vitamin c":"비타민 C","vitamin d":"비타민 D","vitamin d3":"비타민 D3","vitamin e":"비타민 E",
@@ -15,7 +15,7 @@ const names:Record<string,string>={
   "pantothenic acid":"판토텐산(B5)",iodine:"요오드",magnesium:"마그네슘",zinc:"아연",
   selenium:"셀레늄",manganese:"망간",chromium:"크로뮴",molybdenum:"몰리브데넘",
 };
-const unitPattern="mcg(?: RAE| DFE)?|μg(?: RAE| DFE)?|mg(?: NE)?|g|IU|CFU|kcal";
+const unitPattern="mcg(?: RAE| DFE)?|μg(?: RAE| DFE)?|mg(?: NE| α-TE)?|g|IU|CFU|kcal";
 const amountPattern="(?:\\d{1,3}(?:,\\d{3})+|\\d+)(?:\\.\\d+)?";
 const rowPattern=new RegExp(`^(.+?)\\s+(${amountPattern})\\s*(${unitPattern})(?:\\s+(${amountPattern})\\s*%|\\s*[*†‡]+)?$`,"i");
 const servingPattern=/^(?:serving size|1회 제공량|1회 섭취량)\s*[:：]?\s*\(?(\d+(?:\.\d+)?)\s*(?:level |rounded |vegetarian )?(tablets?|caplets?|capsules?|scoops?|soft\s?gels?|packets?|sachets?|drops?|ml|g|정|캡슐|스쿱|스푼|팩|포|방울|소프트젤)(?=$|\s|[()])/i;

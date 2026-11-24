@@ -22,3 +22,10 @@
 .editor :is(input,select) { width: 100%; min-width: 0; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px; }
 
 .incomplete { margin-top: 4px; color: #6b5364; font-weight: 500; }
+
+.below { background: #eef4f8; color: #344e63; }
+.at { background: #ffe5c9; color: #824713; box-shadow: inset 0 0 0 1px #d58c3e; }
+.target { margin-block: 12px; }
+.targetFields { display: flex; flex-wrap: wrap; gap: 12px; margin-block: 12px; }
+.targetFields label { display: grid; gap: 5px; min-width: 130px; flex: 1; }
+.targetFields select { width: 100%; min-height: 42px; padding: 8px; border: 1px solid #cbd5e1; border-radius: 8px; background: white; color: #24364b; }

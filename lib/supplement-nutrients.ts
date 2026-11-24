@@ -20,6 +20,7 @@ const definitions=[
   ["calcium","칼슘","mg","Calcium"],["iron","철분","mg","Iron|철"],
   ["potassium","칼륨","mg","Potassium"],["copper","구리","mg","Copper"],
   ["phosphorus","인","mg","Phosphorus"],["choline","콜린","mg","Choline"],
+  ["fluoride","불소","mg","Fluoride|Fluorine"],
   ["vitamin_k","비타민 K","μg","Vitamin K|비타민K"],
   ["vitamin_k1","비타민 K1","μg","Vitamin K1|Phylloquinone"],
   ["vitamin_k2","비타민 K2","μg","Vitamin K2|Menaquinone"],

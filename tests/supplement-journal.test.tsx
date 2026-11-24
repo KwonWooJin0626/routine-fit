@@ -7,6 +7,7 @@ import { applySupplementCommand,emptySupplementJournal,supplementProductSchema,s
 import { createSupplementHandlers,type SupplementRepository } from "../lib/supplement-api";
 import { SupplementChecks,SupplementProductDialog } from "../components/supplement-workspace";
 import { lookupSupplementLabel,searchSupplementCatalog } from "../lib/supplement-label";
+import { upperLimit,type UpperTarget } from "../lib/supplement-upper-limits";
 import { intakeStatus,intakeColumnIncomplete,servingCount,supplementIntake } from "../lib/supplement-intake";
 import { parseSupplementPhoto } from "../lib/supplement-label-photo";
 import type { SupplementStore } from "../components/use-supplement-journal";
@@ -93,7 +94,7 @@ test("1일 섭취표는 제공량을 환산하고 계획과 실제 복용을 구
   assert.equal(planned.totals["magnesium|mg"],230);
   assert.equal(planned.missingCount,0);
   assert.equal(supplementIntake(journal,app,date,"actual").totals["magnesium|mg"],50);
-  assert.equal(intakeStatus({name:"마그네슘",unit:"mg"},30,true).level,"verylow");
+  assert.equal(intakeStatus({name:"마그네슘",unit:"mg"},30,true).level,"below");
   assert.equal(intakeStatus({name:"비타민 D3",unit:"μg"},101,false).level,"high");
 });
 test("확인된 iHerb 상품의 라벨 25개를 채우고 이름이 같은 다른 상품과 구분한다",()=>{
@@ -176,15 +177,40 @@ test("오늘 체크는 미래에 복용을 기록할 수 없고 등록·추천�
   assert.match(html,/미리보기/);assert.match(html,/disabled=""/);assert.match(html,/0\/1/);
 });
 
- test("미국 DV 비율은 경계값별 색상을 구분하고 95%를 상한 초과로 판정하지 않는다",()=>{
-  for(const [percent,level] of [[0,"verylow"],[49.9,"verylow"],[50,"low"],[69.9,"low"],[70,"within"],[89.9,"within"],[90,"near"],[94.9,"near"],[95,"above"],[100,"above"],[200,"above"]] as const){
-    const status=intakeStatus({name:"비타민 C",unit:"mg"},90*percent/100,false);assert.equal(status.level,level,String(percent));assert.ok(Math.abs(status.percent!-percent)<.00001);
+ test("KDRI 상한 비율의 경계와 DV를 구분하고 실제 B6 초과를 유지한다",()=>{
+  for(const [percent,level] of [[0,"below"],[50,"below"],[89.9,"below"],[90,"near"],[99.9,"near"],[100,"at"],[100.1,"high"],[200,"high"]] as const){
+    const status=intakeStatus({name:"비타민 C",unit:"mg"},2000*percent/100,false);assert.equal(status.level,level,String(percent));assert.ok(Math.abs(status.percent!-percent)<.00001);
   }
-  assert.equal(intakeStatus({name:"비타민 C",unit:"mg"},63,true).level,"within");
-  assert.equal(intakeStatus({name:"비타민 C",unit:"mg"},63,true).percent,70);
+  assert.equal(intakeStatus({name:"Vitamin C",unit:"g"},1.47,true).percent,73.5);
+  assert.equal(intakeStatus({name:"비타민 C",unit:"mg"},1470,false).level,"below");
+  assert.equal(intakeStatus({name:"비타민 B6",unit:"mg"},75,false).level,"high");
   assert.equal(intakeStatus({name:"Lutein",unit:"mg"},20,false).percent,undefined);
   assert.equal(intakeStatus({name:"비타민 D",unit:"μg"},101,false).level,"high");
-  assert.equal(intakeStatus({name:"Calcium",unit:"mg"},650,false).percent,50);
+  assert.equal(intakeStatus({name:"Calcium",unit:"mg"},650,false).percent,undefined);
+ });
+ test("KDRI 대상별 상한은 성별 연령 및 임신 수유의 미설정을 반영한다",()=>{
+   const male:UpperTarget={age:"19-29",sex:"male",stage:"general"},female:UpperTarget={...male,sex:"female"};
+   const ref=(name:string,t:UpperTarget)=>upperLimit({name,unit:"mg"},t).reference;
+   for(const [name,m,f] of [["칼슘",3000,2500],["콜린",3000,2500],["몰리브데넘",650,500]] as const){assert.equal(ref(name,male),m);assert.equal(ref(name,female),f);}
+   assert.equal(ref("칼슘",{...female,age:"30-49"}),2000);
+   assert.equal(ref("몰리브데넘",{...female,age:"75+"}),450);
+   assert.equal(ref("인",{...male,age:"75+"}),3000);
+   assert.equal(ref("요오드",{...female,stage:"pregnant"}),undefined);
+   assert.equal(ref("요오드",{...female,stage:"lactating"}),undefined);
+   assert.equal(ref("인",{...female,stage:"pregnant"}),3000);
+   assert.equal(ref("비타민 C",{...male,age:"15-18"}),1600);
+   assert.equal(ref("마그네슘",{...male,age:"15-18"}),330);
+   assert.equal(ref("비타민 B6",{...male,age:"15-18"}),45);
+   assert.match(upperLimit({name:"칼슘",unit:"mg"}).text,/2,000~3,000/);
+ });
+ test("KDRI 상한의 형태 단위 급원을 보호하고 상한 미설정을 0이나 DV로 대체하지 않는다",()=>{
+   for(const name of ["비타민 B1","비타민 B2","비타민 B12","비타민 K","칼륨","단백질","나트륨","크로뮴"]){const s=intakeStatus({name,unit:"mg"},999999,false);assert.equal(s.level,"unknown");assert.equal(s.reference,undefined);}
+   for(const [name,unit] of [["비타민 A","μg RAE"],["비타민 E","mg"],["엽산","μg DFE"],["비타민 B3","mg NE"],["비타민 D","IU"]])assert.equal(intakeStatus({name,unit},99999,false).percent,undefined);
+   assert.equal(intakeStatus({name:"비타민 E",unit:"mg α-TE"},540,false).level,"at");
+   assert.equal(intakeStatus({name:"Folic Acid",unit:"μg"},1001,false).level,"high");
+   assert.equal(intakeStatus({name:"Magnesium",unit:"mg"},350,false).scope,"식품 외 급원");
+   assert.equal(intakeStatus({name:"Copper",unit:"μg"},10000,false).level,"at");
+   assert.match(upperLimit({name:"비타민 B3",unit:"mg NE"}).text,/35.*850/);
  });
  test("하루 안내와 제공량을 구분하고 고정 안내만 기본값으로 적용하며 분할할 수 없는 정제를 나누지 않는다",()=>{
   assert.equal(parseDailyLabelUse("Suggested Usage: Take 1 softgel daily, with food.","소프트젤"),1);
@@ -200,7 +226,7 @@ test("오늘 체크는 미래에 복용을 기록할 수 없고 등록·추천�
   const column={name:"마그네슘",unit:"mg" as const};
   const p=product({dose:"",label:{servingSize:2,servingUnit:"소프트젤",partial:true,facts:[{name:"마그네슘",amount:250,unit:"mg",dailyValuePercent:null}]}});
   const one=supplementIntake({products:[p],records:[]},app,date,"plan");
-  assert.equal(intakeColumnIncomplete(one.rows,column),false);assert.equal(intakeStatus(column,one.totals["magnesium|mg"],intakeColumnIncomplete(one.rows,column)).level,"low");
+  assert.equal(intakeColumnIncomplete(one.rows,column),false);assert.equal(intakeStatus(column,one.totals["magnesium|mg"],intakeColumnIncomplete(one.rows,column)).level,"below");
   const two=supplementIntake({products:[p,product({id:"unknown",label:undefined})],records:[]},app,date,"plan");assert.equal(intakeColumnIncomplete(two.rows,column),true);
  });
 
@@ -246,5 +272,12 @@ test("미확인 제품이 있어도 확인된 합계의 비율 색상을 유지�
   assert.equal(intakeStatus({name:"비타민 C",unit:"mg"},undefined,true).level,"unknown");
   const known=product({id:"known",dose:"1",label:{servingSize:1,servingUnit:"정",facts:[{name:"비타민 C",unit:"mg",amount:1470,dailyValuePercent:null}]}});
   const html=renderToStaticMarkup(<SupplementIntakeTable journal={{products:[known,product({id:"unknown"})],records:[]}} app={app}/>);
-  assert.match(html,/기준 대비 95% 이상/);assert.match(html,/일부 미확인 · 최종 합계 미확정/);assert.match(html,/≥ 1,470/);
+  assert.match(html,/상한 미만 · 영양제만 비교/);assert.match(html,/일부 미확인 · 최종 합계 미확정/);assert.match(html,/≥ 1,470/);
+});
+
+test("요약표 성인 공통 상한 및 니아신 형태별 수치를 원문과 대조한다",()=>{
+  for(const [name,amount,unit] of [["비타민 A",3000,"μg RAE"],["비타민 C",2000,"mg"],["비타민 D",100,"μg"],["비타민 E",540,"mg α-TE"],["비타민 B6",50,"mg"],["Folic Acid",1000,"μg"],["마그네슘",350,"mg"],["철분",45,"mg"],["아연",35,"mg"],["구리",10,"mg"],["불소",10,"mg"],["망간",11,"mg"],["요오드",2400,"μg"],["셀레늄",400,"μg"]] as const){const limit=upperLimit({name,unit});assert.equal(limit.reference,amount,name);assert.equal(limit.unit,unit,name);}
+  assert.equal(upperLimit({name:"비타민 B3",unit:"mg NE"},{age:"15-18",sex:"all",stage:"general"}).text,"니코틴산 30 / 니코틴아미드 650 mg");
+  const maternal={age:"15-18",sex:"female",stage:"pregnant"} as const;
+  assert.match(intakeStatus({name:"비타민 B3",unit:"mg NE"},10,false,maternal).label,/개별 확인/);
 });
