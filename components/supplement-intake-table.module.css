@@ -20,3 +20,5 @@
 .editor { display: grid; gap: 6px; margin-top: 8px; font-weight: normal; }
 .editor label { display: grid; gap: 3px; font-size: 11px; }
 .editor :is(input,select) { width: 100%; min-width: 0; border: 1px solid #cbd5e1; border-radius: 6px; padding: 5px; }
+
+.incomplete { margin-top: 4px; color: #6b5364; font-weight: 500; }

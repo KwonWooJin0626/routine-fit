@@ -77,13 +77,14 @@ const dailyValues:Record<string,number>={
 };
 export function intakeStatus(column:Column,total:number|undefined,incomplete:boolean){
   const key=nutrientKey(column),reference=Object.entries(dailyValues).find(([legacy])=>{const [name,unit]=legacy.split("|");return nutrientKey({name,unit})===key;})?.[1],percent=reference&&total!==undefined?total/reference*100:undefined;
-  // NIH vitamin D upper limit for ages 9 and older. Known amount alone can exceed it.
-  if(key==="vitamin_d|μg"&&total!==undefined&&total>100)return {level:"high",label:"⚠ 상한 기준 초과",reference,percent};
-  if(incomplete||total===undefined)return {level:"unknown",label:"일부 미확인",reference,percent};
-  if(!reference)return {level:"unknown",label:"비교 기준 없음",reference,percent};
-  if(percent!<50)return {level:"verylow",label:"기준 대비 50% 미만",reference,percent};
-  if(percent!<70)return {level:"low",label:"기준 대비 50~70%",reference,percent};
-  if(percent!<90)return {level:"within",label:"기준 대비 70~90%",reference,percent};
-  if(percent!<95)return {level:"near",label:"기준에 근접",reference,percent};
-  return {level:"above",label:"기준 대비 95% 이상",reference,percent};
+  const status=(level:string,label:string)=>({level,label,reference,percent,incomplete});
+  // Completeness is a separate dimension: known amounts still have a DV color.
+  if(key==="vitamin_d|μg"&&total!==undefined&&total>100)return status("high","⚠ 상한 기준 초과");
+  if(total===undefined)return status("unknown","확인된 양 없음");
+  if(!reference)return status("unknown","비교 기준 없음");
+  if(percent!<50)return status("verylow","기준 대비 50% 미만");
+  if(percent!<70)return status("low","기준 대비 50~70%");
+  if(percent!<90)return status("within","기준 대비 70~90%");
+  if(percent!<95)return status("near","기준에 근접");
+  return status("above","기준 대비 95% 이상");
 }

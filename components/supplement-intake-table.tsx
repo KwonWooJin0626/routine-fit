@@ -35,7 +35,7 @@ export function SupplementIntakeTable({journal,app,onSaveProduct,onEditProduct,b
       <button type="button" aria-pressed={mode==="plan"} onClick={()=>{setMode("plan");setDrafts({});setNotice("");}}>복용 계획 기준</button>
       <button type="button" aria-pressed={mode==="actual"} onClick={()=>{setMode("actual");setDrafts({});setNotice("");}}>실제 복용</button>
     </div>
-    {missingCount>0&&<p className={styles.notice}>제품 {missingCount}개의 라벨 또는 복용량이 일부 확인되지 않았어요. 표에는 확인된 양만 표시해요.</p>}
+    {missingCount>0&&<p className={styles.notice}>제품 {missingCount}개의 라벨 또는 복용량이 일부 확인되지 않았어요. 표에는 확인된 양만 표시해요. 색상도 확인된 양의 기준 비율이며, 미확인 항목이 있으면 최종 합계가 달라질 수 있어요.</p>}
     <p className={styles.notice}>- : 표기 없거나 미확인인 값. 확인이 필요한 제품은 ‘수정’을 누르면 미확인 칸을 입력할 수 있어요. 입력은 제품 제공량 기준이며, 저장 후 복용량·횟수로 하루 합계를 계산해요.</p>
     {notice&&<p role="status">{notice}</p>}
     {rows.length>0?<div className={styles.scroll} role="region" aria-label="제품별 영양소 섭취량" tabIndex={0}>
@@ -45,7 +45,7 @@ export function SupplementIntakeTable({journal,app,onSaveProduct,onEditProduct,b
           <tr><th scope="row">1일 확인 합계</th>{columns.length?columns.map(column=>{
             const key=nutrientKey(column),value=totals[key],status=intakeStatus(column,value,intakeColumnIncomplete(rows,column));
             return <td key={key} className={styles[status.level]} title={status.reference?`미국 라벨 기준치 ${status.reference} ${column.unit}`:undefined}>
-              <b>{value===undefined?"—":format.format(value)}</b>{status.percent!==undefined&&<small>기준 대비 {format.format(status.percent)}%</small>}<small>{status.label}</small>
+              <b>{value===undefined?"—":`${status.incomplete?"≥ ":""}${format.format(value)}`}</b>{status.percent!==undefined&&<small>{status.incomplete?"확인된 양 기준 ":"기준 대비 "}{format.format(status.percent)}%</small>}<small>{status.label}</small>{status.incomplete&&<small className={styles.incomplete}>일부 미확인 · 최종 합계 미확정</small>}
             </td>;
           }):<td>판정 보류</td>}</tr>
           {rows.map(row=><tr key={row.id}>

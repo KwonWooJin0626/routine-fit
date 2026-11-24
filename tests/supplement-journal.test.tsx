@@ -93,7 +93,7 @@ test("1일 섭취표는 제공량을 환산하고 계획과 실제 복용을 구
   assert.equal(planned.totals["magnesium|mg"],230);
   assert.equal(planned.missingCount,0);
   assert.equal(supplementIntake(journal,app,date,"actual").totals["magnesium|mg"],50);
-  assert.equal(intakeStatus({name:"마그네슘",unit:"mg"},30,true).level,"unknown");
+  assert.equal(intakeStatus({name:"마그네슘",unit:"mg"},30,true).level,"verylow");
   assert.equal(intakeStatus({name:"비타민 D3",unit:"μg"},101,false).level,"high");
 });
 test("확인된 iHerb 상품의 라벨 25개를 채우고 이름이 같은 다른 상품과 구분한다",()=>{
@@ -180,7 +180,7 @@ test("오늘 체크는 미래에 복용을 기록할 수 없고 등록·추천�
   for(const [percent,level] of [[0,"verylow"],[49.9,"verylow"],[50,"low"],[69.9,"low"],[70,"within"],[89.9,"within"],[90,"near"],[94.9,"near"],[95,"above"],[100,"above"],[200,"above"]] as const){
     const status=intakeStatus({name:"비타민 C",unit:"mg"},90*percent/100,false);assert.equal(status.level,level,String(percent));assert.ok(Math.abs(status.percent!-percent)<.00001);
   }
-  assert.equal(intakeStatus({name:"비타민 C",unit:"mg"},63,true).level,"unknown");
+  assert.equal(intakeStatus({name:"비타민 C",unit:"mg"},63,true).level,"within");
   assert.equal(intakeStatus({name:"비타민 C",unit:"mg"},63,true).percent,70);
   assert.equal(intakeStatus({name:"Lutein",unit:"mg"},20,false).percent,undefined);
   assert.equal(intakeStatus({name:"비타민 D",unit:"μg"},101,false).level,"high");
@@ -236,4 +236,15 @@ test("과거 실제 복용의 영문·한국어 스냅샷도 통합 표시하되
   journal=applySupplementCommand(journal,{action:"record",productId:"vitamin",date,slotId:"morning",status:"taken"},app,now);
   const snapshot=structuredClone(journal.records);
   const result=supplementIntake(journal,app,date,"actual");assert.equal(result.totals["protein|g"],27);assert.equal(result.columns[0].name,"단백질");assert.deepEqual(journal.records,snapshot);
+});
+
+test("미확인 제품이 있어도 확인된 합계의 비율 색상을 유지하고 미확인 안내를 별도로 표시한다",()=>{
+  for(const amount of [0,30,54,63,81,86,1470]){
+    const partial=intakeStatus({name:"비타민 C",unit:"mg"},amount,true),complete=intakeStatus({name:"비타민 C",unit:"mg"},amount,false);
+    assert.equal(partial.level,complete.level);assert.equal(partial.incomplete,true);assert.equal(partial.percent,complete.percent);
+  }
+  assert.equal(intakeStatus({name:"비타민 C",unit:"mg"},undefined,true).level,"unknown");
+  const known=product({id:"known",dose:"1",label:{servingSize:1,servingUnit:"정",facts:[{name:"비타민 C",unit:"mg",amount:1470,dailyValuePercent:null}]}});
+  const html=renderToStaticMarkup(<SupplementIntakeTable journal={{products:[known,product({id:"unknown"})],records:[]}} app={app}/>);
+  assert.match(html,/기준 대비 95% 이상/);assert.match(html,/일부 미확인 · 최종 합계 미확정/);assert.match(html,/≥ 1,470/);
 });
