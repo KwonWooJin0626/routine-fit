@@ -18,7 +18,7 @@ const app:AppState={version:1,consentAt:now.toISOString(),consentVersion:"2026-1
 const product=(patch:Partial<SupplementProduct>={})=>supplementProductSchema.parse({id:"vitamin",name:"등록 제품",dose:"1캡슐",startDate:"2026-11-01",weekdays:[0,1,2,3,4,5,6],slots:[{id:"morning",anchor:"fixed",time:"09:00",offset:0}],...patch});
 const registered=()=>applySupplementCommand(emptySupplementJournal(),{action:"save",product:product()},app,now);
 
-test("확인한 성분표는 표시량을 기본 적용하고 미표기와 미확인 빈 입력칸을 구분한다",()=>{
+test("확인한 성분표는 표시량을 기본 적용하고 조회 모드에서 미표기·미확인을 대시로 표시한다",()=>{
   const known=product({id:"known",name:"조회 성공",dose:"",label:{servingSize:1,servingUnit:"정",facts:[{name:"비타민 C",amount:100,unit:"mg",dailyValuePercent:null}]}});
   const unknown=product({id:"unknown",name:"조회 실패",label:undefined});
   const journal={products:[known,unknown],records:[]};
@@ -27,7 +27,9 @@ test("확인한 성분표는 표시량을 기본 적용하고 미표기와 미�
   assert.equal(result.rows[1].unconfirmed,true);assert.ok(result.columns.some(c=>c.name==="비타민 A"));
   const html=renderToStaticMarkup(<SupplementIntakeTable journal={journal} app={app} onSaveProduct={async()=>{}} onEditProduct={()=>{}}/>);
   assert.match(html,/<td[^>]*>-<\/td>/);
-  assert.match(html,/aria-label="조회 실패 비타민 C mg 직접 입력"[^>]*value=""/);
+  assert.match(html,/aria-label="조회 실패 영양소 수정"/);
+  assert.doesNotMatch(html,/직접 입력"[^>]*value=""/);
+  assert.doesNotMatch(html,/>입력 저장<|>계산용 개수 변경</);
   assert.doesNotMatch(html,/aria-label="조회 성공 비타민 A/);
 });
 
