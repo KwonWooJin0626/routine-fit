@@ -7,7 +7,7 @@ import { applySupplementCommand,emptySupplementJournal,supplementProductSchema,s
 import { createSupplementHandlers,type SupplementRepository } from "../lib/supplement-api";
 import { SupplementChecks,SupplementProductDialog } from "../components/supplement-workspace";
 import { lookupSupplementLabel,searchSupplementCatalog } from "../lib/supplement-label";
-import { upperLimit,type UpperTarget } from "../lib/supplement-upper-limits";
+import { bilateralUpperStatus,usUpperStatus,upperLimit,type UpperTarget } from "../lib/supplement-upper-limits";
 import { intakeStatus,intakeColumnIncomplete,servingCount,supplementIntake } from "../lib/supplement-intake";
 import { parseSupplementPhoto } from "../lib/supplement-label-photo";
 import type { SupplementStore } from "../components/use-supplement-journal";
@@ -272,7 +272,7 @@ test("미확인 제품이 있어도 확인된 합계의 비율 색상을 유지�
   assert.equal(intakeStatus({name:"비타민 C",unit:"mg"},undefined,true).level,"unknown");
   const known=product({id:"known",dose:"1",label:{servingSize:1,servingUnit:"정",facts:[{name:"비타민 C",unit:"mg",amount:1470,dailyValuePercent:null}]}});
   const html=renderToStaticMarkup(<SupplementIntakeTable journal={{products:[known,product({id:"unknown"})],records:[]}} app={app}/>);
-  assert.match(html,/상한 미만 · 영양제만 비교/);assert.match(html,/일부 미확인 · 최종 합계 미확정/);assert.match(html,/≥ 1,470/);
+  assert.match(html,/한국 상한 미만 · 미국 상한 미만/);assert.match(html,/일부 미확인 · 최종 합계 미확정/);assert.match(html,/≥ 1,470/);
 });
 
 test("요약표 성인 공통 상한 및 니아신 형태별 수치를 원문과 대조한다",()=>{
@@ -280,4 +280,13 @@ test("요약표 성인 공통 상한 및 니아신 형태별 수치를 원문과
   assert.equal(upperLimit({name:"비타민 B3",unit:"mg NE"},{age:"15-18",sex:"all",stage:"general"}).text,"니코틴산 30 / 니코틴아미드 650 mg");
   const maternal={age:"15-18",sex:"female",stage:"pregnant"} as const;
   assert.match(intakeStatus({name:"비타민 B3",unit:"mg NE"},10,false,maternal).label,/개별 확인/);
+});
+
+test("한미 상한 판정을 독립 표시하고 한국 경고 색상을 유지한다",()=>{
+ const b6=bilateralUpperStatus({name:"Vitamin B6",unit:"mg"},75,false);
+ assert.equal(b6.label,"한국 상한 초과 · 미국 상한 미만");assert.equal(b6.level,"high");
+ assert.equal(bilateralUpperStatus({name:"Iodine",unit:"μg"},1500,false).label,"한국 상한 미만 · 미국 상한 초과");
+ assert.equal(bilateralUpperStatus({name:"Vitamin C",unit:"mg"},2000,false).label,"한국 상한 도달 · 미국 상한 도달");
+ assert.equal(usUpperStatus({name:"Vitamin B6",unit:"mg"},75,{age:"15-18",sex:"all",stage:"general"}).label,"미국 연령별 기준 확인 필요");
+ assert.equal(usUpperStatus({name:"Vitamin D",unit:"IU"},4000).label,"미국 단위 확인 필요");
 });

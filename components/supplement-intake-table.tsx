@@ -1,9 +1,9 @@
 "use client";
 import { nutrientDisplayName,normalizedNutrient } from "@/lib/supplement-nutrients";
-import { defaultUpperTarget,kdriSource,upperAgeGroups,type UpperTarget } from "@/lib/supplement-upper-limits";
+import { bilateralUpperStatus,usUpperSource,defaultUpperTarget,kdriSource,upperAgeGroups,type UpperTarget } from "@/lib/supplement-upper-limits";
 import { useState } from "react";
 import { localDate,type AppState } from "@/lib/model";
-import { intakeStatus,intakeColumnIncomplete,nutrientKey,supplementIntake } from "@/lib/supplement-intake";
+import { intakeColumnIncomplete,nutrientKey,supplementIntake } from "@/lib/supplement-intake";
 import type { SupplementJournal,SupplementProduct } from "@/lib/supplement-journal";
 import { supplementServingUnits,type SupplementLabel } from "@/lib/supplement-label";
 import { updateManualSupplementLabel } from "@/lib/supplement-manual-label";
@@ -30,7 +30,7 @@ export function SupplementIntakeTable({journal,app,onSaveProduct,onEditProduct,b
   const {columns,rows,totals,missingCount}=supplementIntake(journal,app,date,mode);
   return <section className={`panel ${styles.panel}`} aria-labelledby="intake-table-title">
     <header className={styles.header}>
-      <div><h2 id="intake-table-title">1일 영양소 섭취표</h2><p>2025 KDRI 상한섭취량 대비 · 영양제에서 확인한 양 · 식사 제외</p></div>
+      <div><h2 id="intake-table-title">1일 영양소 섭취표</h2><p>한국 KDRI · 미국 FNB 상한섭취량 비교 · 영양제에서 확인한 양 · 식사 제외</p></div>
       <Input label="섭취표 날짜" type="date" value={date} onChange={value=>{if(/^\d{4}-\d{2}-\d{2}$/.test(value)){setDate(value);setDrafts({});setNotice("");}}}/>
     </header>
     <div className="space-tabs" role="group" aria-label="섭취 합계 방식">
@@ -54,9 +54,9 @@ export function SupplementIntakeTable({journal,app,onSaveProduct,onEditProduct,b
         <thead><tr><th scope="col">영양제</th>{columns.length?columns.map(column=><th key={nutrientKey(column)} scope="col">{nutrientDisplayName(column.name)}<small>{column.unit}</small></th>):<th scope="col">성분표</th>}</tr></thead>
         <tbody>
           <tr><th scope="row">1일 확인 합계</th>{columns.length?columns.map(column=>{
-            const key=nutrientKey(column),value=totals[key],status=intakeStatus(column,value,intakeColumnIncomplete(rows,column),target);
+            const key=nutrientKey(column),value=totals[key],status=bilateralUpperStatus(column,value,intakeColumnIncomplete(rows,column),target);
             return <td key={key} className={styles[status.level]} title={`${status.referenceText} · ${status.scope}`}>
-              <b>{value===undefined?"—":`${status.incomplete?"≥ ":""}${format.format(value)}`}</b>{status.percent!==undefined&&<small>{"상한 대비 "}{format.format(status.percent)}%</small>}<small>{status.reference?"상한 ":""}{status.referenceText}</small><small>{status.label}</small>{status.incomplete&&<small className={styles.incomplete}>일부 미확인 · 최종 합계 미확정</small>}
+              <b>{value===undefined?"—":`${status.incomplete?"≥ ":""}${format.format(value)}`}</b>{status.percent!==undefined&&<small>{"한국 상한 대비 "}{format.format(status.percent)}%</small>}<small>한국 {status.referenceText}</small><small>미국 {status.usReferenceText}</small><small>{status.label}</small>{status.incomplete&&<small className={styles.incomplete}>일부 미확인 · 최종 합계 미확정</small>}
             </td>;
           }):<td>판정 보류</td>}</tr>
           {rows.map(row=><tr key={row.id}>
@@ -84,12 +84,13 @@ export function SupplementIntakeTable({journal,app,onSaveProduct,onEditProduct,b
       </table>
     </div>:<p className={styles.notice}>{mode==="plan"?"이 날짜에 등록된 복용 계획이 없어요.":"이 날짜에 완료한 복용 기록이 없어요."}</p>}
     <details><summary>색상과 계산 기준</summary>
+      <p>한국·미국의 상한 판정을 각각 표시하며 색상은 한국 기준을 유지해요. 미국 성인 기준을 15~18세에 적용하지 않아요. 미국 값의 형태나 연령 범위가 확인되지 않은 항목은 판정을 보류해요.</p>
       <p>상한의 90% 미만은 중립색, 90% 이상~100% 미만은 주황색, 100%는 상한 도달, 100% 초과는 빨간색으로 표시해요. 90%는 서비스의 시각적 안내선이며 KDRI의 별도 의학적 판정선이 아니에요. 상한 초과는 검토 신호이며 독성 발생을 진단하는 의미가 아니에요.</p>
       <p>보건복지부·한국영양학회, 2025 한국인 영양소 섭취기준 요약표 xii~xviii의 상한섭취량을 사용해요. 일반 영양소는 식사 포함 기준이지만 이 표에는 영양제만 합산해요. 마그네슘은 식품 외 급원의 상한과 비교해요. 단백질·비타민 B1/B2/B12·칼륨 등 상한이 설정되지 않은 성분은 판정을 보류해요.</p>
       <p>비타민 A는 레티놀 함량, 비타민 E는 α-TE 단위, 니아신은 니코틴산·니코틴아미드 형태를 확인해야 해요. 엽산 DFE는 폴릭산 함량으로 임의 환산하지 않아요. 해당 정보가 부족하면 원래 함량과 상한은 보여주되 색상 판정을 보류해요. 임신부·수유부 요오드는 상한 미설정이며, 15~18세 임신·수유는 이 표에서 자동 비교하지 않아요.</p>
       <p>명확한 하루 섭취 안내가 있으면 등록 시 기본값으로 제시하고, 없으면 라벨 1회 제공량을 계산 기준으로 적용해요. 기준 비율을 맞추기 위해 복용 개수를 늘리지 않아요. 실제 복용 표에는 기록할 당시의 성분표와 복용량을 사용합니다.</p>
       <p>직접 입력한 값은 라벨 확인을 마친 것으로 간주하지 않아요. 미확인 항목은 평소 ‘-’로 표시하고 수정 중에만 빈칸으로 보여요. 표시가 같아도 표기 없음과 미확인은 구분하여 계산하며, 과거 실제 복용 기록은 변경하지 않아요.</p>
-      <a href={kdriSource} target="_blank" rel="noreferrer">2025 KDRI 원문·요약표 보기</a>
+      <a href={kdriSource} target="_blank" rel="noreferrer">2025 KDRI 원문·요약표 보기</a>{" · "}<a href={usUpperSource} target="_blank" rel="noreferrer">미국 FNB 상한표 보기</a>
     </details>
   </section>;
 }

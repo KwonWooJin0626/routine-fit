@@ -56,3 +56,28 @@ export function upperIntakeStatus(column:Column,total:number|undefined,incomplet
   if(base.percent>=90)return status("near","상한 근접");
   return status("below","상한 미만 · 영양제만 비교");
 }
+
+// U.S. FNB ULs: NCBI DRI summary tables and current NIH ODS fact sheets.
+// Teen age bands differ (US 14–18); until independently covered, do not infer.
+export const usUpperSource="https://www.ncbi.nlm.nih.gov/books/NBK56068/table/summarytables.t7/?report=objectonly";
+export function usUpperStatus(column:Column,total:number|undefined,target:UpperTarget=defaultUpperTarget){
+  const f=normalizedNutrient({...column,amount:total}),id=f.nutrientId;
+  const limits:Record<string,[number,string]>={vitamin_c:[2000,"mg"],vitamin_d:[100,"μg"],vitamin_b6:[100,"mg"],
+    folic_acid:[1000,"μg"],magnesium:[350,"mg"],iron:[45,"mg"],zinc:[40,"mg"],copper:[10,"mg"],fluoride:[10,"mg"],
+    manganese:[11,"mg"],iodine:[1100,"μg"],selenium:[400,"μg"],molybdenum:[2000,"μg"],choline:[3500,"mg"]};
+  let entry=limits[id];
+  if(id==="calcium"&&["19-29","30-49"].includes(target.age))entry=[2500,"mg"];
+  if(id==="calcium"&&["65-74","75+"].includes(target.age))entry=[2000,"mg"];
+  if(id==="calcium"&&target.stage!=="general"&&target.age!=="15-18")entry=[2500,"mg"];
+  const reference=entry?.[0],referenceText=entry?`${reference!.toLocaleString("ko-KR")} ${entry[1]}`:"형태·대상별 기준 확인 필요";
+  if(target.age==="15-18")return {label:"미국 연령별 기준 확인 필요",referenceText:"15~18세 자동 비교 보류"};
+  if(!entry)return {label:"미국 판정 보류",referenceText};
+  if(total===undefined)return {label:"미국 확인된 양 없음",referenceText};
+  if(f.unit!==entry[1])return {label:"미국 단위 확인 필요",referenceText};
+  return {label:`미국 상한 ${f.amount!>reference!?"초과":f.amount===reference?"도달":"미만"}`,referenceText};
+}
+export function bilateralUpperStatus(column:Column,total:number|undefined,incomplete:boolean,target:UpperTarget=defaultUpperTarget){
+  const korea=upperIntakeStatus(column,total,incomplete,target),us=usUpperStatus(column,total,target);
+  const koreanLabel=korea.percent===undefined?`한국 ${korea.label}`:`한국 상한 ${korea.percent>100?"초과":korea.percent===100?"도달":"미만"}`;
+  return {...korea,label:`${koreanLabel} · ${us.label}`,usReferenceText:us.referenceText};
+}
