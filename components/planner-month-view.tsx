@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { CalendarDays, Check, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { Dialog } from "./forms";
 import { toTime } from "@/lib/model";
 import { occurrencesInWindow } from "@/lib/planner";
 import { plannerSwatch } from "@/lib/planner-colors";
@@ -35,11 +36,12 @@ type Props={
 };
 
 export function PlannerMonthView({planner,selected,today,busy,onSelect,onDay,onAdd,onEditTodo,onToggleTodo,onEditBlock}:Props){
+  const [detail,setDetail]=useState<"day"|"unassigned"|null>(null);
   const month=selected.slice(0,7);
   const weekData=useMemo(()=>{
     const weeks=monthWeeks(month+"-01");
     const items=monthItems(planner,weeks);
-    return weeks.map(week=>({week,...weekItems(items,week)}));
+    return weeks.map(week=>({week,...weekItems(items,week,1)}));
   },[month,planner]);
   const todos=monthlyTodosForDate(planner,selected);
   const schedules=occurrencesInWindow(planner,selected);
@@ -92,14 +94,14 @@ export function PlannerMonthView({planner,selected,today,busy,onSelect,onDay,onA
   function showDay(event:MouseEvent<HTMLButtonElement>,date:string,showList=false){
     if(ignoreClick.current&&event.detail>0){ignoreClick.current=false;return;}
     onSelect(date);
-    if(showList)requestAnimationFrame(()=>dayPanel.current?.focus());
+    setDetail("day");
   }
 
   function todoRow(todo:PlannerTodo,date:string){
     return <li key={todo.id} className={todo.status==="done"?"is-done":""} style={colors(todo.category??"task")}>
       <button type="button" className="todo-check" aria-pressed={todo.status==="done"} disabled={busy||date>today}
         aria-label={`${todo.title} ${todo.status==="done"?"완료 취소":"완료"}`} onClick={()=>onToggleTodo(todo.id)}><span>{todo.status==="done"&&<Check size={14}/>}</span></button>
-      <button type="button" className="month-item-title" onClick={()=>onEditTodo(todo,date)}>
+      <button type="button" className="month-item-title" onClick={()=>{setDetail(null);onEditTodo(todo,date);}}>
         <span>{todo.important&&"★ "}{todo.title}</span>
         {todo.dueDate===date&&<small>마감</small>}
       </button>
@@ -145,17 +147,18 @@ export function PlannerMonthView({planner,selected,today,busy,onSelect,onDay,onA
           onClick={event=>showDay(event,week[index],true)}>+{count}개</button>)}
       </div>)}
     </div>
-    <section className="month-day-panel" ref={dayPanel} tabIndex={-1} aria-label={`${formatDay(selected)} 할 일과 일정`}>
-      <header><h3>{formatDay(selected)}</h3><button type="button" className="text-link" onClick={onDay}>하루 시간표 <ChevronRight size={14}/></button></header>
+    <div className="month-quick-actions"><button type="button" className="text-link" onClick={()=>setDetail("day")}>선택한 날짜 일정</button><button type="button" className="text-link" onClick={()=>setDetail("unassigned")}>날짜 미정 · {unassigned.length}개</button></div>
+    {detail&&<Dialog title={detail==="day"?formatDay(selected)+" 일정":"날짜 미정 할 일"} onClose={()=>setDetail(null)}><section hidden={detail!=="day"} className="month-day-panel" ref={dayPanel} tabIndex={-1} aria-label={`${formatDay(selected)} 할 일과 일정`}>
+      <header><h3>{formatDay(selected)}</h3><button type="button" className="text-link" onClick={()=>{setDetail(null);onDay();}}>하루 시간표 <ChevronRight size={14}/></button></header>
       {todos.length>0&&<><h4>할 일</h4><ul className="month-item-list">{todos.map(todo=>todoRow(todo,selected))}</ul></>}
       {schedules.length>0&&<><h4>시간이 정해진 일정</h4><ul className="month-item-list">{schedules.map(row=><li key={`${row.block.id}:${row.date}`} style={colors(row.block.category,row.block.shade)}>
-        <button type="button" className="month-item-title" onClick={()=>onEditBlock(row.block,row.date)}><CalendarDays size={15}/><span>{row.block.title}</span><small>{toTime(row.from)}–{row.until===1440?"24:00":toTime(row.until)}</small></button>
+        <button type="button" className="month-item-title" onClick={()=>{setDetail(null);onEditBlock(row.block,row.date);}}><CalendarDays size={15}/><span>{row.block.title}</span><small>{toTime(row.from)}–{row.until===1440?"24:00":toTime(row.until)}</small></button>
       </li>)}</ul></>}
       {!todos.length&&!schedules.length&&<p className="muted">등록된 할 일과 일정이 없어요.</p>}
     </section>
-    <section className="month-unassigned">
-      <header><h3>날짜 미정 <small>{unassigned.length}개</small></h3><button type="button" className="text-link" disabled={busy} onClick={()=>onAdd(null)}><Plus size={14}/>날짜 없이 추가</button></header>
+    <section hidden={detail!=="unassigned"} className="month-unassigned">
+      <header><h3>날짜 미정 <small>{unassigned.length}개</small></h3><button type="button" className="text-link" disabled={busy} onClick={()=>{setDetail(null);onAdd(null);}}><Plus size={14}/>날짜 없이 추가</button></header>
       {unassigned.length>0&&<ul className="month-item-list">{unassigned.map(todo=>todoRow(todo,today))}</ul>}
-    </section>
+    </section></Dialog>}
   </section>;
 }

@@ -93,3 +93,43 @@
   .rf-v2 .month-planner-header > .button svg { width: 18px; height: 18px; }
   .month-planner-header .month-add-label { display: none; }
 }
+
+/* Keep planning chrome compact; long timelines and expanded drawers retain scrolling. */
+.content[data-space="planner"] { padding-top: 12px; }
+.content[data-space="planner"] > .page-heading,
+.content[data-space="planner"] .workspace-purpose,
+.content[data-space="planner"] > .app-footer { display: none; }
+.content[data-space="planner"] .feature-action { min-height: 36px; padding: 6px 12px; }
+.content[data-space="planner"] .feature-action small,
+.content[data-space="planner"] .feature-action .feature-emoji { display: none; }
+.content[data-space="planner"] .feature-panel { margin-block: 4px; }
+.content[data-space="planner"] .sp-workspace { gap: 8px; }
+.sp-workspace[data-view="month"] .month-planner { height: calc(100dvh - 190px); min-height: 420px; display: flex; flex-direction: column; padding: 12px; margin: 0; }
+.sp-workspace[data-view="month"] .month-grid { display: grid; grid-auto-rows: minmax(60px,1fr); flex: 1; min-height: 0; }
+.sp-workspace[data-view="month"] .month-week { grid-template-rows: 24px minmax(20px,1fr) 18px; min-height: 0; }
+.sp-workspace[data-view="month"] .month-cell { grid-row: 1 / 4; }
+.sp-workspace[data-view="month"] .month-overflow { grid-row: 3; min-height: 18px; }
+.sp-workspace[data-view="month"] .month-date { min-height: 24px; padding-top: 1px; }
+.sp-workspace[data-view="month"] .month-date span { width: 23px; height: 23px; }
+.sp-workspace[data-view="month"] .month-planner-header { margin-bottom: 6px; }
+.sp-workspace[data-view="month"] .month-range-hint { display: none; }
+.sp-workspace[data-view="month"] .month-range-hint:not(:empty) { position: absolute; }
+.month-quick-actions { display: flex; justify-content: space-between; gap: 12px; margin-top: 6px; min-height: 28px; }
+.sp-library-title { display: flex; align-items: center; gap: 8px; }
+.sp-library-help { position: relative; }
+.sp-library-help > button { cursor: pointer; display: grid; place-items: center; padding: 7px; list-style: none; }
+.sp-library-help > summary::-webkit-details-marker { display:none; }
+.sp-library-help > p { display:none; position:absolute; right:0; top:100%; z-index:20; width:min(270px,70vw); background:#243448; color:white; padding:12px; border-radius:10px; box-shadow:0 6px 20px #0002; font-size:12px; }
+.sp-library-help[data-open="true"] > p,.sp-library-help:hover > p,.sp-library-help:focus-within > p { display:block; }
+.rf-v2 .sp-library { display: block; }
+.sp-drawer { border:1px solid hsl(var(--block-hue) 30% 82%); border-radius:10px; margin-top:8px; background:hsl(var(--block-hue) 45% 97%); }
+.sp-drawer > summary { display:flex; align-items:center; gap:8px; cursor:pointer; padding:12px; list-style:none; color:hsl(var(--block-hue) 40% 30%); }
+.sp-drawer > summary span { flex:1; word-break:keep-all; overflow-wrap:break-word; font-size:13px; font-weight:650; }
+.sp-drawer > summary small { white-space:nowrap; font-size:11px; }
+.sp-drawer > summary::after { content:'⌄'; }
+.sp-drawer[open] > summary::after { content:'⌃'; }
+.sp-drawer-body { padding:0 10px 10px; }
+@media(max-width:700px) { .sp-workspace[data-view="month"] .month-planner { height:calc(100dvh - 240px); min-height:400px; padding:8px; } .sp-workspace[data-view="month"] .month-chip { min-height:18px; font-size:10px; } }
+
+.content[data-space="planner"] { row-gap:8px; }
+.content[data-space="planner"] .sp-main-view { margin-bottom:0; }
