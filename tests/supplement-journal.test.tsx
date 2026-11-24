@@ -290,3 +290,13 @@ test("한미 상한 판정을 독립 표시하고 한국 경고 색상을 유지
  assert.equal(usUpperStatus({name:"Vitamin B6",unit:"mg"},75,{age:"15-18",sex:"all",stage:"general"}).label,"미국 연령별 기준 확인 필요");
  assert.equal(usUpperStatus({name:"Vitamin D",unit:"IU"},4000).label,"미국 단위 확인 필요");
 });
+
+test("상품 제거는 미래 계획에서 제외하되 복용 기록과 실제 합계 스냅샷을 유지한다",()=>{
+ let j=registered();j=applySupplementCommand(j,{action:"record",productId:"vitamin",date,slotId:"morning",status:"taken"},app,now);
+ const records=structuredClone(j.records);const removed=applySupplementCommand(j,{action:"remove",productId:"vitamin"},app,now);
+ assert.equal(removed.products.length,0);assert.deepEqual(removed.records,records);
+ assert.equal(supplementOccurrences(removed,"2026-11-10",app).length,0);
+ assert.equal(supplementOccurrences(removed,date,app)[0].record?.snapshot.name,records[0].snapshot.name);
+ const edit=renderToStaticMarkup(<SupplementProductDialog product={product()} busy={false} onSave={async()=>{}} onRemove={async()=>{}} onClose={()=>{}}/>);assert.match(edit,/상품 제거/);
+ const create=renderToStaticMarkup(<SupplementProductDialog busy={false} onSave={async()=>{}} onClose={()=>{}}/>);assert.doesNotMatch(create,/상품 제거/);
+});

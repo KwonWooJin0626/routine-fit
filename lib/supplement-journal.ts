@@ -30,6 +30,7 @@ export type SupplementJournal=z.infer<typeof supplementJournalSchema>;
 export const emptySupplementJournal=():SupplementJournal=>({products:[],records:[]});
 export const supplementCommandSchema=z.discriminatedUnion("action",[
   z.object({action:z.literal("save"),product:supplementProductSchema}),
+  z.object({action:z.literal("remove"),productId:id}),
   z.object({action:z.literal("archive"),productId:id,active:z.boolean()}),
   z.object({action:z.literal("record"),productId:id,date:plannerDateSchema,slotId:id,status:z.enum(["taken","skipped","unknown"]),actualAt:z.string().datetime().optional(),dose:z.string().trim().max(80).optional()}),
   z.object({action:z.literal("clear"),recordId:z.string().min(1).max(150)}),
@@ -66,7 +67,7 @@ export function supplementOccurrences(j:SupplementJournal,date:string,app?:AppSt
   }
   // Past facts survive renamed/paused products and removed schedule slots.
   for(const r of j.records.filter(r=>r.date===date&&!result.some(o=>o.id===r.id))){
-    const p=j.products.find(p=>p.id===r.productId);if(!p)continue;
+    const p=j.products.find(p=>p.id===r.productId)??{id:r.productId,name:r.snapshot.name,ingredients:r.snapshot.ingredients,dose:r.snapshot.plannedDose,label:r.snapshot.label,url:"",notes:"",active:false,startDate:r.date,weekdays:[0,1,2,3,4,5,6],slots:[{id:r.slotId,anchor:"fixed" as const,time:"09:00",offset:0}]};
     result.push({id:r.id,product:{...p,name:r.snapshot.name,dose:r.snapshot.plannedDose,ingredients:r.snapshot.ingredients},slot:p.slots.find(s=>s.id===r.slotId)??{id:r.slotId,anchor:"fixed",time:"09:00",offset:0},plannedAt:r.snapshot.plannedAt,record:r});
   }
   return result.sort((a,b)=>a.plannedAt.localeCompare(b.plannedAt));
@@ -76,6 +77,8 @@ export function applySupplementCommand(j:SupplementJournal,input:SupplementComma
   if(input.action==="save"){
     const product=supplementProductSchema.parse(input.product),index=next.products.findIndex(p=>p.id===product.id);
     if(index<0){if(next.products.length>=40)throw new SupplementInputError("제품은 최대 40개까지 등록할 수 있어요. 기존 제품의 내용을 수정해주세요.");next.products.push(product);}else next.products[index]=product;
+  }else if(input.action==="remove"){
+    next.products=next.products.filter(p=>p.id!==input.productId);
   }else if(input.action==="archive"){
     const p=next.products.find(p=>p.id===input.productId);if(!p)throw new SupplementInputError("등록한 제품을 찾을 수 없어요.");p.active=input.active;
   }else if(input.action==="clear")next.records=next.records.filter(r=>r.id!==input.recordId);
