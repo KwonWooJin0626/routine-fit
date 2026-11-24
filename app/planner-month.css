@@ -104,11 +104,11 @@
 .content[data-space="planner"] .feature-action .feature-emoji { display: none; }
 .content[data-space="planner"] .feature-panel { margin-block: 4px; }
 .content[data-space="planner"] .sp-workspace { gap: 8px; }
-.sp-workspace[data-view="month"] .month-planner { height: calc(100dvh - 190px); min-height: 420px; display: flex; flex-direction: column; padding: 12px; margin: 0; }
-.sp-workspace[data-view="month"] .month-grid { display: grid; grid-auto-rows: minmax(60px,1fr); flex: 1; min-height: 0; }
-.sp-workspace[data-view="month"] .month-week { grid-template-rows: 24px minmax(20px,1fr) 18px; min-height: 0; }
+.sp-workspace[data-view="month"] .month-planner { height: calc(100dvh - 250px); min-height: 400px; display: flex; flex-direction: column; padding: 12px; margin: 0; }
+.sp-workspace[data-view="month"] .month-grid { display: grid; grid-auto-rows: minmax(52px,1fr); flex: 1; min-height: 0; }
+.sp-workspace[data-view="month"] .month-week { grid-template-rows: 22px minmax(16px,1fr) 14px; min-height: 0; }
 .sp-workspace[data-view="month"] .month-cell { grid-row: 1 / 4; }
-.sp-workspace[data-view="month"] .month-overflow { grid-row: 3; min-height: 18px; }
+.sp-workspace[data-view="month"] .month-overflow { grid-row: 3; min-height: 14px; line-height:14px; }
 .sp-workspace[data-view="month"] .month-date { min-height: 24px; padding-top: 1px; }
 .sp-workspace[data-view="month"] .month-date span { width: 23px; height: 23px; }
 .sp-workspace[data-view="month"] .month-planner-header { margin-bottom: 6px; }
@@ -133,3 +133,8 @@
 
 .content[data-space="planner"] { row-gap:8px; }
 .content[data-space="planner"] .sp-main-view { margin-bottom:0; }
+
+.sp-workspace[data-view="month"] { position:relative; }
+.sp-workspace[data-view="month"] > .feature-panel { position:absolute; right:0; top:0; width:fit-content; margin:0; }
+.sp-workspace[data-view="month"] > .feature-panel .feature-action { white-space:nowrap; }
+@media(max-width:400px) { .sp-workspace[data-view="month"] > .feature-panel .feature-action { font-size:11px; padding-inline:5px; } .sp-main-view button { min-width:48px; } }
