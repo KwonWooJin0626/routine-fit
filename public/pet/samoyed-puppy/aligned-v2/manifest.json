@@ -1,0 +1,12 @@
+{
+  "version": "aligned-v2",
+  "cell": 560,
+  "columns": 5,
+  "baseline": 520,
+  "scale": 0.75,
+  "idleFrames": 5,
+  "happyFrames": 5,
+  "tiredFrames": 4,
+  "source": "User supplied Gemini images; whole-silhouette extraction, shared scale and baseline; no left inset cropping",
+  "excluded": "Last resting cell has overlaid symbol; omit it to avoid introducing that symbol into animation"
+}
