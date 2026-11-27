@@ -182,3 +182,14 @@
  .check-manual{width:100%}.check-date-notice{font-size:12px}
  .rf-v2 .sidebar .nav-item{gap:10px;font-size:14px}
 }
+
+/* Keep save controls visible while long editing forms scroll above them. */
+.dialog.save-footer-dialog { display:flex; flex-direction:column; overflow:hidden; }
+.dialog.save-footer-dialog:not([open]) { display:none; }
+.save-footer-dialog .dialog-head { flex:none; }
+.save-footer-dialog .dialog-content { overflow-y:auto; min-height:0; padding-bottom:0; }
+.save-footer-dialog :is(.dialog-actions,.pet-form-actions) { position:sticky; bottom:0; z-index:6; background:#fff; border-top:1px solid #e7ebf0; padding:12px 0 max(12px,env(safe-area-inset-bottom)); margin-bottom:0; display:flex; flex-wrap:wrap; gap:8px; }
+.save-footer-dialog :is(.dialog-actions,.pet-form-actions) .button { min-height:44px; }
+.home-todo-title,.todo-row button.todo-title { text-align:left; flex:1; min-width:0; min-height:44px; word-break:keep-all; overflow-wrap:break-word; }
+
+.save-footer-dialog .dialog-fixed-footer{flex:none;padding:0 20px;background:#fff;z-index:7}.save-footer-dialog .dialog-fixed-footer :is(.dialog-actions,.pet-form-actions){position:static;margin-top:0}.save-footer-dialog .dialog-content{flex:1 1 auto;}

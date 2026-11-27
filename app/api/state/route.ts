@@ -1,3 +1,4 @@
+import { syncTodoRecordTitles } from "@/lib/todo-title-sync";
 import { eq, and } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth";
 import { getDb } from "@/db";
@@ -27,8 +28,11 @@ const repository: StateRepository = {
       if(!old||old.revision!==expectedRevision)return null;
       const [pet]=await tx.select().from(petCompanions).where(eq(petCompanions.userId,userId));
       const before=stateSchema.parse(JSON.parse(old.payload)),after=stateSchema.parse(JSON.parse(payload));
-      if(JSON.stringify(before.activityJournal)!==JSON.stringify(after.activityJournal))return null;
+      const expected=before.activityJournal?{...before.activityJournal,records:syncTodoRecordTitles(before,after,before.activityJournal.records)}:undefined;
+      if(JSON.stringify(expected)!==JSON.stringify(after.activityJournal))return null;
+
       if(!protectsPetRecords(before,after,humanDocument(before,pet?readPetDocument(pet.payload):null)))return null;
+      if(pet){const document=readPetDocument(pet.payload),records=syncTodoRecordTitles(before,after,document.records);if(JSON.stringify(records)!==JSON.stringify(document.records))await tx.update(petCompanions).set({payload:JSON.stringify({...document,records}),revision:pet.revision+1,updatedAt}).where(eq(petCompanions.userId,userId));}
       const rows=await tx.update(userStates).set({payload,updatedAt,revision:expectedRevision+1}).where(and(eq(userStates.userId,userId),eq(userStates.revision,expectedRevision))).returning({revision:userStates.revision});
       if(rows[0])await syncStoredRecommendations(tx,userId,stateSchema.parse(JSON.parse(old.payload)),stateSchema.parse(JSON.parse(payload)),intent);
       return rows[0]?.revision??null;

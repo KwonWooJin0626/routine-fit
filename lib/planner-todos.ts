@@ -4,6 +4,7 @@ import { occursOn } from "./planner";
 export function upsertTodo(p:Planner,value:PlannerTodo):Planner{
   const todo=plannerTodoSchema.parse(value),old=p.todos?.find(t=>t.id===todo.id);
   return plannerSchema.parse({...p,todos:old?p.todos!.map(t=>t.id===todo.id?todo:t):[...(p.todos??[]),todo],
+    records:p.records?.map(r=>old&&p.blocks.some(b=>b.id===r.blockId&&b.todoId===todo.id)&&r.title===old.title?{...r,title:todo.title}:r),
     blocks:p.blocks.map(b=>b.todoId===todo.id?{...b,...(old&&b.title===old.title?{title:todo.title}:{}),...(todo.category?{category:todo.category}:{} )}:b)});
 }
 // Checking a task records completion only; planned minutes never become execution/XP.

@@ -78,6 +78,7 @@ export function commandAlreadyApplied(doc:PetDocument|null,input:PetRequest){
   return !!receipt;
 }
 export function applyPetCommand(old:PetDocument|null,app:AppState,input:PetRequest,now=new Date(),sleep:SleepRecord[]=[]):{document:PetDocument;app:AppState;reactionId?:string}{
+  app=structuredClone(app);
   const cmd=input.command,at=now.toISOString();let doc=old?compactPet(structuredClone(old),now):null,changedId:string|undefined;
   if(cmd.action==="adopt"){
     if(doc)throw new PetError("이미 함께하는 강아지가 있어요.",409);
@@ -121,7 +122,8 @@ export function applyPetCommand(old:PetDocument|null,app:AppState,input:PetReque
         const growthKind:PetExecution["growthKind"]=v.type==="study"&&(block?.category==="task"||todo?.category==="task")?"task":
           (v.type==="leisure"||v.type==="growth"||v.type==="study")&&routine?.activity?.domain==="reading"?"reading":v.type==="exercise"&&/산책|걷기|walk/i.test(v.title)?"walk":
           v.type==="exercise"&&/유산소|달리기|러닝|자전거|수영|cardio|running/i.test(v.title)?"cardio":undefined;
-        const record:PetExecution={growthKind,id:oldRecord?.id??input.key,title:v.title,type:v.type,start:v.start,end:v.end,intensity:v.intensity,burden,fullness:v.type==="meal"?v.fullness:undefined,breaks:v.breaks,status:v.status,sources:oldRecord?.sources??sources,cancelled:false,feeling:oldRecord?.feeling??"same",updatedAt:at};
+        if(todo&&v.title.length<=60){const previous=todo.title;todo.title=v.title;for(const linkedBlock of app.planner?.blocks??[])if(linkedBlock.todoId===todo.id&&linkedBlock.title===previous)linkedBlock.title=v.title;for(const entry of app.planner?.records??[])if(app.planner?.blocks.some(b=>b.id===entry.blockId&&b.todoId===todo.id)&&entry.title===previous)entry.title=v.title;}
+        const record:PetExecution={growthKind:oldRecord&&oldRecord.type===v.type?oldRecord.growthKind:growthKind,id:oldRecord?.id??input.key,title:v.title,type:v.type,start:v.start,end:v.end,intensity:v.intensity,burden,fullness:v.type==="meal"?v.fullness:undefined,breaks:v.breaks,status:v.status,sources:oldRecord?.sources??sources,cancelled:false,feeling:oldRecord?.feeling??"same",updatedAt:at};
         doc.records=doc.records.filter(r=>r.id!==record.id);doc.records.push(record);changedId=record.id;
       }
     }

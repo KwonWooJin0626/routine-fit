@@ -16,7 +16,7 @@ export function usePetCompanion(app:AppState|null,revision:number,demo:boolean,o
   const enabled=!!app;
   const reload=useCallback(async()=>{
     const c=current.current;if(!c.app)return;
-    if(c.demo){setResult(old=>old?.document?{...old,view:calculatePet(old.document)}:old);return;}
+    if(c.demo){setResult(old=>{if(!old?.document)return old;const document={...old.document,records:old.document.records.map(r=>({...r,title:c.app?.activityJournal?.records.find(a=>a.id===r.id)?.title??r.title}))};return {...old,document,view:calculatePet(document)};});return;}
     const version=generation.current;
     try{
       const response=await fetch("/api/pet",{cache:"no-store"});const data=await response.json();

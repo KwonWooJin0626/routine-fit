@@ -151,3 +151,13 @@ test("계획 첫 화면은 월간 달력이며 빠른 실제 확인과 노력 �
   const result=complete(doc,app,b),panel=renderToStaticMarkup(<PetEffortPanel pet={{...result,view:calculatePet(result.document,now),revision:1,appRevision:1}}/>);
   assert.match(panel,/오늘의 노력/);assert.match(panel,/집중/);assert.match(panel,/최근 7일/);
 });
+
+test("수행 제목만 수정하면 연결 할 일 제목도 저장하고 성장·실제 시각은 유지한다",()=>{
+ const b=block({todoId:"rename-todo"}),app=state(b);app.planner!.todos=[{id:"rename-todo",title:b.title,status:"open",todayDate:date,location:"",notes:"",checklist:[]}];
+ const first=complete(pet(),app,b),record=first.document.records[0];
+ const {id,sources,cancelled,feeling,updatedAt,growthKind,...fields}=record;
+ const edited=apply(first.document,first.app,{action:"edit",id,record:{...fields,title:"고친 할 일",source:sources[0]}});
+ assert.equal(edited.app.planner!.todos![0].title,"고친 할 일");assert.equal(edited.app.planner!.blocks[0].title,"고친 할 일");
+ assert.equal(calculatePet(first.document,now).stats.learningTotalXP,calculatePet(edited.document,now).stats.learningTotalXP);
+ assert.equal(edited.document.records[0].start,record.start);assert.equal(edited.document.records.length,1);
+});

@@ -1,4 +1,5 @@
 "use client";
+import { syncTodoRecordTitles } from "@/lib/todo-title-sync";
 import { useEffect, useState, useRef, type ReactNode } from "react";
 import { Activity, ArrowDown, ArrowRight, ArrowUpRight, Bell, CalendarDays, ChartNoAxesCombined, Check, CheckCheck, ChevronLeft, ChevronRight, CircleHelp, Clock3, Coffee, Download, Dumbbell, ExternalLink, FileText, Heart, LayoutDashboard, Leaf, LoaderCircle, LogOut, Menu, Moon, PawPrint, Plus, RefreshCw, ScanLine, Settings, ShieldCheck, Sparkles, Sun, Target, Trash2, Upload, X } from "lucide-react";
 import { changeRoutineCheck,activityTemplate } from "@/lib/check-workspace";
@@ -176,7 +177,8 @@ export default function RoutineFit({ user }: {user:{name:string;email:string}|nu
       const changed=JSON.stringify([oldEvents,scheduleContext(state.schedule,state.planner,today,c)])!==JSON.stringify([newEvents,scheduleContext(state.schedule,planner,today,c)]);
       const history=change?.edit?editSavedBlockPlans(state.days,planner,change.edit,state.schedule):change?.remove?removeSavedBlockPlans(state.days,change.remove):change?.restorePlans?restoreSavedBlockPlans(state.days,change.restorePlans,state.schedule.wake):state.days;
       const d=changed?await makeDay(state.answers,day?.checkin??initialCheckin(state.answers),day?.mode??"core",state.schedule,history,state.inbody.at(-1),true,planner):undefined;
-      await persist({...state,...(morningFeedback?{morningFeedback}:{}),planner,days:d?[...history.filter(x=>x.date!==today),d].sort((a,b)=>a.date.localeCompare(b.date)).slice(-90):history},change?.edit?"연결된 모든 일정과 보관함의 내용을 수정했어요. 실천 기록은 유지됩니다.":change?.remove?"선택한 일정에서 블록을 제거했어요. 실천 기록은 유지하고 이 화면에서 되돌릴 수 있어요.":change?.restorePlans?"일정 블록을 복원했어요. 최신 실천 기록은 유지됩니다.":changed?"계획을 저장하고 오늘의 미완료 추천 루틴을 조정했어요.":"계획표를 저장했어요.");
+      await persist({...state,...(state.activityJournal?{activityJournal:{...state.activityJournal,records:syncTodoRecordTitles(state,{...state,planner},state.activityJournal.records)}}:{}),...(morningFeedback?{morningFeedback}:{}),planner,days:d?[...history.filter(x=>x.date!==today),d].sort((a,b)=>a.date.localeCompare(b.date)).slice(-90):history},change?.edit?"연결된 모든 일정과 보관함의 내용을 수정했어요. 실천 기록은 유지됩니다.":change?.remove?"선택한 일정에서 블록을 제거했어요. 실천 기록은 유지하고 이 화면에서 되돌릴 수 있어요.":change?.restorePlans?"일정 블록을 복원했어요. 최신 실천 기록은 유지됩니다.":changed?"계획을 저장하고 오늘의 미완료 추천 루틴을 조정했어요.":"계획표를 저장했어요.");
+      if(state.planner?.todos?.some(t=>planner.todos?.some(n=>n.id===t.id&&n.title!==t.title)))await pet.reload();
     }catch(e){setError((e as Error).message);throw e;}finally{saving.current=false;setBusy(false);}
   }
   async function morningAction(proposal:MorningProposal,action:"accept"|"dismiss"){

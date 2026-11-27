@@ -13,7 +13,7 @@ export function ExecutionConfirmDialog({draft,document,companion=true,currentFul
   const old=draft.existing,[initialEnd]=useState(()=>old?.end??draft.planned?.end??draft.end??new Date().toISOString());
   const [title,setTitle]=useState(old?.title??draft.title),[type,setType]=useState<EffectType>(old?.type??draft.type),[minutes,setMinutes]=useState(String(old?Math.round(executionMinutes(old)):draft.minutes||10));
   const [initialStart]=useState(()=>old?.start??draft.start??new Date(Date.parse(initialEnd)-(draft.minutes||10)*60000).toISOString());
-  const [end,setEnd]=useState(draft.requireTime?"":koreanInput(initialEnd)),[start,setStart]=useState(koreanInput(initialStart)),[useRange,setUseRange]=useState(!!draft.fixedSleep||!!old?.breaks?.length);
+  const [end,setEnd]=useState(draft.requireTime?"":koreanInput(initialEnd)),[start,setStart]=useState(koreanInput(initialStart)),[useRange,setUseRange]=useState(!!old||!!draft.fixedSleep);
   const mealDate=old?koreanInput(old.end).slice(0,10):draft.source.date;
   const [mealTime,setMealTime]=useState(()=>draft.requireTime?"":koreanInput(initialEnd).slice(11));
   const [customMinutes,setCustomMinutes]=useState(()=>!durationPresets.includes(Number(minutes)));
@@ -21,6 +21,9 @@ export function ExecutionConfirmDialog({draft,document,companion=true,currentFul
   const [mental,setMental]=useState(String(old?.burden?.actual?.mental??""));
   const [physical,setPhysical]=useState(String(old?.burden?.actual?.physical??""));
   const burdenOptions={"":"미입력",1:"1 · 낮음",2:"2",3:"3 · 보통",4:"4",5:"5 · 높음"};
+  const snapshot=JSON.stringify({title,type,minutes,end,start,useRange,mealTime,fullness,intensity,linkTo,mental,physical});
+  const [original]=useState(snapshot),[discard,setDiscard]=useState(false);const dirty=snapshot!==original;
+  const close=()=>{if(busy)return;if(dirty)setDiscard(true);else onClose();};
   async function submit(){try{
     setError("");
     if(type==="meal"&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(mealTime))throw Error("식사 시간을 입력해주세요.");
@@ -35,13 +38,14 @@ export function ExecutionConfirmDialog({draft,document,companion=true,currentFul
     await onSave(old?{action:"edit",id:old.id,record}:{action:"record",record});onClose();
   }catch(e){setError((e as Error).message);}}
   const choices=document.records.filter(r=>!r.cancelled&&r.type===type&&r.id!==old?.id);
-  return <Dialog title={old?"실제 수행 기록 수정":"실제로 한 활동을 확인해요"} subtitle="활동과 실제 수행 시간을 확인하면 체력·스트레스에 반영돼요. 체크만 저장하면 반영되지 않아요." onClose={()=>{if(!busy)onClose();}}>
-    <div className="pet-form"><Input label="활동 이름" value={title} onChange={setTitle}/>
+  const footer=<div className="pet-form-actions"><button type="button" className="button secondary" disabled={busy} onClick={close}>취소</button><button className="button primary" disabled={busy||(!!old&&!dirty)} onClick={()=>void submit()}>{busy?"저장 중…":linkTo?"같은 활동으로 연결":old?"변경사항 저장":draft.status==="partial"?"일부 수행으로 반영":"실제 수행으로 반영"}</button>{!old&&onLater&&<button className="button secondary" disabled={busy} onClick={async()=>{try{await onLater();onClose();}catch(e){setError((e as Error).message);}}}>시간은 나중에 · 체크만 저장</button>}{old&&<button className="button danger" disabled={busy} onClick={async()=>{try{await onSave({action:"cancel",id:old.id});onClose();}catch(e){setError((e as Error).message);}}}>이 수행 기록 취소</button>}</div>;
+  return <Dialog title={old?"실제 수행 기록 수정":"실제로 한 활동을 확인해요"} subtitle="활동과 실제 수행 시간을 확인하면 체력·스트레스에 반영돼요. 체크만 저장하면 반영되지 않아요." className="save-footer-dialog execution-save-dialog" footer={footer} onClose={close}>
+    <div className="pet-form">{discard&&<p role="alert">변경사항을 버릴까요? <button type="button" className="text-link" onClick={()=>setDiscard(false)}>계속 수정</button> <button type="button" className="text-link" onClick={onClose}>변경사항 버리기</button></p>}<Input label="활동 이름" value={title} onChange={setTitle}/>
     <Select label="어떤 활동이었나요?" value={type} options={effectLabels} onChange={v=>{if(!draft.fixedSleep)setType(v as EffectType);}}/>
     {draft.fixedSleep?<p className="note">직접 확인한 수면 구간: {petTime(draft.start!)} ~ {petTime(draft.end!)}. 시각 수정은 수면 체크인에서 해주세요.</p>:<>
       {type==="meal"?<>
         <fieldset><legend>실제로 먹은 식사량</legend><div className="choice-buttons">{([[30,"가볍게 · 30"],[60,"보통 · 60"],[80,"든든하게 · 80"]] as const).map(([v,label])=><button type="button" key={v} aria-pressed={fullness===v} onClick={()=>setFullness(v)}>{label}</button>)}</div></fieldset>
-        <p className="pet-rule-note">포만감은 선택한 값으로 설정되고 분당 {PET_FULLNESS_DECAY_PER_MINUTE}씩 줄어요. 60점은 12분, 80점은 16분 뒤 0이 돼요. 30 이하이면 쉬는 표정이므로 ‘가볍게’는 잠깐 기뻐한 뒤 다시 쉬어요. 이 수치에 맞추려고 실제 식사량을 늘릴 필요는 없어요.</p>
+        <p className="pet-rule-note">포만감은 선택한 값으로 설정되고 분당 {PET_FULLNESS_DECAY_PER_MINUTE}씩 줄어요. 깨어 있는 시간 기준 60점은 4시간, 80점은 5시간 20분 뒤 0이 돼요. 30 이하이면 쉬는 표정이므로 ‘가볍게’는 잠깐 기뻐한 뒤 다시 쉬어요. 이 수치에 맞추려고 실제 식사량을 늘릴 필요는 없어요.</p>
         <Input label="실제 식사 시각 (한국 시간)" type="time" required value={mealTime} onChange={setMealTime} hint={`${mealDate} 기록`}/>
       </>:<>
         <fieldset><legend>활동한 시간</legend>
@@ -66,7 +70,7 @@ export function ExecutionConfirmDialog({draft,document,companion=true,currentFul
     {type==="leisure"&&<p className="note">독서 목적이 학습이라면 ‘학업·공부’ 또는 ‘자기계발’을 선택해주세요. 다른 활동 중 들은 음악은 별도 휴식으로 중복 반영하지 않아요.</p>}
     {!old&&choices.length>0&&<details><summary>이미 기록한 같은 활동과 연결하기</summary><p>루틴과 계획표가 같은 실제 활동이라면 한 기록으로 연결해요. 시간·성장을 중복 반영하지 않아요.</p><Select label="연결할 실제 수행" value={linkTo} options={{"":"새로운 수행 기록",...Object.fromEntries(choices.map(r=>[r.id,`${r.title} · ${petTime(r.end)}`]))}} onChange={setLinkTo}/></details>}
     {error&&<p className="form-error" role="alert">{error}</p>}
-    <div className="pet-form-actions"><button className="button primary" disabled={busy} onClick={()=>void submit()}>{busy?"저장 중…":linkTo?"같은 활동으로 연결":draft.status==="partial"?"일부 수행으로 반영":"실제 수행으로 반영"}</button>{!old&&onLater&&<button className="button secondary" disabled={busy} onClick={async()=>{try{await onLater();onClose();}catch(e){setError((e as Error).message);}}}>시간은 나중에 · 체크만 저장</button>}{old&&<button className="button danger" disabled={busy} onClick={async()=>{try{await onSave({action:"cancel",id:old.id});onClose();}catch(e){setError((e as Error).message);}}}>이 수행 기록 취소</button>}</div>
+
     {companion&&type==="meal"&&fullness&&<p className="note">현재 포만감 {currentFullness?.toFixed(1)??"—"} → 식사 시각에 {fullness}로 설정. 이후 경과 시간만큼 다시 줄어요.</p>}
     <small className="muted">{companion?"강아지와 함께 시작한 이후 구간만 성장에 반영해요.":"강아지 없이도 실제 활동 기록과 분석을 사용할 수 있어요."} 휴식이 섞였다면 수행한 구간만 나누어 기록해주세요. 수정·취소하면 이후 성장과 상태도 다시 계산해요.</small></div>
   </Dialog>;

@@ -1,3 +1,4 @@
+import { syncTodoRecordTitles } from "../lib/todo-title-sync";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -9,7 +10,7 @@ import { changePlannerBlock,placeBlockRanges } from "../lib/planner-placement";
 import { buildTimeline,buildRoutines,scheduleOverlapWarnings } from "../lib/engine";
 import { defaultAnswers,defaultSchedule,initialCheckin,type AppState,stateSchema } from "../lib/model";
 import { growthAnalysis } from "../lib/growth-analysis";
-import { PlannerTodos } from "../components/planner-todos";
+import { PlannerTodoEditor,PlannerTodos } from "../components/planner-todos";
 import { PlannerCalendarBlocks } from "../components/planner-calendar-blocks";
 import { calendarRows } from "../lib/planner-grid";
 import { createStateHandlers } from "../lib/state-api";
@@ -152,4 +153,19 @@ test("완료·미완료·주간·하루 일정은 같은 카테고리 설정을 
   }
   const html=renderToStaticMarkup(<PlannerCalendarBlocks planner={{...p,records:[]}} date={date} today={date} rows={calendarRows(p,date,false)} busy={false} selecting={false} onEdit={()=>{}} onMark={()=>{}} onCompleteTodo={()=>{}}/>);
   assert.match(html,/--block-hue:270/);assert.ok(!html.includes("is-done"));assert.equal(JSON.stringify(p),before);
+});
+
+test("할 일 제목은 수정 버튼으로 열고 고정 하단 저장을 제공하며 완료 상태를 유지한다",()=>{
+ const t=todo(),p=upsertTodo(emptyPlanner(),t);
+ const html=renderToStaticMarkup(<PlannerTodos planner={p} date={date} busy={false} onSave={async()=>{}}/>);assert.match(html,/발표자료 만들기 수정/);
+ const editor=renderToStaticMarkup(<PlannerTodoEditor todo={t} planner={p} date={date} busy={false} onSave={async()=>{}} onSaved={()=>{}} onClose={()=>{}}/>);
+ assert.match(editor,/dialog-fixed-footer/);assert.match(editor,/form="todo-save-form"/);assert.match(editor,/할 일 저장/);
+ const changed=upsertTodo(p,{...t,title:"발표자료 복습"});assert.equal(changed.todos?.[0].status,t.status);assert.equal(changed.todos?.[0].title,"발표자료 복습");
+});
+
+test("연결 기록의 제목만 동기화하고 성장·시각·원본 객체를 변경하지 않는다",()=>{
+ const t=todo(),p=upsertTodo(emptyPlanner(),t),before={planner:p} as AppState,after={planner:upsertTodo(p,{...t,title:"고친 제목"})} as AppState;
+ const record={title:t.title,sources:[{kind:"todo",id:t.id,date}],start:"same-start",end:"same-end",growthKind:"walk"} as any;
+ const renamed=syncTodoRecordTitles(before,after,[record]);assert.equal(renamed[0].title,"고친 제목");assert.equal(record.title,t.title);assert.equal(renamed[0].growthKind,"walk");assert.equal(renamed[0].start,record.start);
+ const custom={...record,title:"별도 수행 이름"};assert.equal(syncTodoRecordTitles(before,after,[custom])[0].title,custom.title);
 });

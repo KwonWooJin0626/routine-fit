@@ -28,7 +28,7 @@ export function Toggle({ label, checked, onChange, hint, question }: { label: st
 const openDialogs=new Set<HTMLDialogElement>();
 let originalOverflow="";
 
-export function Dialog({ title, subtitle, children, onClose, wide = false, resetKey, className = "" }: { title: string; subtitle?: string; children: ReactNode; onClose: () => void; wide?: boolean; resetKey?: string | number; className?: string }) {
+export function Dialog({ title, subtitle, children, footer, onClose, wide = false, resetKey, className = "" }: { title: string; subtitle?: string; children: ReactNode; footer?:ReactNode; onClose: () => void; wide?: boolean; resetKey?: string | number; className?: string }) {
   const ref = useRef<HTMLDialogElement>(null); const id = useId();
   useLayoutEffect(()=>{
     const d=ref.current;if(!d)return;
@@ -41,7 +41,7 @@ export function Dialog({ title, subtitle, children, onClose, wide = false, reset
     return()=>{d.close();openDialogs.delete(d);if(parent?.isConnected&&openDialogs.has(parent)&&!parent.open)parent.showModal();if(!openDialogs.size)document.body.style.overflow=originalOverflow;trigger?.focus({preventScroll:true});};
   },[]);
   useChapterScroll(ref, `${title}:${resetKey ?? ""}`);
-  const content=<dialog ref={ref} className={`dialog ${wide ? "wide" : ""} ${className}`} aria-labelledby={id} onClick={e=>{if(e.target===e.currentTarget){const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)onClose();}}} onCancel={e=>{e.preventDefault();onClose();}}><header className="dialog-head"><div><h2 id={id} tabIndex={-1} data-chapter-heading>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" aria-label="닫기" onClick={onClose}><X size={20} /></button></header><div className="dialog-content">{children}</div></dialog>;
+  const content=<dialog ref={ref} className={`dialog ${wide ? "wide" : ""} ${className}`} aria-labelledby={id} onClick={e=>{if(e.target===e.currentTarget){const r=e.currentTarget.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)onClose();}}} onCancel={e=>{e.preventDefault();onClose();}}><header className="dialog-head"><div><h2 id={id} tabIndex={-1} data-chapter-heading>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><button className="icon-button" aria-label="닫기" onClick={onClose}><X size={20} /></button></header><div className="dialog-content">{children}</div>{footer&&<footer className="dialog-fixed-footer">{footer}</footer>}</dialog>;
   return typeof document==="undefined"?content:createPortal(content,document.body);
 }
 
