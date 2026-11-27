@@ -37,7 +37,7 @@ export function dateUnassignedTodos(planner:Planner){
   return (planner.todos??[]).filter(todo=>!todo.period&&!todo.todayDate&&!todo.dueDate&&!placed.has(todo.id));
 }
 
-export function monthItems(planner:Planner,weeks:string[][]):MonthItem[]{
+export function monthItems(planner:Planner,weeks:string[][],excludeFixed=false):MonthItem[]{
   const days=weeks.flat();
   const items:MonthItem[]=[];
   for(const todo of planner.todos??[]){
@@ -51,6 +51,7 @@ export function monthItems(planner:Planner,weeks:string[][]):MonthItem[]{
     Number(b.kind==="due")-Number(a.kind==="due")||a.start.localeCompare(b.start));
   for(const day of days){
     for(const occurrence of occurrencesInWindow(planner,day)){
+      if(excludeFixed&&occurrence.block.kind==="fixed")continue;
       items.push({kind:"schedule",occurrence,start:day,end:day});
     }
   }
@@ -74,4 +75,10 @@ export function weekItems(items:MonthItem[],week:string[],visibleRows=2){
     return [{item,start,end,row}];
   });
   return {visible,overflow:overflow.map(items=>items.size)};
+}
+
+export function monthWeekItems(items:MonthItem[],week:string[],condensed:boolean){
+ const count=items.filter(item=>item.end>=week[0]&&item.start<=week[6]).length;
+ const layout=weekItems(items,week,condensed?1:Math.max(1,count));
+ return {...layout,rowCount:Math.max(1,...layout.visible.map(item=>item.row+1))};
 }

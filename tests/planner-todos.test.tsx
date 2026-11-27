@@ -15,7 +15,7 @@ import { PlannerCalendarBlocks } from "../components/planner-calendar-blocks";
 import { calendarRows } from "../lib/planner-grid";
 import { createStateHandlers } from "../lib/state-api";
 import { plannerHue } from "../lib/planner-colors";
-import { monthItems,monthWeeks,moveMonth,monthlyTodosForDate,weekItems } from "../lib/planner-month";
+import { monthItems,monthWeeks,moveMonth,monthlyTodosForDate,weekItems,monthWeekItems } from "../lib/planner-month";
 
 const date="2026-11-04",now=new Date(`${date}T12:00:00+09:00`);
 const todo=()=>plannerTodoSchema.parse({id:"task",title:"발표자료 만들기",todayDate:date});
@@ -168,4 +168,13 @@ test("연결 기록의 제목만 동기화하고 성장·시각·원본 객체�
  const record={title:t.title,sources:[{kind:"todo",id:t.id,date}],start:"same-start",end:"same-end",growthKind:"walk"} as any;
  const renamed=syncTodoRecordTitles(before,after,[record]);assert.equal(renamed[0].title,"고친 제목");assert.equal(record.title,t.title);assert.equal(renamed[0].growthKind,"walk");assert.equal(renamed[0].start,record.start);
  const custom={...record,title:"별도 수행 이름"};assert.equal(syncTodoRecordTitles(before,after,[custom])[0].title,custom.title);
+});
+
+test("월간 고정 일정 제외는 저장 데이터를 유지하고 생략 해제는 모든 행을 표시한다",()=>{
+ const fixed=block({id:"fixed-toggle",kind:"fixed",weekdays:[1,2,3,4,5]}),once=block({id:"once-toggle",kind:"once",date});
+ const p=plannerSchema.parse({...emptyPlanner(),blocks:[fixed,once],todos:[todo()]}),before=JSON.stringify(p),weeks=monthWeeks(date);
+ const all=monthItems(p,weeks),filtered=monthItems(p,weeks,true);
+ assert.ok(all.some(x=>x.kind==="schedule"&&x.occurrence.block.kind==="fixed"));assert.ok(!filtered.some(x=>x.kind==="schedule"&&x.occurrence.block.kind==="fixed"));assert.ok(filtered.some(x=>x.kind==="todo"));assert.equal(JSON.stringify(p),before);
+ const week=weeks.find(w=>w.includes(date))!,compact=monthWeekItems(all,week,true),full=monthWeekItems(all,week,false);
+ assert.ok(compact.overflow.some(n=>n>0));assert.ok(full.overflow.every(n=>n===0));assert.ok(full.rowCount>1);
 });

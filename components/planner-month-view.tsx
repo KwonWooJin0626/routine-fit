@@ -6,7 +6,7 @@ import { Dialog } from "./forms";
 import { toTime } from "@/lib/model";
 import { occurrencesInWindow } from "@/lib/planner";
 import { plannerSwatch } from "@/lib/planner-colors";
-import { monthItems, monthWeeks, moveMonth, monthlyTodosForDate, dateUnassignedTodos, weekItems } from "@/lib/planner-month";
+import { monthItems, monthWeeks, moveMonth, monthlyTodosForDate, dateUnassignedTodos, monthWeekItems } from "@/lib/planner-month";
 import { attachMonthTouchRange } from "@/lib/month-touch-range";
 import type { Planner, PlannerBlock, PlannerTodo } from "@/lib/planner-model";
 
@@ -37,14 +37,15 @@ type Props={
 
 export function PlannerMonthView({planner,selected,today,busy,onSelect,onDay,onAdd,onEditTodo,onToggleTodo,onEditBlock}:Props){
   const [detail,setDetail]=useState<"day"|"unassigned"|null>(null);
+  const [condensed,setCondensed]=useState(true),[excludeFixed,setExcludeFixed]=useState(false);
   const month=selected.slice(0,7);
   const weekData=useMemo(()=>{
     const weeks=monthWeeks(month+"-01");
-    const items=monthItems(planner,weeks);
-    return weeks.map(week=>({week,...weekItems(items,week,1)}));
-  },[month,planner]);
+    const items=monthItems(planner,weeks,excludeFixed);
+    return weeks.map(week=>({week,...monthWeekItems(items,week,condensed)}));
+  },[month,planner,condensed,excludeFixed]);
   const todos=monthlyTodosForDate(planner,selected);
-  const schedules=occurrencesInWindow(planner,selected);
+  const schedules=occurrencesInWindow(planner,selected).filter(row=>!excludeFixed||row.block.kind!=="fixed");
   const unassigned=dateUnassignedTodos(planner);
   const [preview,setPreview]=useState<{start:string;end:string}|null>(null);
   const drag=useRef<{pointerId:number;start:string}|null>(null);
@@ -108,7 +109,7 @@ export function PlannerMonthView({planner,selected,today,busy,onSelect,onDay,onA
     </li>;
   }
 
-  return <section className="panel month-planner" aria-label="월간 계획표">
+  return <section className="panel month-planner" data-condensed={condensed} aria-label="월간 계획표">
     <header className="month-planner-header">
       <div className="sp-date-nav">
         <button type="button" className="icon-button" aria-label="이전 달" onClick={()=>onSelect(moveMonth(selected,-1))}><ChevronLeft size={18}/></button>
@@ -116,15 +117,19 @@ export function PlannerMonthView({planner,selected,today,busy,onSelect,onDay,onA
         <button type="button" className="icon-button" aria-label="다음 달" onClick={()=>onSelect(moveMonth(selected,1))}><ChevronRight size={18}/></button>
         <button type="button" className="sp-today" onClick={()=>onSelect(today)}>오늘</button>
       </div>
+      <div className="month-display-toggles" role="group" aria-label="월간 일정 표시 설정">
+        <button type="button" role="switch" aria-checked={condensed} onClick={()=>setCondensed(v=>!v)}><span className="month-switch-track" aria-hidden="true"><i/></span>일정 생략</button>
+        <button type="button" role="switch" aria-checked={excludeFixed} onClick={()=>setExcludeFixed(v=>!v)}><span className="month-switch-track" aria-hidden="true"><i/></span>고정 스케줄 제외</button>
+      </div>
       <button type="button" className="button primary" aria-label="할 일 추가" title="할 일 추가" disabled={busy} onClick={()=>onAdd(selected)}><Plus size={16}/><span className="month-add-label">할 일 추가</span></button>
     </header>
     <p className="month-range-hint" role="status">{preview?formatDay(preview.start)+(preview.start===preview.end?"":' ~ '+formatDay(preview.end))+" 선택 중 · 손을 떼면 할 일을 추가해요":"휴대폰은 날짜를 꾹 누른 뒤 드래그해 기간을 선택해요. PC는 날짜 사이를 드래그하세요."}</p>
     <div className="month-weekdays" aria-hidden="true">{weekdays.map(day=><span key={day}>{day}</span>)}</div>
     <div ref={gridRef} className="month-grid" data-range-selecting={!!preview} onClickCapture={event=>{if(ignoreClick.current&&event.detail>0){ignoreClick.current=false;event.preventDefault();event.stopPropagation();}}} onPointerDown={startRange} onPointerMove={moveRange} onPointerUp={stopRange} onPointerCancel={event=>{if(event.pointerType!=="touch"){drag.current=null;setPreview(null);}}} onLostPointerCapture={()=>{if(drag.current){drag.current=null;setPreview(null);}}}>
-      {weekData.map(({week,visible,overflow})=><div className="month-week" key={week[0]}>
+      {weekData.map(({week,visible,overflow,rowCount})=><div className="month-week" key={week[0]} style={condensed?undefined:{gridTemplateRows:`24px repeat(${rowCount},24px)`}}>
         {week.map((date,index)=><div key={date} className="month-cell" data-month-cell={date}
           data-outside={date.slice(0,7)!==month} data-selected={selected===date}
-          data-preview={!!preview&&preview.start<=date&&date<=preview.end} style={{gridColumn:index+1}}
+          data-preview={!!preview&&preview.start<=date&&date<=preview.end} style={{gridColumn:index+1,...(!condensed?{gridRow:`1 / ${rowCount+2}`}:{})}}
           onClick={event=>{if(event.target===event.currentTarget)onSelect(date);}}>
           <button type="button" data-month-date={date} className="month-date"
           aria-label={formatDay(date)} aria-pressed={selected===date}
