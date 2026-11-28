@@ -79,6 +79,6 @@ export function weekItems(items:MonthItem[],week:string[],visibleRows=2){
 
 export function monthWeekItems(items:MonthItem[],week:string[],condensed:boolean){
  const count=items.filter(item=>item.end>=week[0]&&item.start<=week[6]).length;
- const layout=weekItems(items,week,condensed?1:Math.max(1,count));
+ const layout=weekItems(items,week,condensed?3:Math.max(1,count));
  return {...layout,rowCount:Math.max(1,...layout.visible.map(item=>item.row+1))};
 }

@@ -176,5 +176,12 @@ test("월간 고정 일정 제외는 저장 데이터를 유지하고 생략 해
  const all=monthItems(p,weeks),filtered=monthItems(p,weeks,true);
  assert.ok(all.some(x=>x.kind==="schedule"&&x.occurrence.block.kind==="fixed"));assert.ok(!filtered.some(x=>x.kind==="schedule"&&x.occurrence.block.kind==="fixed"));assert.ok(filtered.some(x=>x.kind==="todo"));assert.equal(JSON.stringify(p),before);
  const week=weeks.find(w=>w.includes(date))!,compact=monthWeekItems(all,week,true),full=monthWeekItems(all,week,false);
- assert.ok(compact.overflow.some(n=>n>0));assert.ok(full.overflow.every(n=>n===0));assert.ok(full.rowCount>1);
+ assert.ok(compact.rowCount<=3);assert.ok(full.overflow.every(n=>n===0));assert.ok(full.rowCount>1);
+});
+
+test("월간 생략 모드는 세 개까지 표시하고 네 번째부터 더 보기로 센다",()=>{
+ const weeks=monthWeeks(date),week=weeks.find(w=>w.includes(date))!;
+ const p=plannerSchema.parse({...emptyPlanner(),todos:Array.from({length:5},(_,i)=>({...todo(),id:`three-${i}`,title:`할 일 ${i}`}))});
+ const items=monthItems(p,weeks),compact=monthWeekItems(items,week,true),full=monthWeekItems(items,week,false),day=week.indexOf(date);
+ assert.equal(compact.visible.length,3);assert.equal(compact.rowCount,3);assert.equal(compact.overflow[day],2);assert.equal(full.visible.length,5);assert.equal(full.overflow[day],0);
 });

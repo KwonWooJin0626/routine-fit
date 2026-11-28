@@ -126,10 +126,10 @@ export function PlannerMonthView({planner,selected,today,busy,onSelect,onDay,onA
     <p className="month-range-hint" role="status">{preview?formatDay(preview.start)+(preview.start===preview.end?"":' ~ '+formatDay(preview.end))+" 선택 중 · 손을 떼면 할 일을 추가해요":"휴대폰은 날짜를 꾹 누른 뒤 드래그해 기간을 선택해요. PC는 날짜 사이를 드래그하세요."}</p>
     <div className="month-weekdays" aria-hidden="true">{weekdays.map(day=><span key={day}>{day}</span>)}</div>
     <div ref={gridRef} className="month-grid" data-range-selecting={!!preview} onClickCapture={event=>{if(ignoreClick.current&&event.detail>0){ignoreClick.current=false;event.preventDefault();event.stopPropagation();}}} onPointerDown={startRange} onPointerMove={moveRange} onPointerUp={stopRange} onPointerCancel={event=>{if(event.pointerType!=="touch"){drag.current=null;setPreview(null);}}} onLostPointerCapture={()=>{if(drag.current){drag.current=null;setPreview(null);}}}>
-      {weekData.map(({week,visible,overflow,rowCount})=><div className="month-week" key={week[0]} style={condensed?undefined:{gridTemplateRows:`24px repeat(${rowCount},24px)`}}>
+      {weekData.map(({week,visible,overflow,rowCount})=><div className="month-week" key={week[0]} style={{gridTemplateRows:condensed?`22px repeat(${rowCount},20px) 16px`:`24px repeat(${rowCount},24px)`}}>
         {week.map((date,index)=><div key={date} className="month-cell" data-month-cell={date}
           data-outside={date.slice(0,7)!==month} data-selected={selected===date}
-          data-preview={!!preview&&preview.start<=date&&date<=preview.end} style={{gridColumn:index+1,...(!condensed?{gridRow:`1 / ${rowCount+2}`}:{})}}
+          data-preview={!!preview&&preview.start<=date&&date<=preview.end} style={{gridColumn:index+1,gridRow:`1 / ${rowCount+(condensed?3:2)}`}}
           onClick={event=>{if(event.target===event.currentTarget)onSelect(date);}}>
           <button type="button" data-month-date={date} className="month-date"
           aria-label={formatDay(date)} aria-pressed={selected===date}
@@ -148,7 +148,7 @@ export function PlannerMonthView({planner,selected,today,busy,onSelect,onDay,onA
           </button>;
         })}
         {overflow.map((count,index)=>count>0&&<button key={week[index]} type="button" className="month-overflow"
-          aria-label={`${formatDay(week[index])} ${count}개 더 보기`} style={{gridColumn:index+1}}
+          aria-label={`${formatDay(week[index])} ${count}개 더 보기`} style={{gridColumn:index+1,gridRow:rowCount+2}}
           onClick={event=>showDay(event,week[index],true)}>+{count}개</button>)}
       </div>)}
     </div>

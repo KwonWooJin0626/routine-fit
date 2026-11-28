@@ -154,3 +154,8 @@
 
 .sp-workspace[data-view="month"] .month-planner[data-condensed="true"]{min-height:460px;}
 @media(max-width:900px){.sp-workspace[data-view="month"] .month-planner[data-condensed="true"]{min-height:510px;}}
+
+/* Up to three schedule lanes, with overflow counts below the last visible lane. */
+.sp-workspace[data-view="month"] .month-planner[data-condensed="true"] .month-grid{grid-auto-rows:minmax(min-content,1fr);overflow:auto;}
+.sp-workspace[data-view="month"] .month-planner[data-condensed="true"] .month-chip{min-height:18px;padding-block:0;line-height:18px;}
+.sp-workspace[data-view="month"] .month-planner[data-condensed="true"] .month-overflow{min-height:16px;line-height:16px;}
